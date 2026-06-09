@@ -259,3 +259,33 @@ Production build hardening and architectural gap documentation. After the full 8
 - End-to-end Testnet smoke test: create event (Freighter) → purchase ticket (Burner) → QR scan → `mark_used` on-chain.
 - Monitor Friendbot rate limits on testnet for burner wallet funding.
 - MVP deployment to production (Vercel or similar static host).
+
+---
+
+## Session 10 — 2026-07-21
+
+### Context
+Documentation audit session. No contract or frontend logic changed. All changes are corrections to docs, schema, and the deploy script.
+
+### Critical corrections
+
+| File | What was wrong | What it says now |
+|---|---|---|
+| `docs/architecture.md` | `purchase()` claimed on-chain ticket_id generation | Client generates ID via `generateID()`; contract checks collision |
+| `docs/architecture.md` | QR rejection threshold said `> 30s` | Corrected to `>= 45s` (matches `qr.ts` `PAYLOAD_EXPIRY_SECONDS = 45`) |
+| `docs/architecture.md` | Both `initialize()` deployment steps missing `admin` param | Added `admin` as first arg to both calls |
+| `docs/architecture.md` | Wallet flow said "Web3Auth"; transaction split said "server-side" | Burner Wallet + client-side `AssembledTransaction.signAndSend()` |
+| `docs/decisions.md` | D-004 said "no database for MVP"; D-029 described RPC polling | Both rewritten: Supabase is the read-cache; on-chain is financial authority |
+| `docs/decisions.md` | D-006 said 30s QR window | Updated to 45s; rationale documented |
+| `docs/decisions.md` | D-032/D-033 said Marketplace, Cancel, and Refund UIs were deferred | All three are implemented — decisions updated to reflect reality |
+| `docs/decisions.md` | D-018 title/body mismatch; D-019–D-022 titles one slot behind bodies | Titles realigned to match their bodies |
+| `docs/decisions.md` | D-034, D-035 missing | Added: `Number()` i128 precision limitation; open RLS accepted testnet tradeoff |
+| `README.md` | Listed `verify_entry` (non-existent); `cancel_event` said auto-refund | Corrected to `mark_used`; pull-based refund documented |
+| `README.md` | Data Indexing section referenced `SorobanRpc.getEvents()` + generic symbols | Rewritten with Supabase strategy + full symbol table (`ev_create`, `tk_buy`, `ev_rel`, etc.) |
+| `contracts/README.md` | Marketplace status: "🔲 not yet implemented"; wasm target wrong | Both contracts `✅ complete`; target corrected to `wasm32v1-none` |
+| `AGENTS.md` | Docs table referenced `frontend.md`, `repo_guide.md` (don't exist) | Removed both rows |
+| `AGENTS.md` | Component directories listed `shared/`, `attendee/`, `scanner/` (don't exist) | Corrected to `events/`, `layout/`, `organizer/`, `tickets/`, `ui/` |
+| `AGENTS.md` | QR hard rule said `< 30`; soroban.ts description stale | Updated to `< 45`; soroban.ts description matches D-007 revised |
+| `supabase_schema.sql` | Missing 5 metadata columns; `current_supply` and `capacity` typed as `integer` | Added `description`, `image_url`, `venue`, `city`, `category`; types corrected to `bigint` |
+| `scripts/deploy.sh` | `XLM_TESTNET` hardcoded (violates AGENTS.md hard rule) | Removed; script now reads `XLM_TESTNET_TOKEN` from environment and fails loudly if unset |
+

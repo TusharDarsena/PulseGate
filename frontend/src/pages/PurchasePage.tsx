@@ -8,7 +8,7 @@ import { generateID } from '../lib/utils';
 import { useWallet } from '../hooks/useWallet';
 import { useXlmPrice } from '../hooks/useXlmPrice';
 
-import { supabase } from '../lib/supabase';
+import { mirrorPurchasedTicket, synchronizationWarning } from '../lib/readModelSync';
 
 interface PurchasePageProps {
   eventId: string;
@@ -40,26 +40,27 @@ export function PurchasePage({ eventId, events, onBack, onPurchaseComplete, inva
       const ticketId = generateID();
       await purchaseTicket(event.eventId, wallet.publicKey, ticketId, wallet.signFn);
       
-      // Update Supabase
-      await supabase.from('tickets').insert({
-        ticket_id: ticketId,
-        event_id: event.eventId,
-        owner_address: wallet.publicKey,
-        status: 'Active',
+      const syncResult = await mirrorPurchasedTicket({
+        ticketId,
+        eventId: event.eventId,
+        ownerAddress: wallet.publicKey,
       });
-      // Use atomic RPC for concurrent purchase safety
-      await supabase.rpc('increment_event_supply', { row_id: event.eventId });
-      
-      await invalidateEvents();
-      invalidateTickets();
 
-      setTxState({ status: 'success' });
+      if (syncResult.ok) {
+        await invalidateEvents();
+        invalidateTickets();
+      }
+
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? undefined : synchronizationWarning(syncResult),
+      });
 
       // Wait for success animation before navigating
       setTimeout(() => {
         setTxState({ status: 'idle' });
         onPurchaseComplete(ticketId);
-      }, 1500);
+      }, syncResult.ok ? 1500 : 6000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Purchase failed';
       setTxState({ status: 'error', errorMessage: msg });

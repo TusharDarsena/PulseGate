@@ -13,7 +13,7 @@ interface CreateEventFormData {
 }
 
 interface CreateEventPageProps {
-  readonly onSubmit: () => void;
+  readonly onSubmit: (readModelSynced: boolean) => void;
 }
 
 const EMPTY_FORM: CreateEventFormData = {
@@ -30,7 +30,7 @@ const EMPTY_FORM: CreateEventFormData = {
 
 import { useAppStore } from '../../store/useAppStore';
 import { createEvent } from '../../lib/soroban';
-import { upsertEventMetadata } from '../../lib/supabase';
+import { mirrorCreatedEvent, synchronizationWarning } from '../../lib/readModelSync';
 import { xlmToStroops } from '../../types';
 
 export function CreateEventPage({ onSubmit }: CreateEventPageProps) {
@@ -73,28 +73,29 @@ export function CreateEventPage({ onSubmit }: CreateEventPageProps) {
         wallet.signFn,
       );
 
-      // Non-blocking Supabase metadata write — event exists on-chain regardless
-      upsertEventMetadata({
-        event_id: eventId,
-        organizer_address: wallet.publicKey,
+      const syncResult = await mirrorCreatedEvent({
+        eventId,
+        organizerAddress: wallet.publicKey,
         name: form.name,
         description: form.description || null,
-        image_url: form.imageUrl || null,
+        imageUrl: form.imageUrl || null,
         venue: form.venue || null,
         city: form.city || null,
         category: null,
-        status: 'Active',
-        current_supply: 0,
-        date_unix: dateUnix,
+        dateUnix,
         capacity: capacity,
-        price_per_ticket: Number(priceStroops)
-      }).catch(err => console.warn('[CreateEvent] Supabase write failed:', err));
+        pricePerTicket: Number(priceStroops),
+      });
 
-      setTxState({ status: 'success', hash: eventId });
+      setTxState({
+        status: 'success',
+        hash: eventId,
+        message: syncResult.ok ? undefined : synchronizationWarning(syncResult),
+      });
       setTimeout(() => {
         setTxState({ status: 'idle' });
-        onSubmit();
-      }, 1500);
+        onSubmit(syncResult.ok);
+      }, syncResult.ok ? 1500 : 6000);
 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create event';

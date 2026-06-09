@@ -12,7 +12,11 @@ interface DashboardPageProps {
 import { useAppStore } from '../../store/useAppStore';
 import { useWallet } from '../../hooks/useWallet';
 import { releaseFunds, cancelEvent } from '../../lib/soroban';
-import { supabase } from '../../lib/supabase';
+import {
+  mirrorCancelledEvent,
+  mirrorCompletedEvent,
+  synchronizationWarning,
+} from '../../lib/readModelSync';
 
 export function DashboardPage({ events, onCreateEvent, onScanTickets, invalidateEvents }: DashboardPageProps) {
   const { wallet, setTxState } = useAppStore();
@@ -41,12 +45,14 @@ export function DashboardPage({ events, onCreateEvent, onScanTickets, invalidate
     try {
       await releaseFunds(eventId, wallet.publicKey, wallet.signFn);
       
-      // Update Supabase mirror
-      await supabase.from('events').update({ status: 'Completed' }).eq('event_id', eventId);
-      await invalidateEvents();
+      const syncResult = await mirrorCompletedEvent(eventId);
+      if (syncResult.ok) await invalidateEvents();
 
-      setTxState({ status: 'success', hash: 'Funds released successfully!' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Funds released successfully!' : synchronizationWarning(syncResult),
+      });
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('Release funds failed', e);
       const msg = e instanceof Error ? e.message : 'Failed to release funds';
@@ -61,12 +67,14 @@ export function DashboardPage({ events, onCreateEvent, onScanTickets, invalidate
     try {
       await cancelEvent(eventId, wallet.publicKey, wallet.signFn);
       
-      // Update Supabase mirror
-      await supabase.from('events').update({ status: 'Cancelled' }).eq('event_id', eventId);
-      await invalidateEvents();
+      const syncResult = await mirrorCancelledEvent(eventId);
+      if (syncResult.ok) await invalidateEvents();
 
-      setTxState({ status: 'success', hash: 'Event cancelled successfully.' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Event cancelled successfully.' : synchronizationWarning(syncResult),
+      });
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('Cancel event failed', e);
       const msg = e instanceof Error ? e.message : 'Failed to cancel event';

@@ -174,8 +174,8 @@ function App() {
       case 'organizer-create':
         return (
           <CreateEventPage
-            onSubmit={() => {
-              invalidateEvents();
+            onSubmit={(readModelSynced) => {
+              if (readModelSynced) invalidateEvents();
               setCurrentView('organizer-dashboard');
             }}
           />

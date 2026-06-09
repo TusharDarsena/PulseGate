@@ -78,8 +78,8 @@ See the full [User Guide](docs/architecture.md) for more technical details.
 ### Ticket Contract
 - `create_event`: Initializes a new event with metadata and pricing.
 - `purchase`: Mints a ticket NFT to the buyer and holds XLM in escrow.
-- `verify_entry`: Validates a signed QR payload against the owner's address.
-- `cancel_event`: Triggers automatic refund logic for all ticket holders.
+- `mark_used`: Validates a signed QR payload client-side, then marks the ticket Used on-chain. Called by the organizer after door verification.
+- `cancel_event`: Marks the event Cancelled. Refunds are pull-based — attendees call `refund()` individually (D-002).
 
 ### Marketplace Contract
 - `list_ticket`: Creates a resale listing for a ticket NFT.
@@ -137,11 +137,26 @@ Monitor contract interactions and event health via Stellar's public infrastructu
 
 ## 🗂 Data Indexing
 
-We utilize Soroban's event system to discover and display platform data.
+Event and ticket lists are discovered via **Supabase** (read-cache layer). On-chain state is the financial source of truth; Supabase provides fast list queries without full RPC ledger scans. See D-004, D-029.
 
-- **Event Discovery**: `SorobanRpc.getEvents()` is used to find all `create_event` calls.
-- **Ticket Library**: Filters on-chain events to find tickets owned by the current wallet.
-- **History**: Transaction logs provide a full audit trail of purchases and transfers.
+- **Event Discovery**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts` (queries `public.events` table).
+- **Ticket Library**: `useTickets` calls `fetchTicketsByOwner(wallet)` from `lib/supabase.ts` (queries `public.tickets` by `owner_address`).
+- **Polling**: Both hooks refresh every 30s; `invalidate()` forces an immediate re-fetch after a purchase.
+- **On-chain Authority**: The scanner calls `get_ticket(ticketId)` on-chain to verify ownership and status before every `mark_used` call.
+
+### On-Chain Event Symbols (for indexers / Stellar Expert)
+
+All state changes emit Soroban events using `symbol_short!` (9-char max). Use these exact symbols when filtering RPC events:
+
+| Symbol | Emitted by | Meaning |
+|---|---|---|
+| `ev_create` | `create_event` | New event created |
+| `tk_buy` | `purchase` | Ticket minted to buyer |
+| `ev_rel` | `release_funds` | Escrow released to organizer |
+| `ev_cancel` | `cancel_event` | Event marked Cancelled |
+| `tk_used` | `mark_used` | Ticket scanned at door |
+| `tk_xfer` | `restricted_transfer` | Ticket ownership transferred (marketplace) |
+| `tk_refund` | `refund` | Ticket refunded after cancellation |
 
 ---
 
@@ -153,7 +168,7 @@ To prevent ticket duplication, our platform uses rotating QR codes. Every 30 sec
 2. `current_timestamp`
 3. `signature` (signed by the attendee's Burner Wallet)
 
-The venue scanner verifies the signature and ensures the timestamp is within a ±30s window.
+The venue scanner verifies the signature and ensures the timestamp is within a ±45s window (30s rotation + 15s clock-drift grace — D-006).
 
 ### Burner Wallets (D-028)
 Attendees shouldn't need to understand seed phrases. We generate a one-time `Keypair` on the fly, store the secret in the browser, and fund it via Friendbot for a seamless onboarding experience.
