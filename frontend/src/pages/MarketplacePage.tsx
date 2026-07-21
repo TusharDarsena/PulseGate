@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { buyListing, getTicket } from '../lib/soroban';
-import { supabase } from '../lib/supabase';
+import { mirrorListingSale, synchronizationWarning } from '../lib/readModelSync';
 import { formatEventDate, stroopsToXlm } from '../types';
 import type { ListingWithEvent } from '../hooks/useListings';
 
@@ -53,14 +53,22 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
 
       await buyListing(listing.seller, listing.listingId, wallet.publicKey, wallet.signFn);
 
-      await supabase.from('listings').update({ status: 'Sold' }).eq('listing_id', listing.listingId);
-      await supabase.from('tickets').update({ owner_address: wallet.publicKey }).eq('ticket_id', listing.ticketId);
+      const syncResult = await mirrorListingSale({
+        listingId: listing.listingId,
+        ticketId: listing.ticketId,
+        buyerAddress: wallet.publicKey,
+      });
 
-      await invalidateListings();
-      invalidateTickets();
+      if (syncResult.ok) {
+        await invalidateListings();
+        invalidateTickets();
+      }
 
-      setTxState({ status: 'success', hash: 'Ticket purchased successfully!' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Ticket purchased successfully!' : synchronizationWarning(syncResult),
+      });
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('Buy listing failed:', e);
       const msg = e instanceof Error ? e.message : 'Purchase failed.';

@@ -55,6 +55,8 @@
 ### Data Layer (D-004, D-029 revised)
 **Supabase** is used as a read-cache for event and ticket list queries (`useEvents`, `useTickets`). On-chain state (`get_event`, `get_ticket`) is still the authoritative source for all transaction paths (purchase, scanner, release funds).
 
+All state-changing flows confirm the Soroban transaction before calling `lib/readModelSync.ts`. That adapter owns event, ticket, and listing mirror writes, checks Supabase result errors, and reports mirror failures separately from transaction failures. Hooks are invalidated only after the matching mirror operation succeeds. A mirror failure after chain confirmation must be shown as a synchronization warning and must never invite the user to retry the blockchain action.
+
 
 ### QR Verification (D-005, D-006)
 1. **Frontend (every 30s)**: Attendee wallet signs `{wallet_address}:{ticket_id}:{timestamp}`. Encodes as QR.
@@ -62,7 +64,7 @@
    - Rejects if `|now - timestamp| >= 45s` (30s rotation + 15s clock-drift grace — see D-006).
    - Verifies `ed25519` signature locally (`Keypair.verify()`).
    - Calls `get_ticket(ticket_id)` to ensure `owner == wallet_address` & `status == Active`.
-   - Displays Green, executes `mark_used` on-chain.
+   - Executes `mark_used` on-chain, mirrors `Used`, then displays Green. If only the mirror fails, entry remains valid because the on-chain `Used` state is authoritative, and the scanner displays a synchronization warning.
 
 ---
 

@@ -1,131 +1,356 @@
 # AGENTS.md
-*Read this before touching any file. Navigation, ownership, and hard rules — no design detail.*
+
+Project intelligence for **StellarTickets**. Read this before editing the repository.
+
+This file defines where behavior lives, which boundaries are security-critical, and which downstream files must change together. It is not a generic coding guide and does not replace reading the code being modified.
 
 ---
 
-## What this project is
+## 1. System model
 
-NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite frontend. Full design in `docs/architecture.md`.
+StellarTickets is a Stellar testnet ticketing application with five layers:
 
----
+1. **TicketContract (Soroban/Rust)** — authoritative event, ticket, escrow, refund, cancellation, and check-in state.
+2. **MarketplaceContract (Soroban/Rust)** — authoritative resale listing state, royalty payout, and the only permitted resale transfer path.
+3. **Generated TypeScript bindings** — ABI bridge from deployed contracts to the frontend.
+4. **React/Vite frontend** — wallet connection, transaction orchestration, QR flows, navigation, and UI state.
+5. **Supabase** — searchable read model for events, tickets, listings, profiles, and cached price data.
 
-## Read before you code
+> **Soroban owns truth. Supabase makes that truth discoverable.**
 
-| Working on          | Read first                                                      |
-| ------------------- | --------------------------------------------------------------- |
-| Anything            | `docs/architecture.md`                                          |
-| Contracts           | + `contracts/README.md`                                         |
-| Any design decision | `docs/decisions.md` — check before changing, add after deciding |
-
----
-
-## File ownership
-
-### Root
-| File           | Owns                                         |
-| -------------- | -------------------------------------------- |
-| `README.md`    | Project overview and current status          |
-| `AGENTS.md`    | This file                                    |
-| `CHANGELOG.md` | Session log — append after each work session |
-
-### docs/
-| File              | Owns                                                                                                                                            |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `architecture.md` | **Binding design.** Storage models, function signatures, wallet flows, QR, deployment sequence. Do not deviate without updating `decisions.md`. |
-| `decisions.md`    | Why each design choice was made. Check before overriding anything.                                                                              |
-
-### contracts/
-| File                         | Owns                                                                                                           |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `Cargo.toml`                 | Workspace root. SDK pinned **once** here: `soroban-sdk = "25.3.1"`. Never add a version in per-contract files. |
-| `ticket/src/lib.rs`          | Public interface only. No business logic. Never calls `env.storage()` directly.                                |
-| `ticket/src/types.rs`        | All `#[contracttype]` definitions. Nothing else.                                                               |
-| `ticket/src/storage.rs`      | All `read_*` / `write_*` helpers. Raw storage, no logic.                                                       |
-| `ticket/src/escrow.rs`       | XLM stroop accounting only.                                                                                    |
-| `ticket/src/events.rs`       | All `env.events().publish()` calls. Nowhere else.                                                              |
-| `ticket/src/test.rs`         | Contract tests using Soroban test environment.                                                                 |
-| `marketplace/src/lib.rs`     | Public interface + the one inter-contract call to `restricted_transfer` in `buy_listing`.                      |
-| `marketplace/src/types.rs`   | `DataKey`, `Listing`, `ListingStatus`.                                                                         |
-| `marketplace/src/storage.rs` | Storage helpers, same pattern as ticket.                                                                       |
-| `marketplace/src/events.rs`  | Marketplace events only.                                                                                       |
-| `marketplace/src/test.rs`    | Royalty calculation, buy_listing flow, cancellation.                                                           |
-
-### frontend/src/
-| File                    | Owns                                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `lib/constants.ts`      | ⚠️ Contract addresses, RPC URL, network passphrase. The **only** place. Hardcoding elsewhere is a bug. |
-| `lib/soroban.ts`        | All contract call wrappers. Uses `AssembledTransaction.signAndSend()` (D-007). Only file importing `SorobanRpc` (re-exported for hooks). |
-| `lib/stellar.ts`        | `Keypair.verify()`, Burner Wallet generation (`Keypair.random()`), Friendbot funding. No tx building. |
-| `lib/qr.ts`             | QR payload build + verify. Zero network calls.                                                        |
-| `hooks/useWallet.ts`    | Unified Freighter + Burner Wallet hook. `walletType: 'freighter' \| 'burner' \| null`. Nothing outside knows which provider is active. Web3Auth deferred (D-028). |
-| `hooks/useEvents.ts`    | Event list with 30s cache. Never fetch inside render.                                                 |
-| `hooks/useTickets.ts`   | Tickets for current wallet. Call `invalidate()` after purchase.                                       |
-| `components/events/`    | Event card, event list, event detail UI. No blockchain logic.                                         |
-| `components/layout/`    | App shell, navigation, header/footer. No blockchain logic.                                            |
-| `components/organizer/` | Organizer-only components. Does not import from attendee components.                                  |
-| `components/tickets/`   | Ticket card, ticket list. No blockchain logic.                                                        |
-| `components/ui/`        | UI primitives (buttons, modals, badges). No blockchain logic.                                         |
-
-### scripts/
-| File        | Owns                                                                                          |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| `deploy.sh` | Deploy Ticket → Marketplace → initialize both. Fails loudly on error. Order is enforced here. |
-| `fund.sh`   | Friendbot for test addresses.                                                                 |
+Supabase can decide what appears in a list. It must never authorize a purchase, transfer, refund, fund release, or venue entry.
 
 ---
 
-## Hard rules
+## 2. How project documentation is used
+
+- **Code and tests** show current behavior.
+- **`docs/architecture.md`** defines intended boundaries, storage models, public contract surface, wallet flow, QR flow, and deployment sequence.
+- **`docs/decisions.md`** records rationale and accepted limitations. Consult only the entries relevant to a proposed architectural change.
+- **`AGENTS.md`** defines navigation, invariants, coupling, and completion rules.
+
+If code and `architecture.md` disagree, do not silently choose one. Reconcile them in the same change.
+
+Update `decisions.md` only when introducing or reversing a significant architectural choice. Do not add entries for routine refactors, bug fixes, formatting, or implementation details.
+
+---
+
+## 3. Critical end-to-end flows
+
+### Event creation
+
+`CreateEventPage` → `lib/soroban.ts#createEvent()` → TicketContract `create_event()` → Supabase event metadata upsert.
+
+The chain owns organizer, status, supply, capacity, date, and price. Supabase adds display metadata such as image, description, venue, city, and category.
+
+### Primary purchase
+
+`PurchasePage` generates a ticket ID → `purchaseTicket()` → TicketContract validates event/capacity, creates the ticket, increments supply, updates escrow, then transfers XLM → frontend inserts the ticket mirror and increments mirrored supply.
+
+Never write the Supabase ticket before the contract transaction succeeds.
+
+### QR check-in
+
+QR format:
+
+`{wallet_address}:{ticket_id}:{timestamp}:{base64Signature}`
+
+The scanner must:
+
+1. verify payload shape, absolute age `< 45s`, and Ed25519 signature locally;
+2. read the ticket on-chain and verify owner plus `Active` status;
+3. call `mark_used()` with the organizer signer;
+4. mirror `Used` only after on-chain success.
+
+A Supabase ticket row alone never permits entry.
+
+### Cancellation, refund, and release
+
+- Cancellation marks the event `Cancelled`; there is no attendee loop.
+- Each attendee individually calls `refund()`.
+- Refund eligibility and amount come from on-chain state.
+- `release_funds()` clears escrow and marks the event `Completed` before transferring XLM.
+- Supabase status updates happen only after the corresponding contract call succeeds.
+
+### Secondary market
+
+A listing is created on-chain, then mirrored for discovery. `buy_listing()` must continue to:
+
+- load by `(seller, listing_id)`;
+- reject closed listings and self-purchases;
+- fail before transfers if the seller no longer owns the ticket;
+- derive the authoritative event and royalty recipient from the on-chain ticket/event records;
+- reject cancelled events;
+- mark the listing sold before token/cross-contract interactions;
+- pay organizer royalty and seller proceeds;
+- call TicketContract `restricted_transfer()`;
+- mirror both the sold listing and new owner after success.
+
+---
+
+## 4. Repository ownership
 
 ### Contracts
-- `lib.rs` never calls `env.storage()` directly — goes through `storage.rs`
-- `env.events().publish()` lives only in `events.rs`
-- `address.require_auth()` at the top of every guarded function
-- `checked_*` arithmetic everywhere on `i128` — no raw operators
-- `persistent()` for all data; `instance()` only for contract-lifetime data (e.g. `MarketplaceAddress`)
-- Inter-contract calls: use the generated `#[contractclient]` type — never `env.call_contract()`
 
-### Frontend
-- `AssembledTransaction.signAndSend()` handles build → simulate → sign → submit client-side (D-007 revised). No backend XDR server for MVP.
-- All SDK calls go through `lib/soroban.ts` or `lib/stellar.ts` — components never import `@stellar/stellar-sdk`
-- 30s cache TTL in all hooks — never fetch inside render
-- `constants.ts` reads from `import.meta.env` only — never hardcode contract IDs
-- Attendee wallets are Burner Wallets (D-028): `Keypair.random()`, secret in `localStorage`, funded via Friendbot
-- Event/ticket lists are discovered via Supabase (`lib/supabase.ts`) — no `get_all_*` contract methods exist. On-chain `get_event`/`get_ticket` are used for authoritative state during transactions (D-004, D-029).
+| Path | Responsibility |
+| --- | --- |
+| `contracts/Cargo.toml` | Workspace configuration and the single Soroban SDK version pin. |
+| `contracts/ticket/src/lib.rs` | TicketContract public entrypoints **and business-flow orchestration**. Uses storage/escrow/event helpers and token client. |
+| `contracts/ticket/src/types.rs` | `#[contracttype]` storage keys, Event, Ticket, and lifecycle enums. Serialized compatibility boundary. |
+| `contracts/ticket/src/storage.rs` | All raw TicketContract storage access and TTL extension. |
+| `contracts/ticket/src/escrow.rs` | Checked per-event escrow accounting only. No auth or token transfers. |
+| `contracts/ticket/src/events.rs` | All TicketContract event publication. |
+| `contracts/ticket/src/error.rs` | Stable TicketContract error codes consumed by generated bindings and frontend error mapping. |
+| `contracts/marketplace/src/lib.rs` | Listing, buy, cancel, royalty, token-transfer, and cross-contract orchestration. |
+| `contracts/marketplace/src/ticket_interface.rs` | Minimal `#[contractclient]` TicketContract interface plus XDR-compatible mirrored types. |
+| `contracts/marketplace/src/types.rs` | Listing storage key, record, and lifecycle enum. |
+| `contracts/marketplace/src/storage.rs` | Marketplace raw storage access and TTL extension. |
+| `contracts/marketplace/src/events.rs` | Marketplace event publication. |
+| `contracts/marketplace/src/error.rs` | Stable marketplace error codes consumed by frontend error mapping. |
+| Contract `test.rs` files | Auth, state, token-balance, lifecycle, error, rollback, and cross-contract behavior. Use reusable fixtures. |
+
+Important corrections to the old AGENTS file:
+
+- Contract `lib.rs` files are not interface-only; they contain the actual transaction workflows.
+- `storage.rs` owns raw storage, but `lib.rs` legitimately coordinates business logic.
+- Marketplace production code uses a minimal generated client interface; the `ticket` crate is only a test dependency.
+
+### Frontend integration
+
+| Path | Responsibility |
+| --- | --- |
+| `frontend/src/contracts/ticket/` | Generated TicketContract TypeScript binding. Do not hand-edit. |
+| `frontend/src/contracts/marketplace/` | Generated MarketplaceContract TypeScript binding. Do not hand-edit. |
+| `frontend/src/lib/constants.ts` | Contract IDs, network passphrase, RPC URL, and Supabase environment values. |
+| `frontend/src/lib/soroban.ts` | Only handwritten module importing generated bindings. Client creation, all contract wrappers, keyed reads, and error translation. |
+| `frontend/src/lib/stellar.ts` | Burner-key lifecycle, Friendbot, Horizon balance reads, and burner signing adapter. |
+| `frontend/src/lib/qr.ts` | QR payload building and local signature verification. No network calls. |
+| `frontend/src/lib/supabase.ts` | Supabase client, row types, shared queries, and metadata upserts. Read-model adapter only. |
+| `frontend/src/hooks/useWallet.ts` | Organizer Freighter flow and attendee burner flow behind one `WalletState`/`SignFn` interface. |
+| `frontend/src/store/useAppStore.ts` | Persisted wallet state, global transaction state, hydration gate, and signer reconstruction after reload. |
+| `frontend/src/hooks/useEvents.ts` | Event read-model polling, mapping, race suppression, and invalidation. |
+| `frontend/src/hooks/useTickets.ts` | Current-wallet ticket polling, mapping, race suppression, and invalidation. |
+| `frontend/src/hooks/useListings.ts` | Open-listing polling, joined event display data, race suppression, and invalidation. |
+| `frontend/src/types/index.ts` | App-facing models, `AppView`, wallet/transaction types, and conversion helpers. |
+| `frontend/src/App.tsx` | Manual `AppView` state machine and selected event/ticket IDs. There is no URL router. |
+| Pages | User-flow orchestration: adapters, tx state, post-chain mirrors, and hook invalidation. |
+| Components | Presentation and callbacks. UI primitives must not gain contract, wallet, or Supabase knowledge. |
+
+Existing SDK boundaries are intentional:
+
+- generated contract bindings are imported only by `lib/soroban.ts`;
+- QR crypto stays in `lib/qr.ts`;
+- burner/Horizon/Friendbot logic stays in `lib/stellar.ts`;
+- Freighter connection/signing stays in `useWallet.ts` and signer rehydration in `useAppStore.ts`.
+
+Do not introduce new SDK imports across pages/components to bypass these adapters.
+
+### Data and deployment
+
+| Path | Responsibility |
+| --- | --- |
+| `supabase_schema.sql` | Read-model tables, permissive MVP RLS, and `increment_event_supply` RPC. |
+| `scripts/fund.sh` | Creates/funds expected Stellar testnet CLI identities. |
+| `scripts/deploy.sh` | Builds, deploys Ticket then Marketplace, initializes both mutually, and writes frontend contract/network env values. |
+
+Deploying or replacing only one contract without updating the other contract’s stored address breaks resale transfers.
 
 ---
 
-## Never do these
+## 5. Contract invariants
 
-- **No SAC tickets.** Custom NFT — gated transfer (`restricted_transfer`) requires it. D-001.
-- **No auto-refund loops.** Hits Soroban instruction limits. Refunds are pull-based. D-002.
-- **No shared backend signer for MVP.** `AssembledTransaction` is used client-side — safe because each user has their own keypair. D-007 revised.
-- **No `env.call_contract()`.** Use generated client.
-- **No `soroban-auth` / `Signature` / `Identifier` types.** Ancient SDK (0.4.x). Auth is `address.require_auth()`.
-- **No hardcoded addresses outside `constants.ts`.**
-- **No QR windowed timestamp `floor(unix/30)`.** Use `|now - timestamp| < 45`. D-006. (45s = 30s rotation + 15s clock-drift grace.)
-- **Never skip `simulateTransaction`.** Wrong fees, opaque errors.
-- **No lock mechanism on listings.** Known gap, acceptable for MVP. D-009.
+### Authorization
+
+- Call `require_auth()` for every externally supplied actor that authorizes an action.
+- Organizer-only actions also compare against the organizer stored on-chain.
+- `restricted_transfer()` authenticates the stored MarketplaceContract address; it is not an owner-callable transfer function.
+- Do not use obsolete `soroban-auth`, `Signature`, or `Identifier` APIs.
+
+### Storage and serialization
+
+- Raw `env.storage()` access stays in `storage.rs`.
+- Event, Ticket, Escrow, and Listing records use persistent storage.
+- Admin and trusted contract/token addresses use instance storage.
+- Preserve TTL extension on every write path.
+- Struct field order, enum variants, and storage keys are ABI/on-chain compatibility concerns.
+- A storage-shape change requires migration analysis; do not treat it as a harmless model refactor.
+
+### Money and arithmetic
+
+- On-chain XLM values are stroops (`i128`).
+- Use checked arithmetic for economic and supply operations.
+- Preserve royalty ceiling division: `(ask_price * royalty_rate + 99) / 100`.
+- Skip zero-value SAC transfers.
+- Purchase, refund, and release must read the trusted XLM SAC address from contract storage, never from the caller.
+
+### Lifecycles and interaction order
+
+- Ticket: `Active → Used` or `Active → Refunded`.
+- Event: `Active → Cancelled` or `Active → Completed`.
+- Listing: `Open → Sold` or `Open → Cancelled`.
+- Preserve checks/effects/interactions ordering around token and cross-contract calls.
+- Do not add bulk auto-refunds.
+- Do not add an ad hoc listing lock; stale listings are rejected during purchase.
+
+### IDs and authority
+
+- Event, ticket, and listing IDs are client-generated and collision-checked on-chain.
+- Listing storage remains keyed by `(seller, listing_id)`.
+- Listing `event_id` is informational. Royalty routing derives the event from the on-chain ticket.
+- Supabase ownership/status/organizer/listing fields never authorize contract actions.
 
 ---
 
-**do not** write 15–20 lines of setup in test.rs files (creating the environment, generating addresses, mocking auths, deploying the token, and initializing the ticket contract). 1-2 sentences max. instead - create a Test Fixture or setup struct. Then, your actual tests become beautifully short:
+## 6. Frontend and synchronization invariants
 
-Rust
-#[test]
-fn test_create_event_and_purchase() {
-    let setup = TestSetup::new();
-    // Start testing the actual logic immediately:
-    setup.contract.create_event(...);
-    setup.contract.purchase(...);
-}
+### Transactions
 
-## updating architecture.md
+- Use generated `AssembledTransaction` objects and `signAndSend()`.
+- Keep simulation enabled; do not bypass the generated transaction lifecycle.
+- No backend XDR builder/submission service exists for this MVP.
+- Pages call `lib/soroban.ts`; they do not instantiate contract clients or import generated bindings.
 
-# **update teh architecture.md if soem change is made that changes teh architecture.**
+### Wallets and hydration
 
-## Before writing code
+- Organizer wallet: Freighter.
+- Attendee wallet: burner keypair funded through Friendbot.
+- Freighter private keys are never available to the app.
+- Burner secret storage is testnet-only behavior, not a mainnet-safe design.
+- `signFn` is not persisted; `useAppStore` rebuilds it after hydration.
+- Do not render role-dependent routing before `_hasHydrated` becomes true.
+- Disconnect must clear both app wallet state and burner-key storage.
 
-1. Is there a stated ownership for this file above?
-2. Does `docs/architecture.md` define the storage model or function signature you're implementing?
-3. Is this decision already in `docs/decisions.md`?
-4. If deviating — add a note to `docs/decisions.md`.
+### On-chain first, mirror second
+
+For each state-changing flow:
+
+1. validate local prerequisites;
+2. submit and confirm the Soroban transaction;
+3. update the matching Supabase rows;
+4. invalidate every affected hook;
+5. report the correct result to the user.
+
+Never pre-write Supabase for optimistic authorization. A failed chain call must not leave a successful-looking read-model row.
+
+A mirror failure after chain success is a synchronization failure, not a failed blockchain transaction. Do not retry the financial transaction blindly.
+
+### Polling and models
+
+- `useEvents`, `useTickets`, and `useListings` poll every 30 seconds; this is polling, not a cache TTL.
+- Never fetch inside a render body.
+- Clear intervals and ignore superseded responses.
+- Convert generated `bigint`/tagged-union values at adapter boundaries, not in UI components.
+- Keep status values aligned across Rust enums, generated bindings, app types, Supabase rows, and UI conditions.
+- The current `i128 → Number` conversion is an accepted testnet limitation; changing it requires an end-to-end `bigint` migration.
+
+### QR
+
+- `lib/qr.ts`, `QRDisplayPage`, and `ScannerPage` must agree on payload order and expiry.
+- Signature verification is local; ownership/status verification is on-chain.
+- Do not replace the absolute 45-second age check with `floor(unix / 30)` windowing.
+
+### Navigation
+
+Adding or renaming an `AppView` usually requires coordinated changes in:
+
+- `types/index.ts`;
+- `App.tsx` render and state transitions;
+- `AppHeader` title/back/main navigation logic;
+- `BottomNav` visibility and active-state logic.
+
+---
+
+## 7. Change-coupling matrix
+
+| Change | Required follow-through |
+| --- | --- |
+| Contract function signature/return | Rust tests, generated binding, `lib/soroban.ts`, callers, `architecture.md` |
+| Rust `#[contracttype]` struct/enum | `ticket_interface.rs` mirror if cross-contract, generated binding, app conversion, storage migration analysis, Supabase mirror if relevant |
+| Contract error variant/code | Generated binding and matching error map in `lib/soroban.ts`; do not casually renumber deployed codes |
+| Contract event topic/payload | Tests and any indexing/event-consumer assumptions |
+| Ticket/event lifecycle | Contract guards/tests, scanner/refund/release UI, Supabase status mapping, architecture |
+| Marketplace buy logic | Ownership/cancellation guards, royalty math, token balances, cross-contract tests, listing/owner mirrors |
+| Supabase table/column/RPC | Schema, RLS, `lib/supabase.ts` types/helpers, hooks, page writes, row mapping |
+| Transaction wrapper | Every caller, error translation, tx overlay behavior, mirror writes, invalidations |
+| Wallet/signing flow | `useWallet.ts`, store rehydration, role routing, QR signing eligibility |
+| QR format/expiry | `lib/qr.ts`, QR display, scanner, architecture |
+| `AppView` | Types, `App.tsx`, header, bottom nav, back navigation |
+| Environment value | `constants.ts`, deploy/env generation, example env/documentation |
+| Contract ABI/deployment | Regenerate bindings; ensure both stored contract addresses and frontend env match |
+
+Generated bindings are downstream artifacts. Never patch them to hide a Rust/frontend mismatch.
+
+---
+
+## 8. Accepted MVP constraints
+
+Do not silently redesign these during an unrelated fix:
+
+- burner secrets are stored in browser storage on testnet;
+- Supabase RLS is permissive and fake rows can be cosmetically harmful;
+- list discovery uses 30-second Supabase polling, not on-chain enumeration;
+- listings do not lock tickets;
+- cancellation refunds return the original mint price, not resale markup;
+- escrow release depends on event time, not attendance threshold;
+- some `i128` values are downcast to JavaScript `Number`.
+
+A task may intentionally replace one of these. That is an architectural change: update every affected layer, revise `architecture.md`, and add or revise the relevant rationale in `decisions.md`.
+
+---
+
+## 9. Verification
+
+### Contract changes
+
+From `contracts/`:
+
+```bash
+cargo fmt --check
+cargo test
+cargo build --target wasm32v1-none --release
+```
+
+Tests must cover applicable auth failures, state transitions, token balances, duplicate IDs, stable errors, rollback-sensitive paths, TTL-preserving writes, and cross-contract compatibility.
+
+Use a reusable fixture/setup struct. Do not repeat environment, address, token, auth, deployment, and initialization boilerplate in every test.
+
+### ABI changes
+
+- Regenerate affected TypeScript bindings; never hand-edit them.
+- Build the binding packages.
+- Build/type-check the frontend.
+- Fix mismatches at the Rust/interface boundary rather than hiding them with casts.
+
+### Frontend changes
+
+Run the repository’s frontend lint/type-check/build scripts, at minimum the production build. Exercise the affected role and refresh path:
+
+- organizer/Freighter;
+- attendee/burner;
+- store hydration after reload;
+- transaction overlay success/error;
+- Supabase mirror plus immediate invalidation;
+- mobile and desktop navigation when views change.
+
+### QR changes
+
+Test valid, expired, future-skewed, malformed, wrong-key, wrong-owner, used, and refunded payloads. A locally valid signature with invalid on-chain state must fail.
+
+### Schema changes
+
+Verify clean setup and upgrade behavior, joins, bigint handling, RPC names, row mappings, and the exact RLS behavior used by the frontend.
+
+---
+
+## 10. Completion rule
+
+A change is complete only when:
+
+- the authoritative on-chain behavior is correct;
+- downstream bindings, wrappers, models, and mirrors are synchronized;
+- generated files were regenerated rather than hand-edited;
+- tests cover the corrected behavior;
+- no flow trusts Supabase for authorization;
+- affected hooks are invalidated after successful writes;
+- `architecture.md` reflects changed boundaries, storage, public functions, lifecycles, QR/wallet flows, or deployment sequence;
+- `decisions.md` changes only when the architectural rationale itself changed.

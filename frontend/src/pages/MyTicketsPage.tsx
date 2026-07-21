@@ -4,7 +4,13 @@ import { TicketCard } from '../components/tickets/TicketCard';
 
 import { generateID } from '../lib/utils';
 import { refundTicket, listTicket, cancelListing } from '../lib/soroban';
-import { supabase, fetchOpenListingByTicket } from '../lib/supabase';
+import { fetchOpenListingByTicket } from '../lib/supabase';
+import {
+  mirrorCancelledListing,
+  mirrorCreatedListing,
+  mirrorRefundedTicket,
+  synchronizationWarning,
+} from '../lib/readModelSync';
 import { useAppStore } from '../store/useAppStore';
 
 interface ListingMinimal {
@@ -37,14 +43,18 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
     try {
       await refundTicket(ticketId, wallet.publicKey, wallet.signFn);
 
-      // Update Supabase
-      await supabase.from('tickets').update({ status: 'Refunded' }).eq('ticket_id', ticketId);
+      const syncResult = await mirrorRefundedTicket(ticketId);
 
-      invalidateTickets();
-      await invalidateEvents();
+      if (syncResult.ok) {
+        invalidateTickets();
+        await invalidateEvents();
+      }
 
-      setTxState({ status: 'success', hash: 'Refund processed successfully' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Refund processed successfully' : synchronizationWarning(syncResult),
+      });
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('Refund failed:', e);
       const msg = e instanceof Error ? e.message : 'Refund failed';
@@ -80,24 +90,27 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
         wallet.signFn
       );
 
-      // Update Supabase
-      await supabase.from('listings').insert({
-        listing_id: listingId,
-        seller_address: wallet.publicKey,
-        ticket_id: ticket.ticketId,
-        event_id: ticket.eventId,
-        ask_price_stroops: askPriceStroops.toString(),
-        status: 'Open'
+      const syncResult = await mirrorCreatedListing({
+        listingId,
+        sellerAddress: wallet.publicKey,
+        ticketId: ticket.ticketId,
+        eventId: ticket.eventId,
+        askPriceStroops,
       });
 
       setShowListingModal(null);
       setAskPrice('');
 
-      // Refresh local state manually to avoid full reload delay
-      setOpenListings(prev => ({ ...prev, [ticket.ticketId]: { listing_id: listingId } }));
+      if (syncResult.ok) {
+        // Refresh local state manually to avoid full reload delay
+        setOpenListings(prev => ({ ...prev, [ticket.ticketId]: { listing_id: listingId } }));
+      }
 
-      setTxState({ status: 'success', hash: 'Ticket listed for sale!' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Ticket listed for sale!' : synchronizationWarning(syncResult),
+      });
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('List ticket failed:', e);
       const msg = e instanceof Error ? e.message : 'Listing failed';
@@ -117,17 +130,21 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
     try {
       await cancelListing(wallet.publicKey, lid, wallet.signFn);
 
-      // Update Supabase
-      await supabase.from('listings').update({ status: 'Cancelled' }).eq('listing_id', lid);
+      const syncResult = await mirrorCancelledListing(lid);
 
-      setOpenListings(prev => {
-        const next = { ...prev };
-        delete next[ticketId];
-        return next;
+      if (syncResult.ok) {
+        setOpenListings(prev => {
+          const next = { ...prev };
+          delete next[ticketId];
+          return next;
+        });
+      }
+
+      setTxState({
+        status: 'success',
+        message: syncResult.ok ? 'Listing cancelled' : synchronizationWarning(syncResult),
       });
-
-      setTxState({ status: 'success', hash: 'Listing cancelled' });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
     } catch (e: unknown) {
       console.error('Cancel listing failed:', e);
       const msg = e instanceof Error ? e.message : 'Cancel failed';

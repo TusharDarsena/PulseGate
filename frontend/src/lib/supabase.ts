@@ -131,18 +131,17 @@ export async function fetchOpenListingByTicket(ticketId: string): Promise<Listin
   return data;
 }
 
-/**
- * Upsert event metadata after a successful on-chain createEvent call.
- * Non-blocking — caller should not await this in the critical path.
- */
-export async function upsertEventMetadata(
-  metadata: Omit<EventMetadata, 'created_at' | 'status' | 'current_supply'> & { status?: string, current_supply?: number, date_unix?: number, capacity?: number, price_per_ticket?: number }
-): Promise<void> {
-  const { error } = await supabase
-    .from('events')
-    .upsert(metadata, { onConflict: 'event_id' });
+export async function fetchUserProfile(walletAddress: string): Promise<UserProfileRow | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('wallet_address', walletAddress)
+    .maybeSingle();
 
   if (error) {
-    console.warn('[supabase] upsertEventMetadata failed:', error.message);
+    console.warn('[supabase] fetchUserProfile failed:', error.message);
+    return null;
   }
+
+  return data;
 }

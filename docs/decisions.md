@@ -1,225 +1,140 @@
 # Decisions
 
-Quick reference for architectural decisions. Read before changing anything significant. Add an entry here whenever you make a new significant choice.
+This file records choices that still constrain the project. It is not a changelog and does not restate the system design.
+
+- [`architecture.md`](./architecture.md) owns the current architecture, storage models, public flows, and deployment sequence.
+- [`AGENTS.md`](../AGENTS.md) owns repository boundaries, working rules, and verification requirements.
+- Source code and generated contract bindings own implemented behavior and ABI details.
+
+When a choice changes, revise its existing entry. Add a new decision only when the choice affects security, authority, contract ABI or storage, cross-layer data flow, wallet custody, or deployment.
 
 ---
 
-## D-001 — Custom NFT, not Stellar Asset Contract
+## Contract model
 
-Tickets are hand-rolled NFTs in TicketContract storage. SAC's `transfer` is open to anyone — we need transfer gated to MarketplaceContract only via `restricted_transfer`. Gating a SAC transfer requires overriding SAC itself, which adds surface area we don't need.
+### D-001 — Tickets are custom contract records, not SAC assets
 
-## D-002 — Pull-based escrow and refunds
+**Decision.** `TicketContract` stores ticket ownership and lifecycle directly. Resale ownership changes are allowed only through its marketplace-gated transfer function.
 
-`release_funds` and `refund` are callable by anyone; the contract enforces conditions. Soroban has no auto-execution, and looping over all ticket holders in one transaction hits instruction limits.
+**Reason.** The project needs ticket-specific states and a restricted resale path; an ordinary Stellar Asset Contract transfer would not enforce those rules without a larger custom asset surface.
 
-## D-003 — Two contracts
+**References.** [Architecture: Smart Contracts](./architecture.md#smart-contracts) · [`ticket/src/lib.rs`](../contracts/ticket/src/lib.rs) · [`ticket/src/types.rs`](../contracts/ticket/src/types.rs)
 
-TicketContract owns ticket state. MarketplaceContract owns listing state and makes the one inter-contract call to `restricted_transfer`. Kept separate per hackathon requirement and correct architectural boundary.
+### D-002 — Escrow actions are explicit and refunds are pull-based
 
-## D-004 — Supabase as caching/indexing layer (revised)
+**Decision.** Organizers explicitly release escrow after an eligible event. After cancellation, each current ticket owner claims their own refund; the contract never loops over all attendees.
 
-On-chain is the source of truth for all ticket and event state. However, the Soroban RPC `getEvents` approach (originally planned — see D-029) proved too slow for list-view UX. Supabase is now used as a read-cache/indexing layer for two queries: all events (browse page) and tickets-by-owner (my tickets page). On every write (create event, purchase, mark_used), the frontend writes mirrored rows to Supabase in a non-blocking fire-and-forget call. On-chain lookups (`get_event`, `get_ticket`) are still used for authoritative state before any transaction (e.g. scanner QR verification).
+**Reason.** Soroban provides no automatic execution, and unbounded fan-out transactions are unsuitable for contract limits.
 
-## D-005 — QR verification is client-side
+**References.** [Architecture: TicketContract](./architecture.md#ticketcontract) · [`ticket/src/lib.rs`](../contracts/ticket/src/lib.rs) · [`ticket/src/escrow.rs`](../contracts/ticket/src/escrow.rs)
 
-`Keypair.verify()` runs in the browser with no network call — makes the scanner instant. `mark_used` hits the chain after the green/red result is shown.
+### D-003 / D-022 — Ticketing and resale remain separate contracts
 
-## D-006 — QR uses absolute timestamp, not windowed; 45s expiry window
+**Decision.** `TicketContract` owns events, tickets, and escrow. `MarketplaceContract` owns listings and uses a minimal generated client interface for the one gated ownership-transfer path. The ticket crate is linked into marketplace tests, not the marketplace production WASM.
 
-Check `|now - payload_timestamp| < 45`. **Not** `floor(unix/30)` — that fails a QR generated at second 29 when scanned at second 31 (2 seconds later, but different window).
+**Reason.** This keeps authority boundaries explicit and avoids linking two contract implementations into one WASM build.
 
-**Why 45s and not 30s**: The UI regenerates a fresh QR payload every 30 seconds. A 30s hard cut-off would reject a payload created at T=0 and scanned at T=30 (exactly on the boundary). Adding a 15-second clock-drift grace period makes the window `[0, 45)` seconds, which tolerates minor device clock skew while remaining well within an acceptable anti-replay bound. `PAYLOAD_EXPIRY_SECONDS = 45` in `lib/qr.ts`.
+**Consequence.** Any cross-contract type or function change must keep the interface, generated bindings, adapters, and tests ABI-compatible.
 
-## D-007 — Frontend-only transaction building for MVP (revised)
+**References.** [Architecture: Smart Contracts](./architecture.md#smart-contracts) · [`marketplace/src/lib.rs`](../contracts/marketplace/src/lib.rs) · [`marketplace/Cargo.toml`](../contracts/marketplace/Cargo.toml)
 
-**Original intent**: Server builds/simulates, client signs, server submits to prevent sequence number divergence under concurrent load.
+### D-009 / D-019 / D-020 / D-021 — Listings are unlocked but revalidated on purchase
 
-**MVP revision**: Each user signs with their own keypair (Freighter for organizers, Burner Wallet for attendees — D-028). There is no shared backend signer and no concurrent writes to the same account. `AssembledTransaction.signAndSend()` from `@stellar/stellar-sdk` handles build → simulate → sign → submit in a single call, fetching a fresh sequence number each time. Sequence divergence cannot occur in a single-user-per-keypair model.
+**Decision.** Listing does not lock a ticket. Listing IDs are namespaced by seller, and `buy_listing` rechecks the on-chain ticket owner, ticket event, event status, and organizer before moving funds or ownership. Seller-supplied `event_id` is informational only.
 
-**Rule for MVP**: Use `AssembledTransaction` directly in `lib/soroban.ts`. No backend XDR endpoint needed. Re-evaluate if a shared organizer hot-wallet is ever introduced (that is the case where a submission queue is required).
+**Reason.** This avoids lock complexity while preventing ID griefing, stale-owner purchases, cancelled-event purchases, and royalty redirection.
 
-**Files affected**: `lib/soroban.ts`. `AGENTS.md` hard rule updated accordingly.
+**Consequence.** Stale listings may remain visible in the read model, but the contract must reject them safely.
 
-## D-008 — Web3Auth for attendees, Freighter for organizers
+**References.** [Architecture: MarketplaceContract](./architecture.md#marketplacecontract) · [`marketplace/src/lib.rs`](../contracts/marketplace/src/lib.rs) · [`marketplace/src/storage.rs`](../contracts/marketplace/src/storage.rs)
 
-Attendees: Google/email login, silent keypair creation, no crypto knowledge required. Organizers: Freighter, full key control. Both unified behind `useWallet` hook — nothing outside that hook knows which provider is active.
+### D-010 — Royalties use an integer percentage with ceiling division
 
-## D-009 — No marketplace listing lock
+**Decision.** `royalty_rate = 10` means 10%, calculated as `(price * rate + 99) / 100` with checked arithmetic. Zero-value token transfers are skipped.
 
-A listed ticket can be used at the door before it sells, making the listing stale. Acceptable for MVP — `restricted_transfer` is required to actually move ownership, so financial risk is contained.
+**Reason.** Ceiling division prevents small resale prices from rounding a non-zero royalty down to zero.
 
-## D-010 — royalty_rate as integer percentage, ceiling division
+**References.** [Architecture: MarketplaceContract](./architecture.md#marketplacecontract) · [`marketplace/src/lib.rs`](../contracts/marketplace/src/lib.rs)
 
-`royalty_rate = 10` means 10%. Royalty uses ceiling division to prevent micro-transaction evasion:
-`royalty = (ask_price * royalty_rate + 99) / 100`.
-Standard floor division (`* rate / 100`) rounds down to 0 for small prices (e.g. 9 stroops × 10% = 0.9 → 0), completely bypassing the organizer's cut.
-Ceiling division ensures organizers always receive at least 1 stroop when `rate > 0` and `ask_price > 0`.
-Pattern adopted from litemint-royalty-contract. Switch to basis points (/ 10000) if finer granularity is ever needed.
-`buy_listing` skips the organizer transfer entirely if `royalty == 0` (rate=0 case) — the XLM SAC panics on a zero-amount transfer.
+### D-012 / D-014 / D-015 — Trusted configuration is stored once and kept alive
 
-## D-011 — SDK pinned at 25.3.1
+**Decision.** Admin and trusted contract configuration live in instance storage; events, tickets, escrow, and listings live in persistent storage. Contract code reads the XLM token and peer-contract addresses from storage rather than accepting them from transaction callers. Storage helpers extend TTL when records are written.
 
-Started docs saying 21.0.0 but that's significantly outdated. Using 25.3.1 (latest stable at project start). Notable API differences from 21: `env.register()` in tests, `set_timestamp()` for ledger, `#[contractevent]` replacing `events().publish()`.
+**Reason.** Caller-supplied infrastructure addresses would allow fake-token or authority substitution, while expired configuration could reopen initialization.
 
-## D-012 — MarketplaceAddress in instance() storage
+**References.** [Architecture: Storage Models](./architecture.md#ticketcontract) · [`ticket/src/storage.rs`](../contracts/ticket/src/storage.rs) · [`marketplace/src/storage.rs`](../contracts/marketplace/src/storage.rs) · [`scripts/deploy.sh`](../scripts/deploy.sh)
 
-Set once at `initialize()`, never changes — it IS contract-lifetime data. `instance()` is semantically correct. All other state (Events, Tickets, Escrow) uses `persistent()`.
+### D-016 / D-017 / D-018 — Invalid economic states are rejected at the contract boundary
 
-## D-013 — React + Vite for frontend
+**Decision.** Contract arithmetic uses checked operations; event capacity, price, and date are validated at creation; state effects are completed before token or cross-contract interactions; ticket outcomes use `Active`, `Used`, and `Refunded` rather than a boolean.
 
-No SSR needed for a hackathon demo. The server/client transaction split (D-007) uses a lightweight API server alongside Vite, not Next.js API routes. Docs originally assumed Next.js — ignore those references.
+**Reason.** These rules prevent malformed events, ambiguous terminal states, and unsafe interaction ordering. Soroban transaction rollback remains the failure boundary.
 
-## D-014 — XLM token address stored at initialize, never caller-supplied (S-001)
+**Consequence.** Lifecycle changes require coordinated updates to Rust types, cross-contract mirrors, generated bindings, frontend models, Supabase status values, and UI guards.
 
-`initialize` accepts both `marketplace_address` and `xlm_token`. Both are stored in `instance()` storage. `purchase`, `refund`, and `release_funds` read the token address from storage. Callers cannot inject a fake token contract to inflate escrow accounting and drain real XLM.
-
-## D-015 — Instance storage TTL extended on every write (S-002)
-
-`write_marketplace_address` and `write_xlm_token` both call `instance().extend_ttl(TTL_MIN, TTL_TARGET)` after the set. If instance storage expires, an attacker could re-call `initialize()` to replace the marketplace address and gain transfer authority over all tickets. TTL extension on every write prevents this.
-
-## D-016 — CEI ordering enforced in purchase, refund, release_funds (S-003)
-
-All state mutations (ticket write, supply increment, escrow accounting) happen before the external `token.transfer` call in all three functions. This is the standard Check-Effects-Interactions pattern — it prevents re-entrancy-style execution-flow abuse where external call failure could leave state half-updated.
-
-## D-017 — create_event validates capacity > 0, price > 0, date in the future
-
-Zero or negative capacity allows events that are immediately sold out or allow infinite tickets. Zero or negative price breaks escrow math. A past date allows immediate fund release without running an actual event. All three are rejected at create time with explicit error codes.
-
-## D-018 — TicketStatus enum instead of used: bool
-
-`Ticket.status` is `TicketStatus { Active, Used, Refunded }` instead of a `bool`. A bool cannot distinguish "scanned at the door" from "refunded after cancellation" — both would be `true`. On-chain data is permanent; a bool here would require a storage migration to fix post-mainnet. The three-variant enum costs nothing extra and makes analytics, scanner UIs, and future tooling unambiguous.
-
-## D-019 — Namespaced Listing IDs
-
-Listings in `MarketplaceContract` are keyed by `(seller, listing_id)` rather than a globally unique `listing_id`. This prevents a griefing attack where a malicious actor observes a pending `list_ticket` transaction in the mempool and front-runs it with their own transaction using the same `listing_id`, causing the legitimate seller's transaction to fail.
-
-## D-020 — Stale Listing Fail-Fast
-
-When a buyer attempts to purchase a listing via `buy_listing`, the contract first verifies that `ticket.owner == listing.seller`. If the seller transferred or used the ticket out-of-band, the transaction fails immediately. While Soroban rolls back failed transactions regardless, this fail-fast check avoids the gas costs associated with cross-contract token transfers that would inevitably be rolled back.
-
-## D-021 — On-Chain Event Derivation for Royalties
-
-In `buy_listing`, the contract derives the event (and thus the organizer who receives royalties) by querying the on-chain ticket record (`get_ticket(listing.ticket_id).event_id`). It explicitly does NOT trust the `event_id` provided by the seller in the listing struct, closing a vulnerability where a malicious seller could list a real ticket but supply a fake `event_id` pointing to an event they control, thereby redirecting royalties to themselves.
-
-## D-022 — `contractclient` for Cross-Contract WASM builds
-
-To avoid `symbol multiply defined` linker errors when building `wasm32v1-none` binaries that perform cross-contract calls, the `TicketContract` is strictly isolated as a `[dev-dependency]`. For production builds, `MarketplaceContract` uses the `#[contractclient]` macro on a minimal interface trait (`TicketInterface`) alongside identical struct definitions, enabling XDR-compatible cross-contract calls without linking the other contract's binary.
-
-## D-023 — SDK pinned at 25.3.1 (moved from D-011)
-
-Started docs saying 21.0.0 but that's significantly outdated. Using 25.3.1 (latest stable at project start). Notable API differences from 21: `env.register()` in tests, `set_timestamp()` for ledger, `#[contractevent]` replacing `events().publish()`.
-
-## D-024 — Centralized Mock Data Source
-
-All mock events and tickets were moved to `src/data/mockData.ts`. Previously, components like `DashboardPage` and `BrowsePage` had local, slightly divergent mock objects. Centralization ensures that when a ticket is "purchased" or "used" in one view, the data remains consistent across the entire session, preventing "ghost" data bugs during the prototype phase.
-
-## D-025 — Zustand for Global State Management
-
-Migrated `wallet` and `txState` from local `useState` in `App.tsx` to a global Zustand `useAppStore`. This eliminates prop-drilling into deeply nested components like `PurchasePage` or `CreateEventPage`. It also allows any component to trigger transaction overlays or read the connected wallet address without complex callback chains.
-
-## D-026 — Self-Hiding Layout Components
-
-`AppHeader` and `BottomNav` now contain internal visibility logic based on `currentView`. Instead of `App.tsx` conditionally rendering them, the components themselves return `null` for "standalone" views (like Scanner or Dashboard). This prevents "double-header" artifacts where both a global header and a page-specific header would render simultaneously.
-
-## D-027 — Standardized QR Payload Format (extended by D-028)
-
-Base payload: `{wallet_address}:{ticket_id}:{timestamp}`. Extended to include an `ed25519` signature field — see D-028 for the full signed format. The 30s rotation ensures a photographed QR expires before it can be replayed. `ScannerPage` parses by splitting on `:` (first 3 fields) and treating the remainder as the base64 signature.
-
-## D-028 — Burner Wallet for Attendees (MVP)
-
-`Keypair.random()` is called when an attendee clicks "Connect". The secret key is stored in `localStorage` under `stellar_burner_secret`. The public key is the attendee's on-chain identity. The account is funded via Friendbot (`https://friendbot.stellar.org/?addr=<pubkey>`) immediately after generation.
-
-**Why not Web3Auth**: Web3Auth requires an API key, OAuth app registration, and a more complex auth flow. Deferred to post-MVP.
-
-**Security note**: `localStorage` is not encrypted. Acceptable for a testnet hackathon demo where funds are worthless. Mainnet would require either Web3Auth (server-side key custody) or a hardware-backed solution.
-
-**QR signing**: The full signed payload format is `{wallet_address}:{ticket_id}:{timestamp}:{base64Signature}` where the signature covers the UTF-8 bytes of `{wallet_address}:{ticket_id}:{timestamp}`. `lib/qr.ts` is the only file that builds or verifies this format. See D-005, D-006.
-
-**walletType field**: `useWallet` exposes `walletType: 'freighter' | 'burner' | null`. Only `burner` wallets have a private key in state; `frighter` wallets never expose one.
-
-## D-029 — Supabase for List Queries (revised from RPC polling)
-
-The `TicketContract` has no `get_all_events()` or `get_tickets_by_owner()` — only keyed lookups by ID. The original plan was to use `SorobanRpc.getEvents()` to discover IDs from on-chain events, but this proved too slow for list-view UX (full ledger scans on every page load).
-
-**Actual implementation**: Supabase is used as a read-cache. See D-004 (revised).
-
-**Browse page**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts`, which queries the `events` Supabase table directly. The table is populated by the frontend after each successful `create_event` call (`upsertEventMetadata`).
-
-**My Tickets page**: `useTickets` calls `fetchTicketsByOwner(walletAddress)` from `lib/supabase.ts`, which queries the `tickets` table filtered by `owner_address`. The table is populated after each successful `purchase` call.
-
-**Polling**: Both hooks poll every 30s via `setInterval`. A manual `invalidate()` method re-fetches immediately (called after a purchase).
-
-**On-chain as source of truth**: For the QR scanner flow, the frontend still calls `getTicket(ticketId)` on-chain to confirm current ownership and status before executing `mark_used`. Supabase is for list discovery only — never for authoritative state during transactions.
+**References.** [`ticket/src/lib.rs`](../contracts/ticket/src/lib.rs) · [`ticket/src/types.rs`](../contracts/ticket/src/types.rs) · [`marketplace/src/lib.rs`](../contracts/marketplace/src/lib.rs)
 
 ---
 
-## Known Economic Limitations (Not Fixed for MVP)
+## Application and data
 
-## D-030 — Secondary Market Refund Only Returns Original Mint Price
+### D-004 / D-029 — Soroban is authoritative; Supabase is the read model
 
-The `refund()` function in `TicketContract` returns `event.price_per_ticket` — the price set at event creation. It does NOT return the price paid on the secondary market.
+**Decision.** Contracts authorize purchases, transfers, refunds, fund release, and venue entry. Supabase provides list discovery, searchable metadata, profiles, and mirrored statuses. A Supabase row is written or updated only after the corresponding contract transaction succeeds.
 
-**Scenario**: An attendee buys a ticket for 100 XLM via the marketplace (original price: 10 XLM + 90 XLM markup). If the event is cancelled, `refund()` returns only 10 XLM, not the 100 XLM paid.
+**Reason.** The contracts expose keyed reads rather than efficient list queries, while ledger-event discovery was too slow for the intended list-view experience.
 
-**Why this is acceptable for MVP**: The secondary market operates in a trustless, trust-minimized way. Refunding the full secondary price would require the contract to track the actual ask_price paid per ticket, adding storage overhead and complexity. The V2 approach would be to add an optional "refund policy" field to the Event struct that organizers opt into.
+**Consequence.** Supabase may be delayed or cosmetically wrong; transaction and scanner paths must re-read authoritative on-chain state where correctness matters.
 
-## D-031 — Escrow Release Timing (Rug Pull Vulnerability)
+**References.** [Architecture: Data Layer](./architecture.md#data-layer-d-004-d-029-revised) · [`lib/supabase.ts`](../frontend/src/lib/supabase.ts) · [`lib/soroban.ts`](../frontend/src/lib/soroban.ts) · [`supabase_schema.sql`](../supabase_schema.sql)
 
-`release_funds` can be called when `ledger.timestamp >= event.date_unix`. An organizer could theoretically:
+### D-005 / D-006 / D-027 — QR tickets are signed, short-lived claims
 
-1. Create an event for a fake concert
-2. Mint a few tickets to themselves or friends
-3. Wait until the event date, then immediately call `release_funds`
+**Decision.** The attendee signs `{wallet_address}:{ticket_id}:{timestamp}` and the QR carries that message plus its Ed25519 signature. The scanner verifies format, signature, and an absolute age below 45 seconds locally, then checks on-chain ownership and `Active` status before consuming the ticket with `mark_used`.
 
-This drains the (empty or minimal) escrow while the contract appears legitimate.
+**Reason.** Local cryptographic rejection keeps scanning responsive; the keyed contract read prevents an authentic but stale QR from authorizing entry.
 
-**Mitigation for V2**: Require a minimum threshold of scanned tickets (e.g., at least 50% of capacity marked as `Used` via `mark_used`) before `release_funds` becomes callable. This ensures real attendance before funds unlock.
+**References.** [Architecture: QR Verification](./architecture.md#qr-verification-d-005-d-006) · [`lib/qr.ts`](../frontend/src/lib/qr.ts) · [`ScannerPage.tsx`](../frontend/src/pages/ScannerPage.tsx)
 
-**Why not fixed for MVP**: Adding a scanned-ticket threshold requires tracking scanned count per event, additional storage writes on every `mark_used`, and a more complex release condition. The MVP prioritizes core functionality over this edge case.
+### D-007 — MVP transactions are assembled, simulated, signed, and submitted client-side
 
----
+**Decision.** The frontend uses generated `AssembledTransaction` objects and `signAndSend()` through `lib/soroban.ts`. There is no backend XDR builder or shared transaction signer for the MVP.
 
-## D-032 — Secondary Market / Resale UI (implemented in MVP)
+**Reason.** Each user controls a separate account, so the shared-account sequence contention that would justify a submission queue is absent.
 
-The `MarketplaceContract` is deployed and fully functional. `MarketplacePage.tsx` is also fully implemented with `useListings`, buy and cancel flows, and royalty display.
+**Revisit when.** A relayer, shared organizer wallet, sponsored transaction service, or queued bulk submission is introduced.
 
-**Original decision** stated this was deferred. The implementation moved faster than the decision log. `MarketplacePage` was built and wired to the real contract during the same phase as the core attendee flow.
+**References.** [Architecture: Transaction Flow](./architecture.md#transaction-flow-d-007-revised) · [`lib/soroban.ts`](../frontend/src/lib/soroban.ts)
 
-**Current state**: `list_ticket`, `buy_listing`, `cancel_listing` are all exposed in the frontend via `lib/soroban.ts` wrappers and the Marketplace page.
+### D-008 / D-028 — Organizers use Freighter; attendees use burner wallets on testnet
 
----
+**Decision.** Organizers connect with Freighter. Attendees receive a generated keypair stored locally and funded by Friendbot. `useWallet` and the persisted app store hide provider-specific signing from pages. This supersedes the original Web3Auth attendee plan for the MVP.
 
-## D-033 — Event Cancellation and Refund UI (implemented in MVP)
+**Reason.** The burner path removes wallet setup friction for a testnet demonstration without introducing an authentication backend.
 
-The `TicketContract` has `cancel_event()` (organizer-only) and `refund()` (attendee pull-based, D-002). Both flows are now exposed in the frontend.
+**Constraint.** Local secret storage and Friendbot make this design testnet-only; production custody requires replacement.
 
-**Original decision** stated these were deferred. They were implemented during the same phase as the core flows.
+**References.** [Architecture: Wallet Flow](./architecture.md#wallet-flow-d-008-d-028) · [`hooks/useWallet.ts`](../frontend/src/hooks/useWallet.ts) · [`store/useAppStore.ts`](../frontend/src/store/useAppStore.ts) · [`lib/stellar.ts`](../frontend/src/lib/stellar.ts)
 
-**Current state**:
-- `DashboardPage.tsx` exposes a Cancel Event button via `handleCancel` → `cancelEvent()` in `lib/soroban.ts`.
-- `MyTicketsPage.tsx` exposes a Refund button via `handleRefund` → `refundTicket()` in `lib/soroban.ts`.
-- Both are pull-based per D-002 — the contract does not auto-refund.
+### D-013 / D-025 — The client is a Vite SPA with narrow global state
 
----
+**Decision.** The application remains a React/Vite single-page client. Zustand stores only cross-cutting wallet and transaction state; server rendering is not part of the MVP architecture.
 
-## D-034 — Number() Downcast from i128: Accepted Precision Limitation
+**Reason.** The product is a browser wallet application with no current SSR requirement, while wallet hydration and transaction overlays must be shared across views.
 
-The `getEvent()` and `getTicket()` read functions in `lib/soroban.ts` downcast Soroban `i128` values (`capacity`, `current_supply`, `price_per_ticket`) to JavaScript `Number` using `Number(e.price_per_ticket)`.
-
-JavaScript's `Number.MAX_SAFE_INTEGER = 2^53 - 1 = 9,007,199,254,740,991`. One XLM = 10,000,000 stroops, so the maximum safe price is ~900,719,925 XLM (~900M XLM) before silent precision loss occurs.
-
-**Why acceptable for MVP**: On Stellar Testnet with Friendbot-funded accounts (10,000 XLM max), no event will ever have a price anywhere near 900M XLM. This is a known, documented gap — not a silent bug.
-
-**Post-MVP fix**: Retain values as `BigInt` throughout the frontend type system and use a `BigInt`-aware formatting utility instead of `Number()`.
+**References.** [Architecture: State Management](./architecture.md#state-management-d-025) · [`App.tsx`](../frontend/src/App.tsx) · [`store/useAppStore.ts`](../frontend/src/store/useAppStore.ts)
 
 ---
 
-## D-035 — Open RLS on Supabase: Accepted Testnet Tradeoff
+## Accepted MVP limitations
 
-`supabase_schema.sql` enables permissive Row Level Security (RLS) policies for INSERT on `public.events`, `public.tickets`, and `public.listings` — anyone with the public anon key can insert rows without executing an on-chain transaction.
+These are deliberate testnet compromises, not hidden guarantees.
 
-**Why acceptable for MVP**: Supabase is the *read-cache/display layer only*. The on-chain TicketContract is the financial authority. A fake Supabase ticket row has no corresponding on-chain state — it cannot be used for QR entry (the scanner calls `get_ticket()` on-chain to verify `owner` and `status == Active` before `mark_used`). A fake row is cosmetically harmful but financially harmless.
+| ID | Accepted limitation | Revisit when |
+| --- | --- | --- |
+| **D-030** | Cancellation refunds return the event's original mint price, not a later resale price. The contracts do not track a refundable resale premium. | A production resale-refund policy or resale escrow is designed. |
+| **D-031** | Escrow release depends on organizer authorization and event time, not proof that the event occurred or attendance reached a threshold. | Mainnet funds or adversarial organizers are in scope. |
+| **D-034** | Some Soroban `i128` values are converted to JavaScript `Number` in the frontend adapter. This is safe only within the testnet value range. | Production-scale balances or prices are supported; retain `bigint` end to end. |
+| **D-035** | Supabase RLS permits public mirror writes. Forged rows can affect display but cannot authorize contract actions or entry. | The application is publicly deployed; writes must be verified by an indexer or trusted server/Edge Function. |
 
-**The schema already documents this** with a `WARNING` comment.
-
-**Post-MVP fix**: Replace open INSERT policies with Supabase Edge Functions that verify the corresponding on-chain Soroban transaction (via RPC) before writing to the database.
+**References.** [`ticket/src/lib.rs`](../contracts/ticket/src/lib.rs) · [`lib/soroban.ts`](../frontend/src/lib/soroban.ts) · [`supabase_schema.sql`](../supabase_schema.sql)

@@ -4,7 +4,8 @@ import { useAppStore } from '../store/useAppStore';
 import { verifyQRPayload } from '../lib/qr';
 import { getTicket, markUsed } from '../lib/soroban';
 
-import { supabase } from '../lib/supabase';
+import { fetchUserProfile } from '../lib/supabase';
+import { mirrorUsedTicket, synchronizationWarning } from '../lib/readModelSync';
 
 interface ScannerPageProps {
   invalidateTickets: () => void;
@@ -14,10 +15,12 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
   const [scanResult, setScanResult] = useState<'idle' | 'success' | 'error'>('idle');
   const [scanDetails, setScanDetails] = useState<{ ticketId: string; walletAddress: string } | null>(null);
   const [attendeeProfile, setAttendeeProfile] = useState<{ displayName: string; avatarUrl: string } | null>(null);
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const { wallet } = useAppStore();
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
 
   const handleScan = React.useCallback(async (data: string) => {
+    setSyncWarning(null);
     // Pause immediately to prevent spam
     if (scannerRef.current) {
       scannerRef.current.pause(true);
@@ -39,11 +42,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
     }
 
     // Step 3: Fetch Attendee Profile from Supabase
-    const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('display_name, avatar_url')
-      .eq('wallet_address', parsed.walletAddress)
-      .maybeSingle();
+    const profileData = await fetchUserProfile(parsed.walletAddress);
 
     if (profileData) {
       setAttendeeProfile({
@@ -55,18 +54,27 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
     }
 
     // Step 4: Mark ticket as used on-chain. Requires organizer wallet. (D-005)
-    setScanDetails(parsed);
-    setScanResult('success');
-    if (wallet.publicKey && wallet.signFn) {
-      try {
-        await markUsed(parsed.ticketId, wallet.publicKey, wallet.signFn);
-        await supabase.from('tickets').update({ status: 'Used' }).eq('ticket_id', parsed.ticketId);
+    if (!wallet.publicKey || !wallet.signFn) {
+      setScanResult('error');
+      setScanDetails(null);
+      return;
+    }
+
+    try {
+      await markUsed(parsed.ticketId, wallet.publicKey, wallet.signFn);
+      const syncResult = await mirrorUsedTicket(parsed.ticketId);
+      if (syncResult.ok) {
         invalidateTickets();
-      } catch (err) {
-        // markUsed failed (e.g. already used by race condition) — still show success UI
-        // since the local verify + chain read already confirmed validity.
-        console.error('[ScannerPage] markUsed failed:', err);
+        setSyncWarning(null);
+      } else {
+        setSyncWarning(synchronizationWarning(syncResult));
       }
+      setScanDetails(parsed);
+      setScanResult('success');
+    } catch (err) {
+      console.error('[ScannerPage] markUsed failed:', err);
+      setScanResult('error');
+      setScanDetails(null);
     }
   }, [wallet.publicKey, wallet.signFn, invalidateTickets]);
 
@@ -224,6 +232,11 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
                     <div className="w-full h-full bg-emerald-500"></div>
                   </div>
                 </div>
+                {syncWarning && (
+                  <p className="rounded-lg bg-amber-500/10 p-3 text-left text-xs text-amber-300">
+                    {syncWarning}
+                  </p>
+                )}
                 <button 
                   onClick={() => {
                     setScanResult('idle');
