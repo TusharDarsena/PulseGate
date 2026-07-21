@@ -78,8 +78,8 @@ See the full [User Guide](docs/architecture.md) for more technical details.
 ### Ticket Contract
 - `create_event`: Initializes a new event with metadata and pricing.
 - `purchase`: Mints a ticket NFT to the buyer and holds XLM in escrow.
-- `verify_entry`: Validates a signed QR payload against the owner's address.
-- `cancel_event`: Triggers automatic refund logic for all ticket holders.
+- `mark_used`: Validates a signed QR payload client-side, then marks the ticket Used on-chain. Called by the organizer after door verification.
+- `cancel_event`: Marks the event Cancelled. Refunds are pull-based — attendees call `refund()` individually (D-002).
 
 ### Marketplace Contract
 - `list_ticket`: Creates a resale listing for a ticket NFT.

@@ -16,9 +16,9 @@ Tickets are hand-rolled NFTs in TicketContract storage. SAC's `transfer` is open
 
 TicketContract owns ticket state. MarketplaceContract owns listing state and makes the one inter-contract call to `restricted_transfer`. Kept separate per hackathon requirement and correct architectural boundary.
 
-## D-004 — No database for MVP
+## D-004 — Supabase as caching/indexing layer (revised)
 
-Event metadata (name, date, price, capacity) stored on-chain. Negligible ledger rent for minimal fields. Post-MVP: Postgres if caching becomes necessary.
+On-chain is the source of truth for all ticket and event state. However, the Soroban RPC `getEvents` approach (originally planned — see D-029) proved too slow for list-view UX. Supabase is now used as a read-cache/indexing layer for two queries: all events (browse page) and tickets-by-owner (my tickets page). On every write (create event, purchase, mark_used), the frontend writes mirrored rows to Supabase in a non-blocking fire-and-forget call. On-chain lookups (`get_event`, `get_ticket`) are still used for authoritative state before any transaction (e.g. scanner QR verification).
 
 ## D-005 — QR verification is client-side
 
@@ -87,25 +87,25 @@ Zero or negative capacity allows events that are immediately sold out or allow i
 
 `Ticket.status` is `TicketStatus { Active, Used, Refunded }` instead of a `bool`. A bool cannot distinguish "scanned at the door" from "refunded after cancellation" — both would be `true`. On-chain data is permanent; a bool here would require a storage migration to fix post-mainnet. The three-variant enum costs nothing extra and makes analytics, scanner UIs, and future tooling unambiguous.
 
-## D-019 — get_xlm_token transparency query
-
-Added `get_xlm_token` as a public read-only method alongside `get_marketplace`. The frontend and tests can verify that the stored XLM SAC address matches the expected network token without needing off-chain config cross-referencing.
-
-## D-020 — Namespaced Listing IDs
+## D-019 — Namespaced Listing IDs
 
 Listings in `MarketplaceContract` are keyed by `(seller, listing_id)` rather than a globally unique `listing_id`. This prevents a griefing attack where a malicious actor observes a pending `list_ticket` transaction in the mempool and front-runs it with their own transaction using the same `listing_id`, causing the legitimate seller's transaction to fail.
 
-## D-021 — Stale Listing Fail-Fast
+## D-020 — Stale Listing Fail-Fast
 
 When a buyer attempts to purchase a listing via `buy_listing`, the contract first verifies that `ticket.owner == listing.seller`. If the seller transferred or used the ticket out-of-band, the transaction fails immediately. While Soroban rolls back failed transactions regardless, this fail-fast check avoids the gas costs associated with cross-contract token transfers that would inevitably be rolled back.
 
-## D-022 — On-Chain Event Derivation for Royalties
+## D-021 — On-Chain Event Derivation for Royalties
 
 In `buy_listing`, the contract derives the event (and thus the organizer who receives royalties) by querying the on-chain ticket record (`get_ticket(listing.ticket_id).event_id`). It explicitly does NOT trust the `event_id` provided by the seller in the listing struct, closing a vulnerability where a malicious seller could list a real ticket but supply a fake `event_id` pointing to an event they control, thereby redirecting royalties to themselves.
 
-## D-023 — `contractclient` for Cross-Contract WASM builds
+## D-022 — `contractclient` for Cross-Contract WASM builds
 
 To avoid `symbol multiply defined` linker errors when building `wasm32v1-none` binaries that perform cross-contract calls, the `TicketContract` is strictly isolated as a `[dev-dependency]`. For production builds, `MarketplaceContract` uses the `#[contractclient]` macro on a minimal interface trait (`TicketInterface`) alongside identical struct definitions, enabling XDR-compatible cross-contract calls without linking the other contract's binary.
+
+## D-023 — SDK pinned at 25.3.1 (moved from D-011)
+
+Started docs saying 21.0.0 but that's significantly outdated. Using 25.3.1 (latest stable at project start). Notable API differences from 21: `env.register()` in tests, `set_timestamp()` for ledger, `#[contractevent]` replacing `events().publish()`.
 
 ## D-024 — Centralized Mock Data Source
 
@@ -135,17 +135,19 @@ Base payload: `{wallet_address}:{ticket_id}:{timestamp}`. Extended to include an
 
 **walletType field**: `useWallet` exposes `walletType: 'freighter' | 'burner' | null`. Only `burner` wallets have a private key in state; `frighter` wallets never expose one.
 
-## D-029 — RPC Event Polling for List Queries
+## D-029 — Supabase for List Queries (revised from RPC polling)
 
-The `TicketContract` has no `get_all_events()` or `get_tickets_by_owner()` — only keyed lookups by ID. Because D-004 prohibits a database for MVP, the only way to discover IDs is via the Soroban RPC `getEvents` endpoint.
+The `TicketContract` has no `get_all_events()` or `get_tickets_by_owner()` — only keyed lookups by ID. The original plan was to use `SorobanRpc.getEvents()` to discover IDs from on-chain events, but this proved too slow for list-view UX (full ledger scans on every page load).
 
-**Browse page**: `useEvents` calls `SorobanRpc.Server.getEvents({ filters: [{ type: 'contract', contractIds: [TICKET_CONTRACT_ID], topics: [[xdr.ScVal...('ev_create')]] }] })`. Each event's `value` contains the `event_id`. The hook then calls `get_event(event_id)` for current state (capacity, status).
+**Actual implementation**: Supabase is used as a read-cache. See D-004 (revised).
 
-**My Tickets page**: `useTickets` filters `tk_buy` events where topic[1] (the buyer address) matches the connected wallet's public key. Each event's topic[0] contains the `ticket_id`. The hook then calls `get_ticket(ticket_id)` for current status (Active / Used / Refunded).
+**Browse page**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts`, which queries the `events` Supabase table directly. The table is populated by the frontend after each successful `create_event` call (`upsertEventMetadata`).
 
-**Polling**: Both hooks poll every 30s via `setInterval`. A manual `invalidate()` method resets the timer and re-fetches immediately (called after a purchase).
+**My Tickets page**: `useTickets` calls `fetchTicketsByOwner(walletAddress)` from `lib/supabase.ts`, which queries the `tickets` table filtered by `owner_address`. The table is populated after each successful `purchase` call.
 
-**Ledger range**: RPC nodes only retain events for a finite ledger window (varies by node). On testnet with few events and recent deployment, fetching from ledger 0 is acceptable. A production indexer (e.g., Stellar Hubble or Mercury) would be needed for mainnet.
+**Polling**: Both hooks poll every 30s via `setInterval`. A manual `invalidate()` method re-fetches immediately (called after a purchase).
+
+**On-chain as source of truth**: For the QR scanner flow, the frontend still calls `getTicket(ticketId)` on-chain to confirm current ownership and status before executing `mark_used`. Supabase is for list discovery only — never for authoritative state during transactions.
 
 ---
 

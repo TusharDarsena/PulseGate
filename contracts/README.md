@@ -21,7 +21,7 @@ contracts/
 │       └── test.rs         Contract tests (no running node needed)
 └── marketplace/
     └── src/
-        └── lib.rs          Placeholder — implementation in progress
+        └── lib.rs          Public interface + inter-contract call to restricted_transfer in buy_listing
 ```
 
 ## SDK
@@ -33,14 +33,16 @@ contracts/
 ```bash
 cargo build                                              # check compiles
 cargo test -p ticket                                     # run ticket tests
-cargo build --target wasm32-unknown-unknown --release    # build wasm for deploy
+cargo test -p marketplace                                # run marketplace tests
+cargo build --target wasm32v1-none --release             # build wasm for deploy
 ```
 
 ## Status
 
-- `ticket` contract: ✅ complete, 6/6 tests passing
-- `marketplace` contract: 🔲 not yet implemented
+- `ticket` contract: ✅ complete, tests passing
+- `marketplace` contract: ✅ complete, tests passing
+- Both deployed to Stellar Testnet (see root README for addresses)
 
 ## Deploying
 
-Use `scripts/deploy.sh` (not yet written). Order matters — see `docs/architecture.md` → Deployment Sequence. Never deploy manually.
+Use `scripts/deploy.sh`. Order matters — see `docs/architecture.md` → Deployment Sequence.

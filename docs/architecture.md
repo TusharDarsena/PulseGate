@@ -16,7 +16,7 @@
 - **TTL Policy** (persistent + instance): Extend TTL on reads/writes for Event and Ticket storage; bump instance storage TTL for Config (D-014, D-015).
 
 **Functions**
-- `initialize(marketplace_address, xlm_token)`: Sets contract config.
+- `initialize(admin, marketplace_address, xlm_token)`: Admin is stored in instance storage and used to guard against re-initialization. Sets contract config.
 - `create_event(organizer, name, date_unix, capacity, price)`: Validates args (D-017). Writes Event.
 - `purchase(event_id, buyer)`: Checks capacity/status, generates unique `ticket_id` on-chain (D-018), mints Ticket (Active), updates state before token transfer (CEI - D-016), adds to Escrow.
 - `release_funds(event_id, organizer)`: Checks date. Marks Completed, clears Escrow, transfers XLM to organizer (CEI).
@@ -33,7 +33,7 @@
 - **Config** (instance): `ticket_contract_address`, `royalty_rate` (integer percentage, e.g., 10 = 10% - D-010)
 
 **Functions**
-- `initialize(ticket_contract_address, royalty_rate)`: Sets contract config.
+- `initialize(admin, ticket_contract_address, royalty_rate)`: Admin stored in instance storage, guards re-initialization. Sets contract config.
 - `list_ticket(seller, listing_id, ticket_id, event_id, ask_price)`: Creates Open listing. No on-chain lock (D-009). `event_id` is stored for informational purposes only.
 - `buy_listing(seller, listing_id, buyer)`: Fails fast if ticket owner changed (D-020). Derives authoritative `event_id` from on-chain ticket record (D-021). Pulls `ask_price`, calculates ceiling royalty `(price * rate + 99) / 100`, pays organizer and seller, calls TicketContract.`restricted_transfer`, marks Sold.
 - `cancel_listing(seller, listing_id)`: Marks Cancelled.
@@ -42,16 +42,18 @@
 
 ## Application Architecture
 
-### Wallet Flow (D-008)
+### Wallet Flow (D-008, D-028)
 - **Organizer**: Freighter (full key control).
-- **Attendee**: Web3Auth (silent keypair). If new address, auto-funded via Friendbot.
+- **Attendee**: Burner Wallet — `Keypair.random()`, secret stored in `localStorage`, funded via Friendbot. No crypto knowledge required. Web3Auth deferred to post-MVP (D-028).
 
-### Transaction Split (D-007)
-**Server builds/simulates → Client signs → Server submits.** 
-Prevents sequence number races. Never skip simulation.
+### Transaction Flow (D-007 revised)
+`AssembledTransaction.signAndSend()` handles build → simulate → sign → submit in a single client-side call. Fetches a fresh sequence number each time. No backend XDR server for MVP. Never skip simulation.
 
 ### State Management (D-025)
 **Global Store (Zustand)**: `txState` and `wallet` are managed in a central store (`useAppStore`). This ensures that transaction feedback (overlays) and wallet updates are reflected immediately across the entire application without prop-drilling.
+
+### Data Layer (D-004, D-029 revised)
+**Supabase** is used as a read-cache for event and ticket list queries (`useEvents`, `useTickets`). On-chain state (`get_event`, `get_ticket`) is still the authoritative source for all transaction paths (purchase, scanner, release funds).
 
 
 ### QR Verification (D-005, D-006)
@@ -72,7 +74,7 @@ Prevents sequence number races. Never skip simulation.
 5. Call MarketplaceContract.`initialize(ticket_contract_address, royalty_rate)`.
 
 ## Excluded from MVP
-- Passkey auth (Web3Auth preferred)
-- On-chain event images (Use off-chain metadata)
-- Automated refunds (Hits instruction limits - D-002)
+- Social login / Web3Auth (D-028, deferred to post-MVP)
+- On-chain event images (use off-chain metadata / Supabase)
+- Automated refunds (hits instruction limits — D-002)
 - Marketplace locks (D-009)

@@ -15,8 +15,6 @@ NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite fronten
 | ------------------- | --------------------------------------------------------------- |
 | Anything            | `docs/architecture.md`                                          |
 | Contracts           | + `contracts/README.md`                                         |
-| Frontend            | + `docs/frontend.md`                                            |
-| Reference repos     | `docs/repo_guide.md`                                            |
 | Any design decision | `docs/decisions.md` — check before changing, add after deciding |
 
 ---
@@ -93,7 +91,7 @@ NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite fronten
 - 30s cache TTL in all hooks — never fetch inside render
 - `constants.ts` reads from `import.meta.env` only — never hardcode contract IDs
 - Attendee wallets are Burner Wallets (D-028): `Keypair.random()`, secret in `localStorage`, funded via Friendbot
-- Event/ticket lists are discovered via `SorobanRpc.getEvents()` — no `get_all_*` contract methods exist (D-029)
+- Event/ticket lists are discovered via Supabase (`lib/supabase.ts`) — no `get_all_*` contract methods exist. On-chain `get_event`/`get_ticket` are used for authoritative state during transactions (D-004, D-029).
 
 ---
 
