@@ -7,6 +7,18 @@ echo "======================================================="
 echo "Deploying Soroban NFT Ticketing Contracts to Testnet"
 echo "======================================================="
 
+# ── Required environment variables ────────────────────────────────────────────
+# XLM_TESTNET_TOKEN — The Stellar Asset Contract address for native XLM on testnet.
+# Testnet default: CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
+# Set this in your shell before running: export XLM_TESTNET_TOKEN=<address>
+# Never hardcode it here — see AGENTS.md hard rules.
+if [ -z "${XLM_TESTNET_TOKEN}" ]; then
+  echo "❌ ERROR: XLM_TESTNET_TOKEN environment variable is not set."
+  echo "   Export it before running this script:"
+  echo "   export XLM_TESTNET_TOKEN=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+  exit 1
+fi
+
 # Verify organizer exists before proceeding
 if ! stellar keys ls | grep -q "\borganizer\b"; then
     echo "❌ ERROR: 'organizer' identity not found."
@@ -35,8 +47,8 @@ MARKETPLACE_ID=$(stellar contract deploy \
   --network testnet)
 echo "✓ MarketplaceContract deployed: $MARKETPLACE_ID"
 
-# Testnet native XLM address
-XLM_TESTNET="CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+# Testnet native XLM SAC address — read from environment (never hardcoded here).
+XLM_TESTNET="${XLM_TESTNET_TOKEN}"
 
 echo ""
 echo "4. Initializing TicketContract..."

@@ -18,7 +18,7 @@
 **Functions**
 - `initialize(admin, marketplace_address, xlm_token)`: Admin is stored in instance storage and used to guard against re-initialization. Sets contract config.
 - `create_event(organizer, name, date_unix, capacity, price)`: Validates args (D-017). Writes Event.
-- `purchase(event_id, buyer)`: Checks capacity/status, generates unique `ticket_id` on-chain (D-018), mints Ticket (Active), updates state before token transfer (CEI - D-016), adds to Escrow.
+- `purchase(event_id, buyer, ticket_id)`: Caller supplies a client-generated `ticket_id` (via `generateID()` in the frontend). Contract checks for collision, then checks capacity/status, mints Ticket (Active), updates state before token transfer (CEI - D-016), adds to Escrow.
 - `release_funds(event_id, organizer)`: Checks date. Marks Completed, clears Escrow, transfers XLM to organizer (CEI).
 - `cancel_event(event_id, organizer)`: Marks Cancelled. No auto-refund (D-002).
 - `refund(ticket_id, attendee)`: Checks event Cancelled. Marks Ticket Refunded, decrements Escrow, returns XLM (CEI).
@@ -59,7 +59,7 @@
 ### QR Verification (D-005, D-006)
 1. **Frontend (every 30s)**: Attendee wallet signs `{wallet_address}:{ticket_id}:{timestamp}`. Encodes as QR.
 2. **Scanner (at door)**: Decodes QR.
-   - Rejects if `|now - timestamp| > 30s`.
+   - Rejects if `|now - timestamp| >= 45s` (30s rotation + 15s clock-drift grace — see D-006).
    - Verifies `ed25519` signature locally (`Keypair.verify()`).
    - Calls `get_ticket(ticket_id)` to ensure `owner == wallet_address` & `status == Active`.
    - Displays Green, executes `mark_used` on-chain.
@@ -70,8 +70,8 @@
 1. Fund test accounts, including auto-generating the `organizer` CLI identity (D-024).
 2. Deploy TicketContract. Get address.
 3. Deploy MarketplaceContract. Get address.
-4. Call TicketContract.`initialize(marketplace_address, xlm_token)`.
-5. Call MarketplaceContract.`initialize(ticket_contract_address, royalty_rate)`.
+4. Call TicketContract.`initialize(admin, marketplace_address, xlm_token)`.
+5. Call MarketplaceContract.`initialize(admin, ticket_contract_address, royalty_rate)`.
 
 ## Excluded from MVP
 - Social login / Web3Auth (D-028, deferred to post-MVP)

@@ -24,9 +24,11 @@ On-chain is the source of truth for all ticket and event state. However, the Sor
 
 `Keypair.verify()` runs in the browser with no network call — makes the scanner instant. `mark_used` hits the chain after the green/red result is shown.
 
-## D-006 — QR uses absolute timestamp, not windowed
+## D-006 — QR uses absolute timestamp, not windowed; 45s expiry window
 
-Check `|now - payload_timestamp| < 30`. **Not** `floor(unix/30)` — that fails a QR generated at second 29 when scanned at second 31 (2 seconds later, but different window). See `lib/qr.ts`.
+Check `|now - payload_timestamp| < 45`. **Not** `floor(unix/30)` — that fails a QR generated at second 29 when scanned at second 31 (2 seconds later, but different window).
+
+**Why 45s and not 30s**: The UI regenerates a fresh QR payload every 30 seconds. A 30s hard cut-off would reject a payload created at T=0 and scanned at T=30 (exactly on the boundary). Adding a 15-second clock-drift grace period makes the window `[0, 45)` seconds, which tolerates minor device clock skew while remaining well within an acceptable anti-replay bound. `PAYLOAD_EXPIRY_SECONDS = 45` in `lib/qr.ts`.
 
 ## D-007 — Frontend-only transaction building for MVP (revised)
 
@@ -177,24 +179,47 @@ This drains the (empty or minimal) escrow while the contract appears legitimate.
 
 ---
 
-## D-032 — Secondary Market / Resale UI Deferred to Post-MVP
+## D-032 — Secondary Market / Resale UI (implemented in MVP)
 
-The `MarketplaceContract` is deployed and fully functional (listing, buying, royalty deduction, cancellation). However, **no frontend UI will be built for resale flows in the MVP**.
+The `MarketplaceContract` is deployed and fully functional. `MarketplacePage.tsx` is also fully implemented with `useListings`, buy and cancel flows, and royalty display.
 
-**Reason**: The attendee flow (buy → QR → scan) and organizer flow (create event → dashboard → release funds) are the minimum viable product. Resale is an enhancement. Building a marketplace UI before the core flows are tested end-to-end would add scope without adding demo value.
+**Original decision** stated this was deferred. The implementation moved faster than the decision log. `MarketplacePage` was built and wired to the real contract during the same phase as the core attendee flow.
 
-**Affected pages not built**: `ListTicketPage`, `ResaleMarketPage`, `BuyResalePage`. These are V2.
-
-**Contract functions affected (not exposed in frontend)**: `create_listing`, `buy_listing`, `cancel_listing` in `MarketplaceContract`.
+**Current state**: `list_ticket`, `buy_listing`, `cancel_listing` are all exposed in the frontend via `lib/soroban.ts` wrappers and the Marketplace page.
 
 ---
 
-## D-033 — Event Cancellation and Refund UI Deferred to Post-MVP
+## D-033 — Event Cancellation and Refund UI (implemented in MVP)
 
-The `TicketContract` has `cancel_event()` (organizer-only) and `refund()` (attendee pull-based, D-002). **No frontend UI is built for either in the MVP.**
+The `TicketContract` has `cancel_event()` (organizer-only) and `refund()` (attendee pull-based, D-002). Both flows are now exposed in the frontend.
 
-**Reason**: Cancellation is an edge case — the MVP demo assumes events proceed normally. Building a cancel + refund flow before the happy path works end-to-end is premature.
+**Original decision** stated these were deferred. They were implemented during the same phase as the core flows.
 
-**Rule**: Organizers cannot cancel events from the dashboard in MVP. Attendees cannot self-serve refunds. These are V2 features.
+**Current state**:
+- `DashboardPage.tsx` exposes a Cancel Event button via `handleCancel` → `cancelEvent()` in `lib/soroban.ts`.
+- `MyTicketsPage.tsx` exposes a Refund button via `handleRefund` → `refundTicket()` in `lib/soroban.ts`.
+- Both are pull-based per D-002 — the contract does not auto-refund.
 
-**Contract functions affected (not exposed in frontend)**: `cancel_event`, `refund` in `TicketContract`.
+---
+
+## D-034 — Number() Downcast from i128: Accepted Precision Limitation
+
+The `getEvent()` and `getTicket()` read functions in `lib/soroban.ts` downcast Soroban `i128` values (`capacity`, `current_supply`, `price_per_ticket`) to JavaScript `Number` using `Number(e.price_per_ticket)`.
+
+JavaScript's `Number.MAX_SAFE_INTEGER = 2^53 - 1 = 9,007,199,254,740,991`. One XLM = 10,000,000 stroops, so the maximum safe price is ~900,719,925 XLM (~900M XLM) before silent precision loss occurs.
+
+**Why acceptable for MVP**: On Stellar Testnet with Friendbot-funded accounts (10,000 XLM max), no event will ever have a price anywhere near 900M XLM. This is a known, documented gap — not a silent bug.
+
+**Post-MVP fix**: Retain values as `BigInt` throughout the frontend type system and use a `BigInt`-aware formatting utility instead of `Number()`.
+
+---
+
+## D-035 — Open RLS on Supabase: Accepted Testnet Tradeoff
+
+`supabase_schema.sql` enables permissive Row Level Security (RLS) policies for INSERT on `public.events`, `public.tickets`, and `public.listings` — anyone with the public anon key can insert rows without executing an on-chain transaction.
+
+**Why acceptable for MVP**: Supabase is the *read-cache/display layer only*. The on-chain TicketContract is the financial authority. A fake Supabase ticket row has no corresponding on-chain state — it cannot be used for QR entry (the scanner calls `get_ticket()` on-chain to verify `owner` and `status == Active` before `mark_used`). A fake row is cosmetically harmful but financially harmless.
+
+**The schema already documents this** with a `WARNING` comment.
+
+**Post-MVP fix**: Replace open INSERT policies with Supabase Edge Functions that verify the corresponding on-chain Soroban transaction (via RPC) before writing to the database.

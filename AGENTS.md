@@ -33,8 +33,6 @@ NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite fronten
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `architecture.md` | **Binding design.** Storage models, function signatures, wallet flows, QR, deployment sequence. Do not deviate without updating `decisions.md`. |
 | `decisions.md`    | Why each design choice was made. Check before overriding anything.                                                                              |
-| `repo_guide.md`   | What to use/avoid from reference repos. Read once before writing contracts.                                                                     |
-| `frontend.md`     | Frontend file responsibilities, hook APIs, page behaviors.                                                                                      |
 
 ### contracts/
 | File                         | Owns                                                                                                           |
@@ -56,16 +54,17 @@ NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite fronten
 | File                    | Owns                                                                                                  |
 | ----------------------- | ----------------------------------------------------------------------------------------------------- |
 | `lib/constants.ts`      | ⚠️ Contract addresses, RPC URL, network passphrase. The **only** place. Hardcoding elsewhere is a bug. |
-| `lib/soroban.ts`        | Build → simulate → prepare → submit. Only file importing `SorobanRpc`.                                |
+| `lib/soroban.ts`        | All contract call wrappers. Uses `AssembledTransaction.signAndSend()` (D-007). Only file importing `SorobanRpc` (re-exported for hooks). |
 | `lib/stellar.ts`        | `Keypair.verify()`, Burner Wallet generation (`Keypair.random()`), Friendbot funding. No tx building. |
 | `lib/qr.ts`             | QR payload build + verify. Zero network calls.                                                        |
 | `hooks/useWallet.ts`    | Unified Freighter + Burner Wallet hook. `walletType: 'freighter' \| 'burner' \| null`. Nothing outside knows which provider is active. Web3Auth deferred (D-028). |
 | `hooks/useEvents.ts`    | Event list with 30s cache. Never fetch inside render.                                                 |
 | `hooks/useTickets.ts`   | Tickets for current wallet. Call `invalidate()` after purchase.                                       |
-| `components/shared/`    | UI primitives. No blockchain logic.                                                                   |
-| `components/attendee/`  | Attendee-only components. Does not import from `organizer/`.                                          |
-| `components/organizer/` | Organizer-only components. Does not import from `attendee/`.                                          |
-| `components/scanner/`   | Camera + QR decode + result display.                                                                  |
+| `components/events/`    | Event card, event list, event detail UI. No blockchain logic.                                         |
+| `components/layout/`    | App shell, navigation, header/footer. No blockchain logic.                                            |
+| `components/organizer/` | Organizer-only components. Does not import from attendee components.                                  |
+| `components/tickets/`   | Ticket card, ticket list. No blockchain logic.                                                        |
+| `components/ui/`        | UI primitives (buttons, modals, badges). No blockchain logic.                                         |
 
 ### scripts/
 | File        | Owns                                                                                          |
@@ -103,7 +102,7 @@ NFT event ticketing on Stellar. Two Soroban smart contracts + React/Vite fronten
 - **No `env.call_contract()`.** Use generated client.
 - **No `soroban-auth` / `Signature` / `Identifier` types.** Ancient SDK (0.4.x). Auth is `address.require_auth()`.
 - **No hardcoded addresses outside `constants.ts`.**
-- **No QR windowed timestamp `floor(unix/30)`.** Use `|now - timestamp| < 30`. D-006.
+- **No QR windowed timestamp `floor(unix/30)`.** Use `|now - timestamp| < 45`. D-006. (45s = 30s rotation + 15s clock-drift grace.)
 - **Never skip `simulateTransaction`.** Wrong fees, opaque errors.
 - **No lock mechanism on listings.** Known gap, acceptable for MVP. D-009.
 

@@ -4,10 +4,16 @@
 -- 1. Update existing `events` table with missing columns
 ALTER TABLE public.events
 ADD COLUMN IF NOT EXISTS status text DEFAULT 'Active',
-ADD COLUMN IF NOT EXISTS current_supply integer DEFAULT 0,
+ADD COLUMN IF NOT EXISTS current_supply bigint DEFAULT 0,
 ADD COLUMN IF NOT EXISTS date_unix bigint,
-ADD COLUMN IF NOT EXISTS capacity integer,
-ADD COLUMN IF NOT EXISTS price_per_ticket bigint;
+ADD COLUMN IF NOT EXISTS capacity bigint,
+ADD COLUMN IF NOT EXISTS price_per_ticket bigint,
+-- Metadata columns required by lib/supabase.ts EventMetadata interface and upsertEventMetadata()
+ADD COLUMN IF NOT EXISTS description text,
+ADD COLUMN IF NOT EXISTS image_url text,
+ADD COLUMN IF NOT EXISTS venue text,
+ADD COLUMN IF NOT EXISTS city text,
+ADD COLUMN IF NOT EXISTS category text;
 
 -- 2. Create `tickets` table
 CREATE TABLE IF NOT EXISTS public.tickets (

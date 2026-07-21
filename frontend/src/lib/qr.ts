@@ -44,7 +44,7 @@ export function buildQRPayload(
  *
  * Checks performed (in order):
  *   1. Format: exactly 4 colon-delimited parts
- *   2. Timestamp: |now - timestamp| < 30s  (D-006 — absolute, not windowed)
+ *   2. Timestamp: |now - timestamp| < 45s  (D-006 — absolute, not windowed; 30s rotation + 15s clock-drift grace)
  *   3. Signature: ed25519 verify against the wallet's public key  (D-005)
  */
 export function verifyQRPayload(
