@@ -24,7 +24,7 @@ A **proof gate** validates that a selected integration works with the existing S
 
 ## DR-01 — Human identity and attendee signing
 
-**Decision.** Use **Supabase Auth** for Google sign-in and email OTP/magic-link sign-in. `auth.uid()` is the stable `user_id` used by profiles, wallet links, purchase operations, receipts, and RLS.
+**Decision.** Use **Supabase Auth** for Google sign-in and a six-digit email OTP sign-in. Magic links are not used in Slice 1. `auth.uid()` is the stable `user_id` used by profiles, wallet links, purchase operations, receipts, and RLS.
 
 Provision one **Dfns delegated wallet on Stellar Testnet** for each user. The wallet is controlled by the end user through a passkey. The raw Stellar secret must never enter local storage, Zustand state, profile rows, logs, or application code. Store only the Dfns user/wallet identifiers, public Stellar address, lifecycle status, and ownership mapping.
 
@@ -66,7 +66,6 @@ Canonical Slice 1 routes are:
 - `/tickets/:ticketId`
 - `/marketplace`
 - `/account`
-- `/purchases/:operationId`
 - `/organizer/events`
 - `/organizer/events/:eventId`
 - `/organizer/events/:eventId/check-in`
@@ -74,11 +73,11 @@ Canonical Slice 1 routes are:
 
 The root route redirects to `/events`. Discover and event details are public. Protected actions store a validated same-origin route and action intent, complete authentication, then return to that exact destination. The event is reloaded and revalidated after return. External or malformed return URLs are rejected.
 
-Scanner access exists only inside a specific organizer event. Browser Back/Forward, refresh, shared links, receipt reopening, and not-found behavior are part of the routing contract.
+Scanner access exists only inside a specific organizer event. Browser Back/Forward, refresh, shared links, and not-found behavior are part of the Phase 1 routing contract. `/purchases/:operationId` is reserved for Phase 3 and is not registered or exposed in Phase 1.
 
 **Why.** The current in-memory view and selected-ID state cannot support authentication return, refresh recovery, receipts, calendar links, or shareable events.
 
-**Proof gate.** Google and email auth must return to an exact checkout route; refreshing event, checkout, ticket, and receipt routes must retain the destination; no redirect restoration may submit a transaction.
+**Proof gate.** Google and email auth must return to an exact checkout route; refreshing event, checkout, and ticket routes must retain the destination; no redirect restoration may submit a transaction.
 
 **References.** [`App.tsx`](../frontend/src/App.tsx) · [`types/index.ts`](../frontend/src/types/index.ts) · [`AppHeader.tsx`](../frontend/src/components/layout/AppHeader.tsx) · [`BottomNav.tsx`](../frontend/src/components/layout/BottomNav.tsx)
 
@@ -106,7 +105,7 @@ The operation follows the Slice 1 transaction states: `review`, `preparing`, `ap
 
 After submission may have occurred, the Pay action remains disabled. The app resolves the existing operation by hash or ticket ID; it never generates a second payable attempt while status is unresolved. A new operation is allowed only after a definitive non-submitted or chain-failed result and an explicit user retry.
 
-The receipt route is `/purchases/:operationId`. It survives refresh and shows the ticket ID, owner, amount, hash, network, confirmation time, and sync status. An operation or receipt never proves ownership; the chain does.
+Phase 3 will register `/purchases/:operationId`. It will survive refresh and show the ticket ID, owner, amount, hash, network, confirmation time, and sync status. Phase 1 reserves this design only: it does not register the route, create an operation record, or expose a receipt page. An operation or receipt never proves ownership; the chain does.
 
 **Why.** The current ticket ID is generated inside the click handler, transaction state is not persisted, and the Soroban wrapper discards the hash. A refresh or timeout can therefore lead to an unsafe second payment.
 

@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #14121b;
+  --color-on-background: #e6e0ee;
+
+  --color-surface: #14121b;
+  --color-surface-dim: #14121b;
+  --color-surface-bright: #3a3842;
+  --color-surface-container-lowest: #0f0d16;
+  --color-surface-container-low: #1c1a24;
+  --color-surface-container: #201e28;
+  --color-surface-container-high: #2b2933;
+  --color-surface-container-highest: #36333e;
+  --color-on-surface: #e6e0ee;
+  --color-on-surface-variant: #c9c4d8;
+
+  --color-outline: #938ea1;
+  --color-outline-variant: #484555;
+  --color-outline-dim: #272C33;
+
+  --color-primary: #7C5CFF;
+  --color-on-primary: #EAEFF4;
+  --color-primary-fixed: #cabeff;
+  --color-primary-container: #947dff;
+  --color-on-primary-container: #2a0088;
+
+  --color-secondary: #c2c7d0;
+  --color-on-secondary: #2c3138;
+  --color-secondary-container: #42474f;
+  --color-on-secondary-container: #b1b5be;
+
+  --color-tertiary: #ffb780;
+  --color-on-tertiary: #4e2600;
+  --color-tertiary-container: #d7791f;
+  --color-on-tertiary-container: #442000;
+
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "monospace";
+
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* ── Font-size tokens (flat values, used by Tailwind v4 as text-* utilities) ── */
+  --font-headline-xl: 48px;
+  --font-headline-lg: 32px;
+  --font-headline-md: 24px;
+  --font-body-lg: 18px;
+  --font-body-md: 16px;
+  --font-body-sm: 14px;
+  --font-label-md: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base layer
+───────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    vertical-align: middle;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Custom utilities
+   These are plain CSS classes used in JSX. Defining them here means Tailwind
+   v4 won't purge them and they work exactly like any other utility class.
+───────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Hide scrollbar on the horizontal category chip row */
+  .no-scrollbar {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE / Edge legacy */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    /* Chrome / Safari / Opera */
+  }
+
+  /* iOS safe-area bottom padding for the fixed bottom nav */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /*
+    Responsive font-size helpers for the two tokens that need to scale.
+
+    Tailwind v4 turns --font-headline-lg and --font-headline-md into the
+    utility classes `text-headline-lg` / `text-headline-md`, but these are
+    FLAT values — there is no built-in responsive variant. We create explicit
+    responsive classes here so JSX can use them with standard Tailwind
+    breakpoint prefixes: `text-page-title` and `text-card-title`.
+
+    text-page-title  : 22px (mobile) → 28px (sm) → 32px (md+)
+    text-card-title  : 16px (mobile) → 18px (sm) → 24px (md+)
+    text-price       : 18px (mobile) → 22px (sm) → 24px (md+)
+  */
+  .text-page-title {
+    font-size: 22px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .text-card-title {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+
+  .text-price {
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+}
+
+@media (min-width: 640px) {
+  .text-page-title {
+    font-size: 28px;
+  }
+
+  .text-card-title {
+    font-size: 18px;
+  }
+
+  .text-price {
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 768px) {
+  .text-page-title {
+    font-size: 32px;
+  }
+
+  .text-card-title {
+    font-size: 24px;
+  }
+
+  .text-price {
+    font-size: 24px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global resets
+───────────────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background-color: #0e1113;
+  color: #e6e0ee;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}

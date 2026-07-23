@@ -1,0 +1,304 @@
+import { DfnsApiClient, DfnsDelegatedApiClient } from 'npm:@dfns/sdk@0.8.25';
+import { AsymmetricKeySigner } from 'npm:@dfns/sdk-keysigner@0.8.25';
+import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+
+const cors = {
+  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? '',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...cors, 'Content-Type': 'application/json' },
+  });
+
+function required(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) throw new Error(`Server configuration is missing ${name}.`);
+  return value;
+}
+
+function serviceDfns(authToken = required('DFNS_SERVICE_ACCOUNT_TOKEN')) {
+  return new DfnsApiClient({
+    baseUrl: required('DFNS_API_URL'),
+    authToken,
+    signer: new AsymmetricKeySigner({
+      credId: required('DFNS_SERVICE_ACCOUNT_CRED_ID'),
+      privateKey: required('DFNS_SERVICE_ACCOUNT_PRIVATE_KEY'),
+    }),
+  });
+}
+
+function delegatedDfns(authToken: string) {
+  return new DfnsDelegatedApiClient({
+    baseUrl: required('DFNS_API_URL'),
+    authToken,
+    orgId: required('DFNS_ORG_ID'),
+  });
+}
+
+function validateSignatureRequest(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') throw new Error('Missing signature request.');
+  const request = value as Record<string, unknown>;
+  if (request.kind === 'Transaction') {
+    if (request.network !== 'StellarTestnet' || typeof request.transaction !== 'string') {
+      throw new Error('Only Stellar Testnet transaction XDR is accepted.');
+    }
+  } else if (request.kind === 'Message') {
+    if (typeof request.message !== 'string' || !request.message.startsWith('0x')) {
+      throw new Error('Message signatures require hexadecimal bytes.');
+    }
+  } else {
+    throw new Error('Unsupported signature kind.');
+  }
+  return request;
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
+
+  try {
+    const supabaseUrl = required('SUPABASE_URL');
+    const authHeader = request.headers.get('Authorization') ?? '';
+    const authClient = createClient(supabaseUrl, required('SUPABASE_ANON_KEY'), {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await authClient.auth.getUser();
+    if (userError || !user) return json({ error: 'Authentication required.' }, 401);
+
+    const admin = createClient(supabaseUrl, required('SUPABASE_SERVICE_ROLE_KEY'));
+    const body = await request.json() as Record<string, unknown>;
+    const action = body.action;
+    const username = `stellar-${user.id}`;
+
+    if (action === 'registration-init') {
+      const [{ data: wallet }, { data: link }] = await Promise.all([
+        admin.from('attendee_wallets').select('address,readiness').eq('user_id', user.id).maybeSingle(),
+        admin.from('wallet_provider_links').select('provider_user_id').eq('user_id', user.id).maybeSingle(),
+      ]);
+      if (wallet?.readiness === 'ready') {
+        return json({ error: 'The attendee wallet already exists.' }, 409);
+      }
+      if (link) {
+        await admin.from('attendee_wallets').upsert({
+          user_id: user.id,
+          address: wallet?.address ?? null,
+          readiness: 'recovery_required',
+        });
+        return json({
+          error: 'The recorded wallet setup must be recovered; a replacement will not be created.',
+        }, 409);
+      }
+
+      const challenge = await serviceDfns().auth.createDelegatedRegistrationChallenge({
+        body: { email: username, kind: 'EndUser', externalId: user.id },
+      });
+      const { error: linkError } = await admin.from('wallet_provider_links').insert({
+        user_id: user.id,
+        provider: 'dfns',
+        provider_username: username,
+        temporary_auth_token: challenge.temporaryAuthenticationToken,
+        recovery_state: 'required',
+      });
+      if (linkError) throw linkError;
+      await admin.from('attendee_wallets').upsert({
+        user_id: user.id,
+        readiness: 'provisioning',
+      });
+      return json({ challenge });
+    }
+
+    if (action === 'registration-complete') {
+      if (!body.firstFactorCredential || !body.recoveryCredential) {
+        throw new Error('Both a passkey and a user-held recovery credential are required.');
+      }
+      const { data: link, error: linkError } = await admin
+        .from('wallet_provider_links')
+        .select('temporary_auth_token,provider_user_id')
+        .eq('user_id', user.id)
+        .single();
+      if (linkError || !link?.temporary_auth_token || link.provider_user_id) {
+        throw new Error('No resumable wallet registration exists.');
+      }
+
+      const registered = await serviceDfns(link.temporary_auth_token).auth.register({
+        body: {
+          firstFactorCredential: body.firstFactorCredential,
+          recoveryCredential: body.recoveryCredential,
+        },
+      });
+      const wallet = await serviceDfns().wallets.createWallet({
+        body: { network: 'StellarTestnet', delegateTo: registered.id },
+      });
+      const { error: updateError } = await admin.from('wallet_provider_links').update({
+        provider_user_id: registered.id,
+        provider_wallet_id: wallet.id,
+        provider_signing_key_id: wallet.signingKey.id,
+        provider_recovery_credential_id: (
+          body.recoveryCredential as { credentialInfo: { credId: string } }
+        ).credentialInfo.credId,
+        temporary_auth_token: null,
+        recovery_state: 'ready',
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', user.id).is('provider_user_id', null);
+      if (updateError) throw updateError;
+      await admin.from('attendee_wallets').upsert({
+        user_id: user.id,
+        address: wallet.address,
+        network: 'StellarTestnet',
+        readiness: 'ready',
+        updated_at: new Date().toISOString(),
+      });
+      await admin.from('wallet_audit_log').insert({
+        user_id: user.id,
+        action: 'wallet_registered',
+        outcome: 'success',
+      });
+      return json({ address: wallet.address, network: 'StellarTestnet', readiness: 'ready' });
+    }
+
+    const { data: link, error: linkError } = await admin
+      .from('wallet_provider_links')
+      .select('provider_username,provider_signing_key_id,provider_recovery_credential_id')
+      .eq('user_id', user.id)
+      .single();
+    if (linkError || !link?.provider_signing_key_id) {
+      throw new Error('The recorded delegated wallet is not ready.');
+    }
+
+    if (action === 'recovery-init') {
+      if (!link.provider_recovery_credential_id) {
+        throw new Error('No recovery credential is registered for this wallet.');
+      }
+      const challenge = await serviceDfns().auth.createDelegatedRecoveryChallenge({
+        body: {
+          username: link.provider_username,
+          credentialId: link.provider_recovery_credential_id,
+        },
+      });
+      const encrypted = challenge.allowedRecoveryCredentials.find(
+        (credential) => credential.id === link.provider_recovery_credential_id,
+      )?.encryptedRecoveryKey;
+      if (!encrypted) throw new Error('The recorded recovery credential is unavailable.');
+      await admin.from('wallet_provider_links').update({
+        temporary_auth_token: challenge.temporaryAuthenticationToken,
+      }).eq('user_id', user.id);
+      return json({
+        challenge,
+        credentialId: link.provider_recovery_credential_id,
+        encryptedPrivateKey: encrypted,
+      });
+    }
+
+    if (action === 'recovery-complete') {
+      if (!body.recovery || !body.firstFactorCredential || !body.recoveryCredential) {
+        throw new Error('Recovery approval and replacement credentials are required.');
+      }
+      const { data: recoveryLink, error: recoveryLinkError } = await admin
+        .from('wallet_provider_links')
+        .select('temporary_auth_token')
+        .eq('user_id', user.id)
+        .single();
+      if (recoveryLinkError || !recoveryLink?.temporary_auth_token) {
+        throw new Error('No active recovery challenge exists.');
+      }
+      await serviceDfns(recoveryLink.temporary_auth_token).auth.recover({
+        body: {
+          recovery: body.recovery,
+          newCredentials: {
+            firstFactorCredential: body.firstFactorCredential,
+            recoveryCredential: body.recoveryCredential,
+          },
+        },
+      });
+      await admin.from('wallet_provider_links').update({
+        provider_recovery_credential_id: (
+          body.recoveryCredential as { credentialInfo: { credId: string } }
+        ).credentialInfo.credId,
+        temporary_auth_token: null,
+        recovery_state: 'ready',
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', user.id);
+      await admin.from('attendee_wallets').update({
+        readiness: 'ready',
+        updated_at: new Date().toISOString(),
+      }).eq('user_id', user.id);
+      await admin.from('wallet_audit_log').insert({
+        user_id: user.id,
+        action: 'wallet_recovered',
+        outcome: 'success',
+      });
+      return json({ readiness: 'ready' });
+    }
+
+    if (action === 'signature-init') {
+      const signatureRequest = validateSignatureRequest(body.request);
+      const { token } = await serviceDfns().auth.delegatedLogin({
+        body: { username: link.provider_username },
+      });
+      const delegated = delegatedDfns(token);
+      const providerRequest = {
+        keyId: link.provider_signing_key_id,
+        body: signatureRequest,
+      };
+      const challenge = await delegated.keys.generateSignatureInit(providerRequest);
+      const { data: stored, error: storeError } = await admin
+        .from('wallet_action_challenges')
+        .insert({
+          user_id: user.id,
+          action: 'signature',
+          provider_auth_token: token,
+          provider_request: {
+            request: providerRequest,
+            challengeIdentifier: challenge.challengeIdentifier,
+          },
+          expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+        })
+        .select('request_id')
+        .single();
+      if (storeError) throw storeError;
+      return json({ requestId: stored.request_id, challenge });
+    }
+
+    if (action === 'signature-complete') {
+      const { data: stored, error: storedError } = await admin
+        .from('wallet_action_challenges')
+        .select('*')
+        .eq('request_id', body.requestId)
+        .eq('user_id', user.id)
+        .is('consumed_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+      if (storedError || !stored) throw new Error('Signing challenge is invalid or expired.');
+      const provider = stored.provider_request as {
+        request: Parameters<ReturnType<typeof delegatedDfns>['keys']['generateSignatureComplete']>[0];
+        challengeIdentifier: string;
+      };
+      const result = await delegatedDfns(stored.provider_auth_token).keys.generateSignatureComplete(
+        provider.request,
+        {
+          challengeIdentifier: provider.challengeIdentifier,
+          firstFactor: body.assertion,
+        },
+      );
+      await admin.from('wallet_action_challenges')
+        .update({ consumed_at: new Date().toISOString(), provider_auth_token: 'consumed' })
+        .eq('request_id', stored.request_id);
+      await admin.from('wallet_audit_log').insert({
+        user_id: user.id,
+        action: 'delegated_signature',
+        outcome: 'success',
+        detail: { kind: provider.request.body.kind },
+      });
+      return json({ signedData: result.signedData, signatures: result.signatures });
+    }
+
+    return json({ error: 'Unknown wallet action.' }, 400);
+  } catch (error) {
+    console.error('[attendee-wallet]', error instanceof Error ? error.message : error);
+    return json({ error: error instanceof Error ? error.message : 'Wallet service failed.' }, 400);
+  }
+});

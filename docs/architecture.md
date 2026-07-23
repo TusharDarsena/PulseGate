@@ -42,18 +42,27 @@
 
 ## Application Architecture
 
-### Wallet Flow (D-008, D-028)
-- **Organizer**: Freighter (full key control).
-- **Attendee**: Burner Wallet — `Keypair.random()`, secret stored in `localStorage`, funded via Friendbot. No crypto knowledge required. Web3Auth deferred to post-MVP (D-028).
+### Identity and Wallet Flow (D-008, D-028 revised)
+- **Human account**: Supabase Auth with Google or six-digit email OTP. `auth.uid()` is the stable person identifier.
+- **Attendee**: One Dfns delegated `StellarTestnet` wallet per user. A passkey authorizes signing and a user-held encrypted recovery credential is registered at provisioning. Client-readable wallet data is limited to address, network, and readiness.
+- **Organizer**: Freighter remains a separate connection. Connecting or disconnecting it does not change the attendee wallet or human session.
+- Provider user IDs, wallet IDs, signing-key IDs, recovery records, action challenges, and audit records are service-role-only.
+- Restoration failure sets `recovery_required`; no browser path creates a replacement wallet.
 
 ### Transaction Flow (D-007 revised)
 `AssembledTransaction.signAndSend()` handles build → simulate → sign → submit in a single client-side call. Fetches a fresh sequence number each time. No backend XDR server for MVP. Never skip simulation.
 
-### State Management (D-025)
-**Global Store (Zustand)**: `txState` and `wallet` are managed in a central store (`useAppStore`). This ensures that transaction feedback (overlays) and wallet updates are reflected immediately across the entire application without prop-drilling.
+### Routing and State Management (D-025)
+React Router owns durable routes for discovery, event details, checkout, tickets, account, organizer events, and event-scoped check-in. The root redirects to `/events`; `/auth/callback` handles Google PKCE return. No purchase receipt route is exposed in Phase 1.
+
+Protected routes store a short-lived same-origin intent with an enumerated action. Invalid, external, or expired destinations are rejected, and consuming an intent never submits a transaction.
+
+**Global Store (Zustand)**: `txState`, `attendeeWallet`, and `organizerWallet` are independent. Signing functions are reconstructed in memory and are not persisted. Supabase Auth owns the human session.
 
 ### Data Layer (D-004, D-029 revised)
 **Supabase** is used as a read-cache for event and ticket list queries (`useEvents`, `useTickets`). On-chain state (`get_event`, `get_ticket`) is still the authoritative source for all transaction paths (purchase, scanner, release funds).
+
+Phase 1 adds `profiles`, a service-written attendee wallet record, and service-role-only Dfns mapping/challenge/audit tables. `get_my_attendee_wallet()` returns only the current user's address, network, and readiness. The authenticated `/tickets/:ticketId` route does not yet claim authoritative ownership; that enforcement belongs to trusted reconciliation.
 
 All state-changing flows confirm the Soroban transaction before calling `lib/readModelSync.ts`. That adapter owns event, ticket, and listing mirror writes, checks Supabase result errors, and reports mirror failures separately from transaction failures. Hooks are invalidated only after the matching mirror operation succeeds. A mirror failure after chain confirmation must be shown as a synchronization warning and must never invite the user to retry the blockchain action.
 
