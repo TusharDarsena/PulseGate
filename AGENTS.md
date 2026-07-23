@@ -123,16 +123,16 @@ Important corrections to the old AGENTS file:
 | `frontend/src/contracts/marketplace/` | Generated MarketplaceContract TypeScript binding. Do not hand-edit. |
 | `frontend/src/lib/constants.ts` | Contract IDs, network passphrase, RPC URL, and Supabase environment values. |
 | `frontend/src/lib/soroban.ts` | Only handwritten module importing generated bindings. Client creation, all contract wrappers, keyed reads, and error translation. |
-| `frontend/src/lib/stellar.ts` | Burner-key lifecycle, Friendbot, Horizon balance reads, and burner signing adapter. |
+| `frontend/src/lib/stellar.ts` | Public Horizon balance reads only. Attendee provisioning and signing use the delegated-wallet boundary. |
 | `frontend/src/lib/qr.ts` | QR payload building and local signature verification. No network calls. |
 | `frontend/src/lib/supabase.ts` | Supabase client, row types, shared queries, and metadata upserts. Read-model adapter only. |
-| `frontend/src/hooks/useWallet.ts` | Organizer Freighter flow and attendee burner flow behind one `WalletState`/`SignFn` interface. |
-| `frontend/src/store/useAppStore.ts` | Persisted wallet state, global transaction state, hydration gate, and signer reconstruction after reload. |
+| `frontend/src/hooks/useWallet.ts` | Organizer Freighter connection only. It never replaces the attendee account or wallet. |
+| `frontend/src/store/useAppStore.ts` | Independent attendee-wallet, organizer-wallet, global transaction state, hydration gate, and organizer signer reconstruction. |
 | `frontend/src/hooks/useEvents.ts` | Event read-model polling, mapping, race suppression, and invalidation. |
 | `frontend/src/hooks/useTickets.ts` | Current-wallet ticket polling, mapping, race suppression, and invalidation. |
 | `frontend/src/hooks/useListings.ts` | Open-listing polling, joined event display data, race suppression, and invalidation. |
-| `frontend/src/types/index.ts` | App-facing models, `AppView`, wallet/transaction types, and conversion helpers. |
-| `frontend/src/App.tsx` | Manual `AppView` state machine and selected event/ticket IDs. There is no URL router. |
+| `frontend/src/types/index.ts` | App-facing models, separate attendee/organizer wallet types, transaction types, and conversion helpers. |
+| `frontend/src/App.tsx` | Durable React Router route tree, protected-route gates, and page orchestration. |
 | Pages | User-flow orchestration: adapters, tx state, post-chain mirrors, and hook invalidation. |
 | Components | Presentation and callbacks. UI primitives must not gain contract, wallet, or Supabase knowledge. |
 
@@ -140,8 +140,9 @@ Existing SDK boundaries are intentional:
 
 - generated contract bindings are imported only by `lib/soroban.ts`;
 - QR crypto stays in `lib/qr.ts`;
-- burner/Horizon/Friendbot logic stays in `lib/stellar.ts`;
-- Freighter connection/signing stays in `useWallet.ts` and signer rehydration in `useAppStore.ts`.
+- public Horizon reads stay in `lib/stellar.ts`;
+- delegated attendee signing stays in `lib/dfns.ts` plus the authenticated Edge Function;
+- Freighter connection/signing stays in `useWallet.ts` and organizer signer rehydration in `useAppStore.ts`.
 
 Do not introduce new SDK imports across pages/components to bypass these adapters.
 
@@ -212,13 +213,14 @@ Deploying or replacing only one contract without updating the other contract’s
 
 ### Wallets and hydration
 
-- Organizer wallet: Freighter.
-- Attendee wallet: burner keypair funded through Friendbot.
+- Human identity: Supabase Auth.
+- Organizer wallet: Freighter, held separately from the human account.
+- Attendee wallet: one recoverable Dfns delegated Stellar Testnet wallet per user.
 - Freighter private keys are never available to the app.
-- Burner secret storage is testnet-only behavior, not a mainnet-safe design.
-- `signFn` is not persisted; `useAppStore` rebuilds it after hydration.
-- Do not render role-dependent routing before `_hasHydrated` becomes true.
-- Disconnect must clear both app wallet state and burner-key storage.
+- Raw attendee wallet secrets must never enter browser storage, Zustand, Supabase rows, logs, or application code.
+- Attendee and organizer signing functions are not persisted.
+- Restoration failure must enter `recovery_required`; never silently create another wallet.
+- Human sign-out and organizer-wallet disconnect are separate actions.
 
 ### On-chain first, mirror second
 
@@ -251,12 +253,13 @@ A mirror failure after chain success is a synchronization failure, not a failed 
 
 ### Navigation
 
-Adding or renaming an `AppView` usually requires coordinated changes in:
+Adding or renaming a route usually requires coordinated changes in:
 
-- `types/index.ts`;
-- `App.tsx` render and state transitions;
-- `AppHeader` title/back/main navigation logic;
-- `BottomNav` visibility and active-state logic.
+- `App.tsx` route definitions and protection;
+- validated auth-intent route patterns;
+- `AppHeader` and `BottomNav`;
+- hosting SPA fallback behavior;
+- direct-link, refresh, and Back/Forward tests.
 
 ---
 
@@ -286,7 +289,7 @@ Generated bindings are downstream artifacts. Never patch them to hide a Rust/fro
 
 Do not silently redesign these during an unrelated fix:
 
-- burner secrets are stored in browser storage on testnet;
+- attendee signing is delegated to Dfns; provider identifiers, recovery records, and audit data remain server-only;
 - Supabase RLS is permissive and fake rows can be cosmetically harmful;
 - list discovery uses 30-second Supabase polling, not on-chain enumeration;
 - listings do not lock tickets;
@@ -326,7 +329,7 @@ Use a reusable fixture/setup struct. Do not repeat environment, address, token, 
 Run the repository’s frontend lint/type-check/build scripts, at minimum the production build. Exercise the affected role and refresh path:
 
 - organizer/Freighter;
-- attendee/burner;
+- attendee/Dfns passkey signing and recovery on another browser;
 - store hydration after reload;
 - transaction overlay success/error;
 - Supabase mirror plus immediate invalidation;

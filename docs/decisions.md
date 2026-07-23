@@ -106,21 +106,21 @@ When a choice changes, revise its existing entry. Add a new decision only when t
 
 **References.** [Architecture: Transaction Flow](./architecture.md#transaction-flow-d-007-revised) · [`lib/soroban.ts`](../frontend/src/lib/soroban.ts)
 
-### D-008 / D-028 — Organizers use Freighter; attendees use burner wallets on testnet
+### D-008 / D-028 — Human accounts, delegated attendee wallets, and separate organizer wallets
 
-**Decision.** Organizers connect with Freighter. Attendees receive a generated keypair stored locally and funded by Friendbot. `useWallet` and the persisted app store hide provider-specific signing from pages. This supersedes the original Web3Auth attendee plan for the MVP.
+**Decision.** Supabase Auth provides the stable human `user_id` through Google or six-digit email OTP. Each user has one recoverable Dfns delegated Stellar Testnet attendee wallet authorized by the user's passkey. Raw Stellar secrets never enter application storage. Organizers connect Freighter separately; that connection neither replaces nor signs out the attendee account.
 
-**Reason.** The burner path removes wallet setup friction for a testnet demonstration without introducing an authentication backend.
+**Reason.** Browser-local burner secrets could not restore ticket access on another device and disconnect deleted the only signing capability. Delegated signing preserves a provider-neutral transaction boundary while separating human identity from on-chain addresses.
 
-**Constraint.** Local secret storage and Friendbot make this design testnet-only; production custody requires replacement.
+**Constraint.** Wallet provisioning must register a user-held recovery credential. Restoration failure enters `recovery_required`; it must never create another wallet.
 
 **References.** [Architecture: Wallet Flow](./architecture.md#wallet-flow-d-008-d-028) · [`hooks/useWallet.ts`](../frontend/src/hooks/useWallet.ts) · [`store/useAppStore.ts`](../frontend/src/store/useAppStore.ts) · [`lib/stellar.ts`](../frontend/src/lib/stellar.ts)
 
-### D-013 / D-025 — The client is a Vite SPA with narrow global state
+### D-013 / D-025 — The client is a URL-routed Vite SPA with narrow global state
 
-**Decision.** The application remains a React/Vite single-page client. Zustand stores only cross-cutting wallet and transaction state; server rendering is not part of the MVP architecture.
+**Decision.** The application remains a React/Vite single-page client and uses browser URL routes for durable public and protected destinations. Zustand stores independent attendee-wallet, organizer-wallet, and transaction state; Supabase Auth owns the human session. Server rendering is not part of the MVP architecture.
 
-**Reason.** The product is a browser wallet application with no current SSR requirement, while wallet hydration and transaction overlays must be shared across views.
+**Reason.** Durable URLs are required for refresh, Back/Forward, sharing, protected authentication return, and future notifications. The product has no current SSR requirement.
 
 **References.** [Architecture: State Management](./architecture.md#state-management-d-025) · [`App.tsx`](../frontend/src/App.tsx) · [`store/useAppStore.ts`](../frontend/src/store/useAppStore.ts)
 
