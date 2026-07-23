@@ -82,6 +82,15 @@ Deno.serve(async (request) => {
       if (wallet?.readiness === 'ready') {
         return json({ error: 'The attendee wallet already exists.' }, 409);
       }
+      if (wallet?.address) {
+        await admin.from('attendee_wallets').update({
+          readiness: 'recovery_required',
+          updated_at: new Date().toISOString(),
+        }).eq('user_id', user.id);
+        return json({
+          error: 'The recorded wallet must be recovered; a replacement will not be created.',
+        }, 409);
+      }
       if (link) {
         await admin.from('attendee_wallets').upsert({
           user_id: user.id,
@@ -96,11 +105,16 @@ Deno.serve(async (request) => {
       const challenge = await serviceDfns().auth.createDelegatedRegistrationChallenge({
         body: { email: username, kind: 'EndUser', externalId: user.id },
       });
+      const {
+        temporaryAuthenticationToken,
+        allowedRecoveryCredentials: _allowedRecoveryCredentials,
+        ...publicChallenge
+      } = challenge;
       const { error: linkError } = await admin.from('wallet_provider_links').insert({
         user_id: user.id,
         provider: 'dfns',
         provider_username: username,
-        temporary_auth_token: challenge.temporaryAuthenticationToken,
+        temporary_auth_token: temporaryAuthenticationToken,
         recovery_state: 'required',
       });
       if (linkError) throw linkError;
@@ -108,7 +122,7 @@ Deno.serve(async (request) => {
         user_id: user.id,
         readiness: 'provisioning',
       });
-      return json({ challenge });
+      return json({ challenge: publicChallenge });
     }
 
     if (action === 'registration-complete') {
@@ -133,6 +147,9 @@ Deno.serve(async (request) => {
       const wallet = await serviceDfns().wallets.createWallet({
         body: { network: 'StellarTestnet', delegateTo: registered.id },
       });
+      if (!wallet.address) {
+        throw new Error('Dfns created no usable Stellar address; operator recovery is required.');
+      }
       const { error: updateError } = await admin.from('wallet_provider_links').update({
         provider_user_id: registered.id,
         provider_wallet_id: wallet.id,
@@ -143,7 +160,11 @@ Deno.serve(async (request) => {
         temporary_auth_token: null,
         recovery_state: 'ready',
         updated_at: new Date().toISOString(),
-      }).eq('user_id', user.id).is('provider_user_id', null);
+      })
+        .eq('user_id', user.id)
+        .is('provider_user_id', null)
+        .select('user_id')
+        .single();
       if (updateError) throw updateError;
       await admin.from('attendee_wallets').upsert({
         user_id: user.id,
@@ -183,11 +204,16 @@ Deno.serve(async (request) => {
         (credential) => credential.id === link.provider_recovery_credential_id,
       )?.encryptedRecoveryKey;
       if (!encrypted) throw new Error('The recorded recovery credential is unavailable.');
+      const {
+        temporaryAuthenticationToken,
+        allowedRecoveryCredentials: _allowedRecoveryCredentials,
+        ...publicChallenge
+      } = challenge;
       await admin.from('wallet_provider_links').update({
-        temporary_auth_token: challenge.temporaryAuthenticationToken,
+        temporary_auth_token: temporaryAuthenticationToken,
       }).eq('user_id', user.id);
       return json({
-        challenge,
+        challenge: publicChallenge,
         credentialId: link.provider_recovery_credential_id,
         encryptedPrivateKey: encrypted,
       });
@@ -245,6 +271,7 @@ Deno.serve(async (request) => {
         body: signatureRequest,
       };
       const challenge = await delegated.keys.generateSignatureInit(providerRequest);
+      const { challengeIdentifier, ...publicChallenge } = challenge;
       const { data: stored, error: storeError } = await admin
         .from('wallet_action_challenges')
         .insert({
@@ -253,14 +280,14 @@ Deno.serve(async (request) => {
           provider_auth_token: token,
           provider_request: {
             request: providerRequest,
-            challengeIdentifier: challenge.challengeIdentifier,
+            challengeIdentifier,
           },
           expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
         })
         .select('request_id')
         .single();
       if (storeError) throw storeError;
-      return json({ requestId: stored.request_id, challenge });
+      return json({ requestId: stored.request_id, challenge: publicChallenge });
     }
 
     if (action === 'signature-complete') {

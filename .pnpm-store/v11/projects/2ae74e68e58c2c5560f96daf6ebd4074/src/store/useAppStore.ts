@@ -44,13 +44,6 @@ export const useAppStore = create<AppState>()(
     {
       name: 'stellar-tickets-store-v2',
       partialize: (state) => ({
-        attendeeWallet: {
-          address: state.attendeeWallet.address,
-          network: state.attendeeWallet.network,
-          readiness: state.attendeeWallet.readiness,
-          signFn: null,
-          signMessage: null,
-        },
         organizerWallet: { ...state.organizerWallet, signFn: null },
       }),
       onRehydrateStorage: () => (state) => {

@@ -1,5 +1,9 @@
 # Engineering Plan: Stellar Tickets — Full Remediation
 
+> Historical plan. Its identity and navigation sections are superseded by the
+> Slice 1 product specification and decision register. The current attendee model
+> is Supabase Auth plus a Dfns delegated wallet, and React Router owns navigation.
+
 ## Architectural Principles
 
 **Supabase is the read index. The contract is the financial authority.** No display string lives on-chain. No financial amount is trusted from Supabase. These two systems never overlap responsibilities.
@@ -104,12 +108,12 @@ Everything else depends on this. Define these before touching frontend code. We 
 ## Phase 2: Identity — User Profiles
 
 ### 2a: Scanner & Profiles (Immediate)
-- Retain the current Burner Wallet architecture for now.
+- Superseded: do not restore the browser-local attendee wallet.
 - Implement `upsertUserProfile` and `fetchUserProfile` in Supabase.
 - Fix `ScannerPage`: Remove hardcoded identity UI (`"Marcus Sterling"`). Fetch and display real attendee data from `user_profiles` upon successful scan verification. Show truncated wallet address if profile is missing.
 
 ### 2b: Web3Auth (Deferred)
-- Treat Web3Auth (MPC key setup, OAuth, session handling, custom `SignFn`) as a separate future epic to avoid breaking the Burner Wallet while marketplace features are being built.
+- Superseded: Slice 1 selected Supabase Auth and Dfns delegated attendee signing.
 
 ---
 

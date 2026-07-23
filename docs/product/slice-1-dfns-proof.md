@@ -1,6 +1,13 @@
 # Slice 1 Dfns proof protocol
 
-This proof is intentionally isolated from the public checkout and all burner-owned tickets.
+## Status
+
+**Deferred; not passed.** The repository does not contain Dfns credentials, a configured
+WebAuthn relying-party origin, or disposable Stellar Testnet contract/event fixtures.
+Those external prerequisites are required before this protocol can produce evidence.
+
+This proof is intentionally isolated from the public checkout and all legacy
+browser-local ticket data.
 
 ## Preconditions
 
