@@ -275,9 +275,9 @@ Adding or renaming a route usually requires coordinated changes in:
 | Marketplace buy logic | Ownership/cancellation guards, royalty math, token balances, cross-contract tests, listing/owner mirrors |
 | Supabase table/column/RPC | Schema, RLS, `lib/supabase.ts` types/helpers, hooks, page writes, row mapping |
 | Transaction wrapper | Every caller, error translation, tx overlay behavior, mirror writes, invalidations |
-| Wallet/signing flow | `useWallet.ts`, store rehydration, role routing, QR signing eligibility |
+| Wallet/signing flow | `AuthProvider.tsx`, `lib/dfns.ts`, attendee-wallet Edge Function, store separation, QR signing eligibility |
 | QR format/expiry | `lib/qr.ts`, QR display, scanner, architecture |
-| `AppView` | Types, `App.tsx`, header, bottom nav, back navigation |
+| Durable route | `App.tsx`, validated auth-intent patterns, header, bottom nav, SPA fallback, direct-link tests |
 | Environment value | `constants.ts`, deploy/env generation, example env/documentation |
 | Contract ABI/deployment | Regenerate bindings; ensure both stored contract addresses and frontend env match |
 

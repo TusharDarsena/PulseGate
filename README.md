@@ -4,7 +4,7 @@ NFT event ticketing on Stellar. Built with Soroban.
 
 [![Stellar Ticketing CI/CD](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml/badge.svg)](https://github.com/TusharDarsena/stellar_ticket/actions)
 
-Stellar Ticketing is a decentralized platform for event management and NFT ticketing. It leverages Soroban smart contracts to handle event creation, ticket minting, escrowed payments, and restricted resales with automatic royalty enforcement. Attendees enjoy a "crypto-less" experience via Burner Wallets and rotating QR codes for secure entry.
+Stellar Ticketing is a decentralized platform for event management and NFT ticketing. It leverages Soroban smart contracts to handle event creation, ticket minting, escrowed payments, and restricted resales with automatic royalty enforcement. Attendees use Supabase Auth and a recoverable delegated Dfns wallet; organizers connect Freighter separately.
 
 ---
 
@@ -39,13 +39,14 @@ graph TD
 
         subgraph Frontend
             UI[React/Vite UI]
-            BW[Burner Wallet Logic]
+            DW[Delegated Attendee Signing]
             QR[Rotating QR Engine]
         end
     end
 
     O -->|1. Create Event| TC
     A -->|2. Buy Ticket| TC
+    A -->|Authorize| DW
     TC -->|Escrow Funds| TC
     A -->|3. List for Resale| MC
     MC -->|Handle Royalty| TC
@@ -64,7 +65,7 @@ graph TD
 4.  **Verify**: Use the built-in scanner to check attendees in at the door.
 
 ### For Attendees
-1.  **Sign In**: Use Google or email (Burner Wallet generated automatically).
+1.  **Sign In**: Use Google or a six-digit email OTP, then prepare or recover the delegated attendee wallet.
 2.  **Browse**: Explore upcoming events on the Stellar network.
 3.  **Purchase**: Buy tickets with XLM. Funds are held in escrow until the event.
 4.  **Enter**: Show your dynamic, rotating QR code at the venue.
@@ -99,7 +100,7 @@ See the full [User Guide](docs/architecture.md) for more technical details.
 
 ### Frontend
 - [x] Client-side transaction simulation before submission
-- [x] Burner Wallet keys stored securely in `localStorage`
+- [x] No attendee private key or Dfns provider identifier is stored in browser storage
 - [x] No hardcoded contract addresses (uses `.env`)
 - [x] QR payloads timestamped and signed to prevent replay attacks
 
@@ -166,12 +167,15 @@ All state changes emit Soroban events using `symbol_short!` (9-char max). Use th
 To prevent ticket duplication, our platform uses rotating QR codes. Every 30 seconds, a new payload is generated containing:
 1. `ticket_id`
 2. `current_timestamp`
-3. `signature` (signed by the attendee's Burner Wallet)
+3. `signature` (authorized by the attendee's delegated wallet)
 
 The venue scanner verifies the signature and ensures the timestamp is within a ±45s window (30s rotation + 15s clock-drift grace — D-006).
 
-### Burner Wallets (D-028)
-Attendees shouldn't need to understand seed phrases. We generate a one-time `Keypair` on the fly, store the secret in the browser, and fund it via Friendbot for a seamless onboarding experience.
+### Delegated Attendee Wallets (D-008 / D-028)
+Supabase Auth owns the stable human session. Dfns provides one recoverable delegated
+Stellar Testnet wallet per attendee, authorized with a passkey. Provider identifiers,
+recovery records, and audit data remain server-only. Freighter is a separate organizer
+connection and is not affected by human sign-out.
 
 ---
 
@@ -267,7 +271,7 @@ Contributions are welcome. Please read `AGENTS.md` before starting.
 
 | Priority | Improvement                             | Status      |
 | -------- | --------------------------------------- | ----------- |
-| High     | Web3Auth Integration for Social Logins  | Planned     |
+| High     | Live Dfns cross-browser proof           | Deferred pending credentials, WebAuthn origin, and disposable fixtures |
 | Medium   | Multi-Event Organizer Dashboard         | In Progress |
 | Low      | Email Notifications for Ticket Purchase | Backlog     |
 

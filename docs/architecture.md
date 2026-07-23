@@ -85,7 +85,7 @@ All state-changing flows confirm the Soroban transaction before calling `lib/rea
 5. Call MarketplaceContract.`initialize(admin, ticket_contract_address, royalty_rate)`.
 
 ## Excluded from MVP
-- Social login / Web3Auth (D-028, deferred to post-MVP)
+- Alternative Web3Auth/MPC attendee-wallet architecture (Dfns delegated signing is selected for Slice 1)
 - On-chain event images (use off-chain metadata / Supabase)
 - Automated refunds (hits instruction limits — D-002)
 - Marketplace locks (D-009)
