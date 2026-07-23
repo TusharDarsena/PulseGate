@@ -14,7 +14,6 @@ interface AuthContextValue {
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
   signInWithGoogle: (nonce: string) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshWallet: () => Promise<void>;
   provisionWallet: () => Promise<string>;
   recoverWallet: (recoveryCode: string) => Promise<string>;
 }
@@ -160,7 +159,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyEmailOtp,
     signInWithGoogle,
     signOut,
-    refreshWallet,
     provisionWallet,
     recoverWallet,
   };

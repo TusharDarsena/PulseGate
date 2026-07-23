@@ -4,8 +4,6 @@ import { persist } from 'zustand/middleware';
 import type { AttendeeWalletState, OrganizerWalletState, SignFn, TxState } from '../types';
 
 interface AppState {
-  _hasHydrated: boolean;
-  setHasHydrated: (state: boolean) => void;
   txState: TxState;
   setTxState: (state: TxState) => void;
   attendeeWallet: AttendeeWalletState;
@@ -32,8 +30,6 @@ export const EMPTY_ORGANIZER_WALLET: OrganizerWalletState = {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      _hasHydrated: false,
-      setHasHydrated: (state) => set({ _hasHydrated: state }),
       txState: { status: 'idle' },
       setTxState: (state) => set({ txState: state }),
       attendeeWallet: EMPTY_ATTENDEE_WALLET,
@@ -48,7 +44,6 @@ export const useAppStore = create<AppState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        state.setHasHydrated(true);
         const { organizerWallet } = state;
         if (!organizerWallet.isConnected) return;
 

@@ -5,7 +5,6 @@ export const RPC_URL = import.meta.env.VITE_RPC_URL as string;
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export const FRIENDBOT_URL = 'https://friendbot.stellar.org';
 
 if (
   !TICKET_CONTRACT_ID ||

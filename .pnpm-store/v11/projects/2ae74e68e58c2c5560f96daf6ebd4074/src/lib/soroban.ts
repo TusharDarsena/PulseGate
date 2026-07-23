@@ -2,7 +2,6 @@
 // All components call these wrappers; nothing imports @stellar/stellar-sdk directly. (AGENTS.md)
 // Transaction pattern: AssembledTransaction.signAndSend() — D-007 revised.
 
-import { rpc as SorobanRpc } from '@stellar/stellar-sdk';
 import { Client as TicketClient } from 'ticket';
 import { Client as MarketplaceClient } from 'marketplace';
 
@@ -12,7 +11,7 @@ import {
   NETWORK_PASSPHRASE,
   RPC_URL,
 } from './constants';
-import type { Event, Ticket, SignFn } from '../types';
+import type { Ticket, SignFn } from '../types';
 
 // ─── Contract error maps ──────────────────────────────────────────────────────
 // Maps on-chain error codes to user-readable messages.
@@ -315,33 +314,6 @@ export async function cancelListing(
 const READ_ONLY_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
 
 /**
- * Fetch a single event's current on-chain state by ID.
- * Returns null if the event does not exist.
- */
-export async function getEvent(eventId: string): Promise<Event | null> {
-  const client = getTicketClient(READ_ONLY_KEY);
-  try {
-    const tx = await client.get_event({ event_id: eventId });
-    const result = tx.result;
-    if (!result || result.isErr()) return null;
-
-    const e = result.unwrap();
-    return {
-      eventId,
-      organizer: e.organizer,
-      name: e.name,
-      dateUnix: Number(e.date_unix),
-      capacity: Number(e.capacity),
-      pricePerTicket: Number(e.price_per_ticket),
-      currentSupply: Number(e.current_supply),
-      status: e.status.tag as Event['status'],
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetch a single ticket's current on-chain state by ID.
  * Returns null if the ticket does not exist.
  */
@@ -362,13 +334,4 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
   } catch {
     return null;
   }
-}
-
-// ─── RPC event helpers (used by useEvents and useTickets hooks) ───────────────
-// Re-exported so hooks import from here — not directly from the SDK. (D-029)
-
-export { SorobanRpc };
-
-export function getRpcServer(): SorobanRpc.Server {
-  return new SorobanRpc.Server(RPC_URL);
 }

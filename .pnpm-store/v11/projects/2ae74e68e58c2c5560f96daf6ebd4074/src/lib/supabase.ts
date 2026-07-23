@@ -73,32 +73,6 @@ export async function fetchAllEvents(): Promise<EventMetadata[]> {
 }
 
 /**
- * Fetch metadata for a list of event IDs in one query.
- * Returns a map of event_id → metadata for easy lookup.
- */
-export async function fetchEventsMetadata(
-  eventIds: string[]
-): Promise<Record<string, EventMetadata>> {
-  if (eventIds.length === 0) return {};
-
-  const { data, error } = await supabase
-    .from('events')
-    .select('*')
-    .in('event_id', eventIds);
-
-  if (error) {
-    console.warn('[supabase] fetchEventsMetadata failed:', error.message);
-    return {};
-  }
-
-  const map: Record<string, EventMetadata> = {};
-  for (const row of data ?? []) {
-    map[row.event_id] = row;
-  }
-  return map;
-}
-
-/**
  * Fetch tickets for a specific wallet directly from Supabase.
  */
 export async function fetchTicketsByOwner(walletAddress: string): Promise<TicketRow[]> {
