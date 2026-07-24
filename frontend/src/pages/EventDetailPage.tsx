@@ -135,7 +135,11 @@ export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
               )}
 
               {salesState !== 'on_sale' && (
-                <p className="mt-3 text-sm text-[#c9c4d8]">{DISABLED_REASON[salesState]}</p>
+                <p className="mt-3 text-sm text-[#c9c4d8]">
+                  {salesState === 'unavailable'
+                    ? event.authorityError ?? DISABLED_REASON.unavailable
+                    : DISABLED_REASON[salesState]}
+                </p>
               )}
               {salesState === 'unavailable' && (
                 <button

@@ -10,7 +10,7 @@ ADD COLUMN IF NOT EXISTS current_supply bigint DEFAULT 0,
 ADD COLUMN IF NOT EXISTS date_unix bigint,
 ADD COLUMN IF NOT EXISTS capacity bigint,
 ADD COLUMN IF NOT EXISTS price_per_ticket bigint,
--- Metadata columns required by lib/supabase.ts EventMetadata interface and upsertEventMetadata()
+-- Legacy metadata columns expanded by the Phase 2 truthful-events migration.
 ADD COLUMN IF NOT EXISTS description text,
 ADD COLUMN IF NOT EXISTS image_url text,
 ADD COLUMN IF NOT EXISTS venue text,
@@ -85,17 +85,6 @@ CREATE POLICY "Enable update access for all users on user_profiles" ON public.us
 ALTER TABLE public.app_cache ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Enable read access for all users on app_cache" ON public.app_cache FOR SELECT USING (true);
 -- Note: app_cache insert/update should ideally be limited to service_role (Edge Functions)
-
--- 7. Atomic RPC Functions
--- Used to safely increment event supply during concurrent purchases
-CREATE OR REPLACE FUNCTION increment_event_supply(row_id text)
-RETURNS void
-LANGUAGE sql
-AS $$
-  UPDATE public.events 
-  SET current_supply = current_supply + 1 
-  WHERE event_id = row_id;
-$$;
 
 -- Slice 1 / Phase 1: stable human identity and delegated attendee wallet.
 -- Provider identifiers and recovery/audit material are deliberately kept in

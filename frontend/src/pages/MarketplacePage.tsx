@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { buyListing, getTicket } from '../lib/soroban';
 import { mirrorListingSale, synchronizationWarning } from '../lib/readModelSync';

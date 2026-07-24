@@ -161,6 +161,10 @@ DROP POLICY IF EXISTS "Enable update access for all users on events" ON public.e
 REVOKE INSERT, UPDATE, DELETE ON public.events FROM anon, authenticated;
 GRANT SELECT ON public.events TO anon, authenticated;
 
+-- Phase 1 incremented the discovery mirror directly after purchase. Phase 2
+-- refreshes chain-owned fields only after a trusted Soroban read.
+DROP FUNCTION IF EXISTS public.increment_event_supply(text);
+
 DROP POLICY IF EXISTS "Read trusted published events" ON public.events;
 CREATE POLICY "Read trusted published events"
   ON public.events

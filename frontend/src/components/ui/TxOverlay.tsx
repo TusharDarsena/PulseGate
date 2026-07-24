@@ -1,4 +1,3 @@
-import React from 'react';
 import { TxState } from '../../types';
 
 interface TxOverlayProps {

@@ -9,7 +9,7 @@ import { getEvent } from '../lib/soroban';
 import { fetchPublishedEventById } from '../lib/supabase';
 import type { Event } from '../types';
 
-export async function loadPublishedEvent(eventId: string): Promise<Event | null> {
+async function loadPublishedEvent(eventId: string): Promise<Event | null> {
   const row = await fetchPublishedEventById(eventId);
   if (!row) return null;
   const preview = normalizeEvent(row);

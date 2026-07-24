@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';

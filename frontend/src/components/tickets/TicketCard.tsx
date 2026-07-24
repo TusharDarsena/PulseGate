@@ -1,4 +1,3 @@
-import React from 'react';
 import { Ticket, Event } from '../../types';
 import { formatEventRange } from '../../lib/eventModel';
 import { EventActions } from '../events/EventActions';

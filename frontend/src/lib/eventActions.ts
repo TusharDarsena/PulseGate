@@ -7,7 +7,7 @@ function publicOrigin(): string {
   return (configured || window.location.origin).replace(/\/+$/, '');
 }
 
-export function eventUrl(event: Event): string {
+function eventUrl(event: Event): string {
   return `${publicOrigin()}/events/${encodeURIComponent(event.eventId)}`;
 }
 

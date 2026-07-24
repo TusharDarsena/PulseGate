@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { stroopsToXlm, formatEventDate } from '../types';
 import { useEvents } from '../hooks/useEvents';
 import {

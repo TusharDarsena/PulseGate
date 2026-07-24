@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { OrganizerEventRow } from '../../components/organizer/OrganizerEventRow';
 import { useOrganizerEvents } from '../../hooks/useScopedEvents';
 
@@ -165,14 +165,14 @@ export function DashboardPage({ onCreateEvent, onOpenEvent }: DashboardPageProps
           </div>
         </section>
 
-        {/* Active Events */}
+        {/* Published Events */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-[#e6e0ee]">Active Events</h2>
+            <h2 className="text-2xl font-semibold text-[#e6e0ee]">Published Events</h2>
             <div className="flex gap-2">
               <span className="text-xs font-semibold text-[#c9c4d8]">Sorted by:</span>
-              <span className="text-xs font-semibold text-[#7C5CFF] cursor-pointer border-b border-[#7C5CFF]/30">
-                Upcoming
+              <span className="text-xs font-semibold text-[#7C5CFF]">
+                Newest start time
               </span>
             </div>
           </div>
@@ -199,17 +199,6 @@ export function DashboardPage({ onCreateEvent, onOpenEvent }: DashboardPageProps
           })}
         </section>
 
-        {/* Transaction History */}
-        <section className="mt-16">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="material-symbols-outlined text-[#7C5CFF]">history</span>
-            <h2 className="text-2xl font-semibold text-[#e6e0ee]">Stellar Transaction History</h2>
-          </div>
-
-          <div className="bg-[#15181C]/70 backdrop-blur-md border border-[#272C33] rounded-xl p-8 text-center text-slate-400">
-            Transaction history coming soon
-          </div>
-        </section>
       </main>
     </div>
   );

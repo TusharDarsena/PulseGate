@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Event, EventStatus } from '../../types';
 import { formatEventStart } from '../../lib/eventModel';
 

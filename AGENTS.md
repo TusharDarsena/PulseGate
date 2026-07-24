@@ -303,6 +303,17 @@ A task may intentionally replace one of these. That is an architectural change: 
 
 ## 9. Verification
 
+### Verification timing
+
+- During implementation, do not repeatedly run full test suites, production
+  builds, dependency reinstalls, or other expensive verification commands.
+- Use focused source inspection and the smallest relevant check while coding.
+- Defer time-consuming contract suites, full frontend builds, and broad
+  verification until the requested phase or task implementation is complete,
+  unless a focused run is necessary to unblock the code change.
+- When the user explicitly asks to postpone tests, make implementation changes
+  first and run no test suite until the user requests the final verification.
+
 ### Contract changes
 
 From `contracts/`:
