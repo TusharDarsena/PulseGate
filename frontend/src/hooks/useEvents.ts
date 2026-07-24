@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { fetchAllEvents } from '../lib/supabase';
-import type { Event, EventStatus } from '../types';
+import { fetchDiscoverableEvents, type DiscoveryFilters } from '../lib/supabase';
+import { normalizeEvent } from '../lib/eventModel';
+import type { Event } from '../types';
 
 const POLL_INTERVAL_MS = 30_000;
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
 
-export function useEvents(): {
+export function useEvents(filters: DiscoveryFilters = {}): {
   events: Event[];
   loading: boolean;
   error: string | null;
@@ -27,24 +27,11 @@ export function useEvents(): {
     setError(null);
 
     try {
-      const data = await fetchAllEvents();
+      const data = await fetchDiscoverableEvents(filters);
 
       if (fetchId !== fetchRef.current) return;
 
-      const resolved: Event[] = data.map((row) => ({
-        eventId: row.event_id,
-        organizer: row.organizer_address,
-        name: row.name || 'Unnamed Event',
-        dateUnix: row.date_unix,
-        capacity: row.capacity,
-        pricePerTicket: row.price_per_ticket,
-        currentSupply: row.current_supply || 0,
-        status: (row.status as EventStatus) || 'Active',
-        imageUrl: row.image_url || FALLBACK_IMAGE,
-        description: row.description || 'No description provided.',
-        venue: row.venue || 'Venue TBA',
-        city: row.city || ''
-      }));
+      const resolved = data.map(normalizeEvent);
 
       setEvents(resolved);
     } catch (err) {
@@ -53,7 +40,13 @@ export function useEvents(): {
     } finally {
       if (fetchId === fetchRef.current) setLoading(false);
     }
-  }, []);
+  }, [
+    filters.category,
+    filters.city,
+    filters.endUnix,
+    filters.search,
+    filters.startUnix,
+  ]);
 
   useEffect(() => {
     setTimeout(() => { void fetchEvents(); }, 0);

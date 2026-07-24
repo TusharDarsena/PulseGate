@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Event, formatDateTime, xlmToStroops } from '../types';
+import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
+import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 
 import { generateID } from '../lib/utils';
 import { refundTicket, listTicket, cancelListing } from '../lib/soroban';
@@ -20,22 +21,22 @@ interface ListingMinimal {
 
 interface MyTicketsPageProps {
   tickets: Ticket[];
-  events: Event[];
   loadingTickets: boolean;
   errorTickets: string | null;
   onShowQR: (ticketId: string) => void;
   onBrowseMore: () => void;
-  invalidateEvents: () => Promise<void>;
   invalidateTickets: () => void;
 }
 
-export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, onShowQR, onBrowseMore, invalidateEvents, invalidateTickets }: MyTicketsPageProps) {
+export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR, onBrowseMore, invalidateTickets }: MyTicketsPageProps) {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [openListings, setOpenListings] = useState<Record<string, unknown>>({});
   const [showListingModal, setShowListingModal] = useState<string | null>(null);
   const [askPrice, setAskPrice] = useState('');
 
   const { attendeeWallet: wallet, setTxState } = useAppStore();
+  const eventState = usePublishedEventsByIds(tickets.map((ticket) => ticket.eventId));
+  const events = eventState.events;
 
   const handleRefund = async (ticketId: string) => {
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
@@ -47,7 +48,6 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
 
       if (syncResult.ok) {
         invalidateTickets();
-        await invalidateEvents();
       }
 
       setTxState({
@@ -153,8 +153,8 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
     }
   };
 
-  const loading = loadingTickets;
-  const error = errorTickets;
+  const loading = loadingTickets || eventState.loading;
+  const error = errorTickets || eventState.error;
 
   const activeTickets = tickets.filter(t => t.status === 'Active');
   const historyTickets = [...tickets].sort((a, b) => {
@@ -188,7 +188,7 @@ export function MyTicketsPage({ tickets, events, loadingTickets, errorTickets, o
       {/* Header Section */}
       <section className="mb-10">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">My Tickets</h1>
-        <p className="text-[#c9c4d8] text-sm md:text-base">Manage your exclusive event entries and digital assets.</p>
+        <p className="text-[#c9c4d8] text-sm md:text-base">View your event tickets, entry status, and event details.</p>
       </section>
 
       {/* Tabs */}

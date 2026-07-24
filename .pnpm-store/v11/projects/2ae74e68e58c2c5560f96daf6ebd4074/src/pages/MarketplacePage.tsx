@@ -16,8 +16,6 @@ interface MarketplacePageProps {
   invalidateTickets: () => void;
 }
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
-
 function SkeletonCard() {
   return (
     <div className="bg-[#15181C] border border-[#272C33] rounded-xl overflow-hidden animate-pulse">
@@ -113,7 +111,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
           Ticket Marketplace
         </h1>
         <p className="text-[#c9c4d8] text-base leading-relaxed max-w-2xl">
-          Buy and sell verified NFT tickets. Royalties are automatically enforced on every resale by the smart contract.
+          Buy and sell eligible tickets through the verified Stellar resale contract.
         </p>
       </div>
 
@@ -184,10 +182,9 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
                 {/* Image with gradient fade */}
                 <div className="h-44 overflow-hidden relative flex-shrink-0">
                   <img
-                    src={listing.eventImageUrl || FALLBACK_IMAGE}
+                    src={listing.eventImageUrl}
                     alt={listing.eventName}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE; }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#15181C] via-[#15181C]/30 to-transparent" />
 

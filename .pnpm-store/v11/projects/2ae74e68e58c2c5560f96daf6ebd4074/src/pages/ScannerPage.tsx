@@ -211,8 +211,8 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
                     <p className="text-base font-bold text-white">General Admission</p>
                   </div>
                   <div className="bg-[#2b2933] p-4 rounded-lg border border-[#484555] text-left">
-                    <p className="text-xs font-semibold text-[#c9c4d8] mb-1">SEAT / SECTION</p>
-                    <p className="text-base font-bold text-white">Anywhere</p>
+                    <p className="text-xs font-semibold text-[#c9c4d8] mb-1">ACCESS</p>
+                    <p className="text-base font-bold text-white">Entry ticket</p>
                   </div>
                 </div>
                 <div className="space-y-2">

@@ -11,7 +11,7 @@ import {
   NETWORK_PASSPHRASE,
   RPC_URL,
 } from './constants';
-import type { Ticket, SignFn } from '../types';
+import type { AuthoritativeEventSnapshot, Ticket, SignFn } from '../types';
 
 // ─── Contract error maps ──────────────────────────────────────────────────────
 // Maps on-chain error codes to user-readable messages.
@@ -39,6 +39,7 @@ const TICKET_ERRORS: Record<number, string> = {
   20: 'Ticket price must be greater than zero.',
   21: 'Event date must be in the future.',
   22: 'A ticket with this ID already exists.',
+  23: 'Primary sales closed when this event started.',
 };
 
 const MARKETPLACE_ERRORS: Record<number, string> = {
@@ -135,11 +136,14 @@ export async function purchaseTicket(
   buyerPublicKey: string,
   ticketId: string,
   signFn: SignFn
-): Promise<void> {
+): Promise<string> {
   const client = getTicketClient(buyerPublicKey);
   try {
     const tx = await client.purchase({ event_id: eventId, buyer: buyerPublicKey, ticket_id: ticketId });
-    await tx.signAndSend({ signTransaction: signFn });
+    const sent = await tx.signAndSend({ signTransaction: signFn });
+    const hash = sent.sendTransactionResponse?.hash;
+    if (!hash) throw new Error('The purchase transaction confirmed without returning a hash.');
+    return hash;
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
@@ -153,7 +157,7 @@ export async function createEvent(
   params: CreateEventParams,
   organizerPublicKey: string,
   signFn: SignFn
-): Promise<void> {
+): Promise<string> {
   const client = getTicketClient(organizerPublicKey);
   try {
     const tx = await client.create_event({
@@ -164,7 +168,10 @@ export async function createEvent(
       capacity: BigInt(params.capacityXlm),
       price_per_ticket: params.priceStroops,
     });
-    await tx.signAndSend({ signTransaction: signFn });
+    const sent = await tx.signAndSend({ signTransaction: signFn });
+    const hash = sent.sendTransactionResponse?.hash;
+    if (!hash) throw new Error('The event transaction confirmed without returning a hash.');
+    return hash;
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
@@ -177,11 +184,14 @@ export async function releaseFunds(
   eventId: string,
   organizerPublicKey: string,
   signFn: SignFn
-): Promise<void> {
+): Promise<string> {
   const client = getTicketClient(organizerPublicKey);
   try {
     const tx = await client.release_funds({ event_id: eventId, organizer: organizerPublicKey });
-    await tx.signAndSend({ signTransaction: signFn });
+    const sent = await tx.signAndSend({ signTransaction: signFn });
+    const hash = sent.sendTransactionResponse?.hash;
+    if (!hash) throw new Error('The release transaction confirmed without returning a hash.');
+    return hash;
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
@@ -194,11 +204,14 @@ export async function cancelEvent(
   eventId: string,
   organizerPublicKey: string,
   signFn: SignFn
-): Promise<void> {
+): Promise<string> {
   const client = getTicketClient(organizerPublicKey);
   try {
     const tx = await client.cancel_event({ event_id: eventId, organizer: organizerPublicKey });
-    await tx.signAndSend({ signTransaction: signFn });
+    const sent = await tx.signAndSend({ signTransaction: signFn });
+    const hash = sent.sendTransactionResponse?.hash;
+    if (!hash) throw new Error('The cancellation transaction confirmed without returning a hash.');
+    return hash;
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
@@ -333,5 +346,48 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetch a single event's current authoritative on-chain state.
+ * Transport failures are deliberately surfaced so callers can distinguish
+ * Unavailable from Event not found.
+ */
+export async function getEvent(eventId: string): Promise<AuthoritativeEventSnapshot> {
+  const client = getTicketClient(READ_ONLY_KEY);
+  try {
+    const tx = await client.get_event({ event_id: eventId });
+    const result = tx.result;
+    if (!result || result.isErr()) {
+      throw new Error('The event does not exist on the configured TicketContract.');
+    }
+    const event = result.unwrap();
+    const dateUnix = Number(event.date_unix);
+    const capacity = Number(event.capacity);
+    const pricePerTicket = Number(event.price_per_ticket);
+    const currentSupply = Number(event.current_supply);
+    for (const [field, value] of Object.entries({
+      dateUnix,
+      capacity,
+      pricePerTicket,
+      currentSupply,
+    })) {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error(`On-chain ${field} exceeds the supported testnet range.`);
+      }
+    }
+    return {
+      eventId,
+      organizer: event.organizer,
+      name: event.name,
+      dateUnix,
+      capacity,
+      pricePerTicket,
+      currentSupply,
+      status: event.status.tag,
+    };
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
 }

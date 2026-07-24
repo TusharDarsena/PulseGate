@@ -1,17 +1,17 @@
-import React, { useState, useMemo } from 'react';
-import { Event, stroopsToXlm, formatEventDate } from '../types';
+import React, { useMemo, useState } from 'react';
+import { stroopsToXlm, formatEventDate } from '../types';
+import { useEvents } from '../hooks/useEvents';
+import {
+  deriveEventSalesState,
+  EVENT_SALES_LABELS,
+  remainingTickets,
+} from '../lib/eventModel';
 
 interface BrowsePageProps {
-  events: Event[];
-  loading: boolean;
-  error: string | null;
   onEventClick: (eventId: string) => void;
 }
 
 const CATEGORIES = ['All', 'Music', 'Sports', 'Theater', 'Comedy', 'Festivals', 'Tech'];
-
-const FALLBACK_IMAGE =
-  'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80';
 
 /* ── Skeleton ─────────────────────────────────────────────────────────────── */
 function SkeletonCard() {
@@ -38,28 +38,28 @@ function SkeletonCard() {
 
 
 /* ── BrowsePage ───────────────────────────────────────────────────────────── */
-export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageProps) {
+export function BrowsePage({ onEventClick }: BrowsePageProps) {
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [city, setCity] = useState('');
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
 
-  const filteredEvents = useMemo(() => {
-    return events.filter(event => {
-      const matchesCategory =
-        activeCategory === 'All' ||
-        event.category?.toLowerCase() === activeCategory.toLowerCase();
-      const matchesSearch =
-        !searchQuery ||
-        event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (event.venue ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (event.city ?? '').toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [events, activeCategory, searchQuery]);
+  const dateBounds = useMemo(() => {
+    if (dateRange === 'all') return {};
+    const now = new Date();
+    const startUnix = Math.floor(now.getTime() / 1000);
+    const days = dateRange === 'today' ? 1 : dateRange === 'week' ? 7 : 30;
+    return { startUnix, endUnix: startUnix + days * 86_400 };
+  }, [dateRange]);
 
-  const ticketsLeft = (event: Event) => Math.max(0, event.capacity - event.currentSupply);
+  const { events, loading, error } = useEvents({
+    search: searchQuery,
+    category: activeCategory,
+    city: city || undefined,
+    ...dateBounds,
+  });
 
-  const ticketsLeftLabel = (event: Event) => {
-    const left = ticketsLeft(event);
+  const ticketsLeftLabel = (left: number) => {
     if (left === 0) return '0 LEFT';
     if (left >= 150) return '150+ LEFT';
     return `${left} LEFT`;
@@ -81,13 +81,12 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
             Explore Experiences
           </h1>
           <p className="text-on-surface-variant text-sm md:text-base max-w-2xl">
-            Discover exclusive NFT-backed events. Secure, verifiable, and permanent digital
-            collectibles for every ticket.
+            Find upcoming events with secure digital tickets, protected resale, and verified entry.
           </p>
         </div>
 
         {/* ── Search + Category bar ── */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6 md:mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_180px] gap-3 mb-4">
 
           {/* Search — full-width on mobile, fixed-width on sm+ */}
           <div className="flex items-center bg-[#15181C] border border-[#272C33] rounded-lg px-3 py-2 focus-within:border-[#7C5CFF] transition-all w-full sm:w-64 flex-shrink-0">
@@ -96,11 +95,31 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search events..."
+              placeholder="Search name, venue, or city"
               className="bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder:text-outline-variant w-full outline-none"
             />
           </div>
 
+          <input
+            type="text"
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            placeholder="Filter by city"
+            className="bg-[#15181C] border border-[#272C33] rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-outline-variant outline-none focus:border-[#7C5CFF]"
+          />
+          <select
+            value={dateRange}
+            onChange={(event) => setDateRange(event.target.value as typeof dateRange)}
+            className="bg-[#15181C] border border-[#272C33] rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-[#7C5CFF]"
+          >
+            <option value="all">Any upcoming date</option>
+            <option value="today">Next 24 hours</option>
+            <option value="week">Next 7 days</option>
+            <option value="month">Next 30 days</option>
+          </select>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 mb-6 md:mb-8">
           {/*
             Category chips:
             -mx-4 px-4   → bleed to screen edges on mobile so chips scroll fully edge-to-edge
@@ -136,7 +155,7 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
             <p className="text-red-400 font-semibold text-base font-semibold">Service Unavailable</p>
             <p className="text-sm text-outline text-center max-w-xs">{error}</p>
           </div>
-        ) : filteredEvents.length === 0 ? (
+        ) : events.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
             <span className="material-symbols-outlined text-outline text-[48px]">search_off</span>
             <div>
@@ -148,9 +167,9 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 w-full">
-            {filteredEvents.map(event => {
-              const left = ticketsLeft(event);
-              const isSoldOut = left === 0 || event.status !== 'Active';
+            {events.map(event => {
+              const left = remainingTickets(event);
+              const salesState = deriveEventSalesState(event);
 
               return (
                 <div
@@ -161,23 +180,22 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
                   {/* Image */}
                   <div className="relative aspect-video overflow-hidden flex-shrink-0">
                     <img
-                      src={event.imageUrl || FALLBACK_IMAGE}
+                      src={event.imageUrl}
                       alt={event.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={e => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE; }}
                     />
                     {/* Status badge */}
                     <div
-                      className={`absolute top-3 left-3 px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase ${event.status === 'Active'
+                      className={`absolute top-3 left-3 px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase ${salesState === 'on_sale'
                           ? 'bg-primary-container text-on-primary-container'
                           : 'bg-surface-container-highest text-secondary'
                         }`}
                     >
-                      {event.status}
+                      {EVENT_SALES_LABELS[salesState]}
                     </div>
                     {/* Tickets left badge */}
                     <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded text-[10px] font-bold">
-                      {ticketsLeftLabel(event)}
+                      {ticketsLeftLabel(left)}
                     </div>
                   </div>
 
@@ -192,12 +210,12 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
                       <div className="flex items-center gap-2 text-on-surface-variant">
                         <span className="material-symbols-outlined text-[18px] flex-shrink-0">location_on</span>
                         <span className="text-sm truncate">
-                          {[event.venue, event.city].filter(Boolean).join(', ') || 'Venue TBA'}
+                          {[event.venue, event.city].join(', ')}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-on-surface-variant">
                         <span className="material-symbols-outlined text-[18px] flex-shrink-0">calendar_today</span>
-                        <span className="text-sm">{formatEventDate(event.dateUnix)}</span>
+                        <span className="text-sm">{formatEventDate(event.dateUnix, event.timezone)}</span>
                       </div>
                     </div>
 
@@ -211,13 +229,9 @@ export function BrowsePage({ events, loading, error, onEventClick }: BrowsePageP
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); onEventClick(event.eventId); }}
-                        disabled={isSoldOut}
-                        className={`px-4 sm:px-5 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all active:scale-95 ${isSoldOut
-                            ? 'bg-[#272C33] text-on-surface/40 cursor-not-allowed'
-                            : 'bg-[#7C5CFF] text-[#EAEFF4] hover:brightness-110 shadow-lg shadow-[#7C5CFF]/20'
-                          }`}
+                        className="px-4 sm:px-5 py-2.5 rounded-lg text-sm font-bold tracking-wide transition-all active:scale-95 bg-[#7C5CFF] text-[#EAEFF4] hover:brightness-110 shadow-lg shadow-[#7C5CFF]/20"
                       >
-                        {isSoldOut ? 'Sold Out' : 'Get Tickets'}
+                        View event
                       </button>
                     </div>
                   </div>

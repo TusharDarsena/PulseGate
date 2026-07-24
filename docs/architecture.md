@@ -18,7 +18,7 @@
 **Functions**
 - `initialize(admin, marketplace_address, xlm_token)`: Admin is stored in instance storage and used to guard against re-initialization. Sets contract config.
 - `create_event(organizer, name, date_unix, capacity, price)`: Validates args (D-017). Writes Event.
-- `purchase(event_id, buyer, ticket_id)`: Caller supplies a client-generated `ticket_id` (via `generateID()` in the frontend). Contract checks for collision, then checks capacity/status, mints Ticket (Active), updates state before token transfer (CEI - D-016), adds to Escrow.
+- `purchase(event_id, buyer, ticket_id)`: Caller supplies a client-generated `ticket_id` (via `generateID()` in the frontend). Contract checks for collision, Active status, and capacity, and rejects at or after `date_unix` with stable error 23 before any effect. It then mints Ticket (Active), updates state before token transfer (CEI - D-016), and adds to Escrow.
 - `release_funds(event_id, organizer)`: Checks date. Marks Completed, clears Escrow, transfers XLM to organizer (CEI).
 - `cancel_event(event_id, organizer)`: Marks Cancelled. No auto-refund (D-002).
 - `refund(ticket_id, attendee)`: Checks event Cancelled. Marks Ticket Refunded, decrements Escrow, returns XLM (CEI).
@@ -60,11 +60,17 @@ Protected routes store a short-lived same-origin intent with an enumerated actio
 **Global Store (Zustand)**: `txState`, `attendeeWallet`, and `organizerWallet` are independent. Signing functions are reconstructed in memory and are not persisted. Supabase Auth owns the human session.
 
 ### Data Layer (D-004, D-029 revised)
-**Supabase** is used as a read-cache for event and ticket list queries (`useEvents`, `useTickets`). On-chain state (`get_event`, `get_ticket`) is still the authoritative source for all transaction paths (purchase, scanner, release funds).
+**Supabase** is used as a searchable read model for event and ticket list queries. `events` contains trusted published rows only. User-editable preparation and interrupted-publication recovery live separately in the private `event_publication_drafts` table.
+
+Before `create_event`, the browser reserves a complete draft with a stable event ID, authenticated user, intended organizer, deployment identity, and expected immutable chain values. The organizer's Soroban creation transaction supplies the binding; there is no separate metadata-signature protocol. The authenticated `event-publication` Edge Function reads `get_event`, verifies network, contract, transaction, organizer, name, start, capacity, and price, then atomically publishes that same draft. Only this trusted service may write published event rows or chain-verification fields.
+
+`discoverable_events` contains complete, verified, Active future events. `published_events` intentionally has no upcoming/lifecycle filter so `/events/:eventId`, ticket views, organizer views, shared links, and calendar actions continue to resolve sold-out, started, cancelled, and completed events.
+
+Discovery sale information is a preview. The centralized direct-event loader combines published metadata with a fresh `get_event` read and rejects deployment or immutable-value mismatches. Event details refresh before opening checkout, and checkout refreshes again before payment; a changed price, supply, status, or time requires explicit reconfirmation.
 
 Phase 1 adds `profiles`, a service-written attendee wallet record, and service-role-only Dfns mapping/challenge/audit tables. `get_my_attendee_wallet()` returns only the current user's address, network, and readiness. The authenticated `/tickets/:ticketId` route does not yet claim authoritative ownership; that enforcement belongs to trusted reconciliation.
 
-All state-changing flows confirm the Soroban transaction before calling `lib/readModelSync.ts`. That adapter owns event, ticket, and listing mirror writes, checks Supabase result errors, and reports mirror failures separately from transaction failures. Hooks are invalidated only after the matching mirror operation succeeds. A mirror failure after chain confirmation must be shown as a synchronization warning and must never invite the user to retry the blockchain action.
+All state-changing flows confirm the Soroban transaction before calling `lib/readModelSync.ts`. Browser ticket/listing writes remain the accepted MVP boundary outside this phase. Published event creation and event status/supply refreshes use the trusted chain-reading Edge Function; the browser cannot write `events`. Mirror failures remain distinct from blockchain failures and must never invite a repeated chain action.
 
 
 ### QR Verification (D-005, D-006)

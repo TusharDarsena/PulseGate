@@ -136,6 +136,11 @@ impl TicketContract {
         if event.status != EventStatus::Active {
             return Err(ContractError::EventNotActive);
         }
+        // Primary sales close at the event start. This authoritative guard must
+        // run before ticket, supply, escrow, or token effects.
+        if env.ledger().timestamp() >= event.date_unix {
+            return Err(ContractError::EventSalesClosed);
+        }
         if event.current_supply >= event.capacity {
             return Err(ContractError::EventCapacityExceeded);
         }

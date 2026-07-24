@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Event } from '../../types';
 import { OrganizerEventRow } from '../../components/organizer/OrganizerEventRow';
+import { useOrganizerEvents } from '../../hooks/useScopedEvents';
 
 interface DashboardPageProps {
-  readonly events: Event[];
   readonly onCreateEvent: () => void;
   readonly onOpenEvent: (eventId: string) => void;
-  readonly invalidateEvents: () => Promise<void>;
 }
 
 import { useAppStore } from '../../store/useAppStore';
@@ -18,20 +16,18 @@ import {
   synchronizationWarning,
 } from '../../lib/readModelSync';
 
-export function DashboardPage({ events, onCreateEvent, onOpenEvent, invalidateEvents }: DashboardPageProps) {
+export function DashboardPage({ onCreateEvent, onOpenEvent }: DashboardPageProps) {
   const { organizerWallet: wallet, setTxState } = useAppStore();
   const { connectOrganizer } = useWallet();
   const [now, setNow] = useState(0);
+  const eventState = useOrganizerEvents(wallet.publicKey);
+  const organizerEvents = eventState.events;
 
   useEffect(() => {
     setTimeout(() => setNow(Date.now()), 0);
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const organizerEvents = wallet.publicKey
-    ? events.filter(e => e.organizer === wallet.publicKey)
-    : [];
 
   const activeEvents = organizerEvents.filter(e => e.status === 'Active');
 
@@ -43,10 +39,10 @@ export function DashboardPage({ events, onCreateEvent, onOpenEvent, invalidateEv
     if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) return;
     setTxState({ status: 'signing' });
     try {
-      await releaseFunds(eventId, wallet.publicKey, wallet.signFn);
+      const transactionHash = await releaseFunds(eventId, wallet.publicKey, wallet.signFn);
       
-      const syncResult = await mirrorCompletedEvent(eventId);
-      if (syncResult.ok) await invalidateEvents();
+      const syncResult = await mirrorCompletedEvent(eventId, transactionHash);
+      if (syncResult.ok) await eventState.reload();
 
       setTxState({
         status: 'success',
@@ -65,10 +61,10 @@ export function DashboardPage({ events, onCreateEvent, onOpenEvent, invalidateEv
     if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) return;
     setTxState({ status: 'signing' });
     try {
-      await cancelEvent(eventId, wallet.publicKey, wallet.signFn);
+      const transactionHash = await cancelEvent(eventId, wallet.publicKey, wallet.signFn);
       
-      const syncResult = await mirrorCancelledEvent(eventId);
-      if (syncResult.ok) await invalidateEvents();
+      const syncResult = await mirrorCancelledEvent(eventId, transactionHash);
+      if (syncResult.ok) await eventState.reload();
 
       setTxState({
         status: 'success',

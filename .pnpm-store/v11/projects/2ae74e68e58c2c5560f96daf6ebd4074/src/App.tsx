@@ -11,7 +11,6 @@ import { useAuth } from './auth/AuthProvider';
 import { AppHeader } from './components/layout/AppHeader';
 import { BottomNav } from './components/layout/BottomNav';
 import { TxOverlay } from './components/ui/TxOverlay';
-import { useEvents } from './hooks/useEvents';
 import { useListings } from './hooks/useListings';
 import { useTickets } from './hooks/useTickets';
 import { saveAuthIntent, type ProtectedAction } from './lib/authIntent';
@@ -84,12 +83,8 @@ function EventRoute() {
 }
 
 function CheckoutRoute({
-  events,
-  invalidateEvents,
   invalidateTickets,
 }: {
-  events: ReturnType<typeof useEvents>['events'];
-  invalidateEvents: ReturnType<typeof useEvents>['invalidate'];
   invalidateTickets: ReturnType<typeof useTickets>['invalidate'];
 }) {
   const { eventId = '' } = useParams();
@@ -97,10 +92,8 @@ function CheckoutRoute({
   return (
     <PurchasePage
       eventId={eventId}
-      events={events}
       onBack={() => navigate(`/events/${eventId}`)}
       onPurchaseComplete={() => navigate('/tickets')}
-      invalidateEvents={invalidateEvents}
       invalidateTickets={invalidateTickets}
     />
   );
@@ -114,7 +107,6 @@ function TicketQrRoute() {
 function App() {
   const { txState } = useAppStore();
   const navigate = useNavigate();
-  const eventsState = useEvents();
   const ticketsState = useTickets();
   const listingsState = useListings();
 
@@ -127,19 +119,12 @@ function App() {
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/events" element={
-          <BrowsePage
-            events={eventsState.events}
-            loading={eventsState.loading}
-            error={eventsState.error}
-            onEventClick={(id) => navigate(`/events/${id}`)}
-          />
+          <BrowsePage onEventClick={(id) => navigate(`/events/${id}`)} />
         } />
         <Route path="/events/:eventId" element={<EventRoute />} />
         <Route path="/events/:eventId/checkout" element={
           <RequireAuth action="open_checkout" attendeeWallet>
             <CheckoutRoute
-              events={eventsState.events}
-              invalidateEvents={eventsState.invalidate}
               invalidateTickets={ticketsState.invalidate}
             />
           </RequireAuth>
@@ -157,13 +142,11 @@ function App() {
           <RequireAuth action="open_tickets">
             <MyTicketsPage
               tickets={ticketsState.tickets}
-              events={eventsState.events}
               loadingTickets={ticketsState.loading}
               errorTickets={ticketsState.error}
               onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
               onBrowseMore={() => navigate('/events')}
               invalidateTickets={ticketsState.invalidate}
-              invalidateEvents={eventsState.invalidate}
             />
           </RequireAuth>
         } />
@@ -179,24 +162,19 @@ function App() {
         <Route path="/organizer/events" element={
           <RequireAuth action="open_organizer">
             <DashboardPage
-              events={eventsState.events}
               onCreateEvent={() => navigate('/organizer/events/new')}
               onOpenEvent={(id) => navigate(`/organizer/events/${id}`)}
-              invalidateEvents={eventsState.invalidate}
             />
           </RequireAuth>
         } />
         <Route path="/organizer/events/new" element={
           <RequireAuth action="open_organizer">
-            <CreateEventPage onSubmit={(synced) => {
-              if (synced) void eventsState.invalidate();
-              navigate('/organizer/events');
-            }} />
+            <CreateEventPage onSubmit={() => navigate('/organizer/events')} />
           </RequireAuth>
         } />
         <Route path="/organizer/events/:eventId" element={
           <RequireAuth action="open_organizer">
-            <OrganizerEventPage events={eventsState.events} />
+            <OrganizerEventPage />
           </RequireAuth>
         } />
         <Route path="/organizer/events/:eventId/check-in" element={

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Event, EventStatus, formatEventDate } from '../../types';
+import { Event, EventStatus } from '../../types';
+import { formatEventStart } from '../../lib/eventModel';
 
 interface OrganizerEventRowProps {
   readonly event: Event;
@@ -55,7 +56,7 @@ export function OrganizerEventRow({
     >
       {/* Thumbnail */}
       <img
-        src={event.imageUrl ?? 'https://images.unsplash.com/photo-1540039155732-d67414006c3a?w=200&q=80'}
+        src={event.imageUrl}
         alt={event.name}
         className="w-24 h-24 rounded-lg object-cover border border-[#272C33] flex-shrink-0"
       />
@@ -68,7 +69,7 @@ export function OrganizerEventRow({
             <div className="flex items-center gap-4 mt-1 flex-wrap">
               <span className="flex items-center gap-1 text-[#c9c4d8] text-sm">
                 <span className="material-symbols-outlined text-sm">calendar_today</span>
-                {formatEventDate(event.dateUnix)}
+                {formatEventStart(event)}
               </span>
               {event.venue && (
                 <span className="flex items-center gap-1 text-[#c9c4d8] text-sm">

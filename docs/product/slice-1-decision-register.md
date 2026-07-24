@@ -196,14 +196,16 @@ If an already-created account later has insufficient funds, show a truthful supp
 - venue name, address, and city;
 - organizer display name and organizer wallet;
 - support contact;
-- refund summary;
-- resale summary;
+- platform refund-policy code and derived summary;
+- platform resale-policy code and derived summary;
 - entry instructions;
-- `publish_state` of `draft`, `published`, or `archived`.
+- trusted chain-verification and publication timestamps.
 
-A public event query returns only `published` rows whose required metadata is complete and whose row is linked to the correct on-chain event. Missing required values are not replaced with `TBA`, stock identities, fabricated tiers, or fixed fees.
+Keep trusted published rows in `events`. Store user-owned preparation and recovery state in a separate private `event_publication_drafts` table; do not mix drafts into published rows or add an archived state in this phase. A discovery query returns only verified, complete, Active future events. Direct event access resolves every verified published event regardless of lifecycle or start time.
 
-For the current one-shot Create Event flow, collect all required metadata before submitting the contract transaction. Publish only after chain creation and trusted mirror completion. If the mirror fails after chain success, keep the event hidden and repair synchronization; do not ask the organizer to create a second event.
+Before contract submission, reserve the complete private draft with a stable event ID, authenticated user, intended organizer, deployment identity, and expected chain values. The organizer-signed Soroban creation transaction binds the draft without a custom metadata-signature protocol. After chain creation, an idempotent trusted publisher reads `get_event`, verifies the deployment and immutable values, and promotes that same draft. `chain_created` and `publication_failed` drafts remain recoverable after refresh; retry publication never resubmits `create_event`.
+
+Refund and resale summaries are derived from platform-owned structured policy codes that reflect contract behavior, not organizer-authored promises. Only the trusted publication service may create or update published event rows and chain-verification fields.
 
 The same normalized start, end, timezone, venue, address, and event URL power event details, receipt, owned ticket, Google Calendar, Outlook, `.ics`, and maps actions.
 

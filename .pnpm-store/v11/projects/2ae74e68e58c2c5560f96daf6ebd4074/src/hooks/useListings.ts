@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { fetchPublishedEventsByIds, supabase } from '../lib/supabase';
 
 
 export interface ListingWithEvent {
@@ -10,7 +10,7 @@ export interface ListingWithEvent {
   askPriceStroops: bigint;
   status: 'Open' | 'Sold' | 'Cancelled';
   eventName: string;
-  eventImageUrl: string | null;
+  eventImageUrl: string;
   eventDateUnix: number;
 }
 
@@ -21,11 +21,6 @@ interface ListingRow {
   event_id: string;
   ask_price_stroops: string | number;
   status: string;
-  events: {
-    name: string | null;
-    image_url: string | null;
-    date_unix: number;
-  } | null;
 }
 
 const POLL_INTERVAL_MS = 30_000;
@@ -60,12 +55,7 @@ export function useListings(): {
           ticket_id,
           event_id,
           ask_price_stroops,
-          status,
-          events:event_id (
-            name,
-            image_url,
-            date_unix
-          )
+          status
         `)
         .eq('status', 'Open')
         .order('listed_at', { ascending: false });
@@ -74,17 +64,24 @@ export function useListings(): {
 
       if (fetchId !== fetchRef.current) return;
 
-      const resolved: ListingWithEvent[] = ((data as unknown as ListingRow[]) || []).map((row) => ({
+      const rows = (data as unknown as ListingRow[]) || [];
+      const eventRows = await fetchPublishedEventsByIds(rows.map((row) => row.event_id));
+      const eventsById = new Map(eventRows.map((event) => [event.event_id, event]));
+      const resolved: ListingWithEvent[] = rows.flatMap((row) => {
+        const event = eventsById.get(row.event_id);
+        if (!event) return [];
+        return [{
         listingId: row.listing_id,
         seller: row.seller_address,
         ticketId: row.ticket_id,
         eventId: row.event_id,
         askPriceStroops: BigInt(row.ask_price_stroops),
         status: row.status as 'Open' | 'Sold' | 'Cancelled',
-        eventName: row.events?.name || 'Unknown Event',
-        eventImageUrl: row.events?.image_url || null,
-        eventDateUnix: row.events?.date_unix || 0,
-      }));
+        eventName: event.name,
+        eventImageUrl: event.image_url,
+        eventDateUnix: event.date_unix,
+      }];
+      });
 
       setListings(resolved);
     } catch (err) {

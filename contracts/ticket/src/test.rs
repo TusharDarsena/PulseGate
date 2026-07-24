@@ -152,6 +152,47 @@ fn test_capacity_enforced() {
 }
 
 #[test]
+fn test_purchase_closes_at_event_start() {
+    let s = TestSetup::new();
+    let before_event_id = s.str("ev_before");
+    let at_event_id = s.str("ev_at");
+    let after_event_id = s.str("ev_after");
+    let start = s.env.ledger().timestamp() + 100;
+
+    for event_id in [&before_event_id, &at_event_id, &after_event_id] {
+        s.contract.create_event(
+            &s.organizer,
+            event_id,
+            &s.str("TimedEvent"),
+            &start,
+            &10,
+            &TestSetup::PRICE,
+        );
+    }
+
+    s.env.ledger().set_timestamp(start - 1);
+    s.purchase(&before_event_id, &s.str("t_before"));
+
+    s.env.ledger().set_timestamp(start);
+    assert_err(
+        s.contract
+            .try_purchase(&at_event_id, &s.buyer2, &s.str("t_at")),
+        ContractError::EventSalesClosed,
+    );
+
+    s.env.ledger().set_timestamp(start + 1);
+    assert_err(
+        s.contract
+            .try_purchase(&after_event_id, &s.buyer2, &s.str("t_after")),
+        ContractError::EventSalesClosed,
+    );
+
+    assert_eq!(s.contract.get_event(&at_event_id).current_supply, 0);
+    assert_eq!(s.contract.get_event(&after_event_id).current_supply, 0);
+    assert_eq!(s.xlm.balance(&s.contract.address), TestSetup::PRICE);
+}
+
+#[test]
 fn test_release_funds_requires_past_event_date() {
     let s = TestSetup::new();
     let event_id = s.str("ev_rel");

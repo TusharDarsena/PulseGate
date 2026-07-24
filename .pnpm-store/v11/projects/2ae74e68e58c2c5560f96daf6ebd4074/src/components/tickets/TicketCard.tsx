@@ -1,5 +1,7 @@
 import React from 'react';
-import { Ticket, Event, formatEventDate } from '../../types';
+import { Ticket, Event } from '../../types';
+import { formatEventRange } from '../../lib/eventModel';
+import { EventActions } from '../events/EventActions';
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -19,7 +21,7 @@ export function TicketCard({ ticket, event, onShowQR, onRefund, onListForSale, o
         <div className="flex justify-between items-start mb-6">
           <div>
             <span className="bg-[#7C5CFF]/10 text-[#7C5CFF] px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-2 inline-block">
-              {ticket.status === 'Used' ? 'USED' : ticket.status === 'Refunded' ? 'REFUNDED' : event.status === 'Cancelled' ? 'CANCELLED EVENT' : 'VIP ACCESS'}
+              {ticket.status === 'Used' ? 'USED' : ticket.status === 'Refunded' ? 'REFUNDED' : event.status === 'Cancelled' ? 'CANCELLED EVENT' : 'GENERAL ADMISSION'}
             </span>
             <h3 className="text-2xl font-semibold leading-tight text-white">{event.name}</h3>
           </div>
@@ -31,12 +33,13 @@ export function TicketCard({ ticket, event, onShowQR, onRefund, onListForSale, o
         <div className="space-y-4 mb-8 flex-grow">
           <div className="flex items-center gap-2 text-[#c9c4d8]">
             <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-            <p className="text-sm">{formatEventDate(event.dateUnix)}</p>
+            <p className="text-sm">{formatEventRange(event)}</p>
           </div>
           <div className="flex items-center gap-2 text-[#c9c4d8]">
             <span className="material-symbols-outlined text-[18px]">location_on</span>
-            <p className="text-sm">{event.venue}, {event.city}</p>
+            <p className="text-sm">{event.venue}, {event.address}, {event.city}</p>
           </div>
+          <EventActions event={event} compact />
         </div>
         
         <div className="bg-[#0E1113]/50 p-4 rounded-lg mb-6 border border-[#272C33]/50">

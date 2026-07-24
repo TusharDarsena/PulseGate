@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { Address } from '@stellar/stellar-sdk';
+import { Address } from "@stellar/stellar-sdk";
 import {
   AssembledTransaction,
   Client as ContractClient,
@@ -7,7 +7,7 @@ import {
   MethodOptions,
   Result,
   Spec as ContractSpec,
-} from '@stellar/stellar-sdk/contract';
+} from "@stellar/stellar-sdk/contract";
 import type {
   u32,
   i32,
@@ -18,14 +18,14 @@ import type {
   u256,
   i256,
   Option,
-  Typepoint,
+  Timepoint,
   Duration,
-} from '@stellar/stellar-sdk/contract';
-// export * from '@stellar/stellar-sdk'  // removed — breaks Vite ESM interop
-export * as contract from '@stellar/stellar-sdk/contract'
-export * as rpc from '@stellar/stellar-sdk/rpc'
+} from "@stellar/stellar-sdk/contract";
+export * from "@stellar/stellar-sdk";
+export * as contract from "@stellar/stellar-sdk/contract";
+export * as rpc from "@stellar/stellar-sdk/rpc";
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   //@ts-ignore Buffer exists
   window.Buffer = window.Buffer || Buffer;
 }
@@ -46,6 +46,7 @@ export const ContractError = {
   19: {message:"InvalidCapacity"},
   20: {message:"InvalidPrice"},
   21: {message:"EventDateInPast"},
+  23: {message:"EventSalesClosed"},
   9: {message:"TicketNotFound"},
   10: {message:"TicketAlreadyUsed"},
   11: {message:"TicketNotOwnedByCaller"},
@@ -134,104 +135,29 @@ export interface Client {
   /**
    * Construct and simulate a refund transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  refund: ({ticket_id, attendee}: {ticket_id: string, attendee: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  refund: ({ticket_id, attendee}: {ticket_id: string, attendee: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a purchase transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Purchase a ticket. Pulls price_per_ticket XLM from buyer into escrow.
    * Token address is read from contract storage — never trusted from caller (S-001).
    */
-  purchase: ({event_id, buyer, ticket_id}: {event_id: string, buyer: string, ticket_id: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  purchase: ({event_id, buyer, ticket_id}: {event_id: string, buyer: string, ticket_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_event: ({event_id}: {event_id: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Event>>>
+  get_event: ({event_id}: {event_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Event>>>
 
   /**
    * Construct and simulate a mark_used transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  mark_used: ({ticket_id, organizer}: {ticket_id: string, organizer: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  mark_used: ({ticket_id, organizer}: {ticket_id: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_ticket transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_ticket: ({ticket_id}: {ticket_id: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Ticket>>>
+  get_ticket: ({ticket_id}: {ticket_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Ticket>>>
 
   /**
    * Construct and simulate a initialize transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -239,149 +165,44 @@ export interface Client {
    * and the trusted XLM SAC token address.
    * Can only be called once. Admin is authenticated to prevent front-running.
    */
-  initialize: ({admin, marketplace_address, xlm_token}: {admin: string, marketplace_address: string, xlm_token: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  initialize: ({admin, marketplace_address, xlm_token}: {admin: string, marketplace_address: string, xlm_token: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a cancel_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Cancel event. Only organizer. Does not auto-refund — pull-based per D-002.
    */
-  cancel_event: ({event_id, organizer}: {event_id: string, organizer: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  cancel_event: ({event_id, organizer}: {event_id: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a create_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Create a new event. Does NOT mint tickets — lazy minting at purchase time.
    */
-  create_event: ({organizer, event_id, name, date_unix, capacity, price_per_ticket}: {organizer: string, event_id: string, name: string, date_unix: u64, capacity: i128, price_per_ticket: i128}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  create_event: ({organizer, event_id, name, date_unix, capacity, price_per_ticket}: {organizer: string, event_id: string, name: string, date_unix: u64, capacity: i128, price_per_ticket: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_xlm_token transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Return the trusted XLM SAC token address stored at initialize.
    * Useful for frontend transparency and test assertions.
    */
-  get_xlm_token: (options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<string>>>
+  get_xlm_token: (options?: MethodOptions) => Promise<AssembledTransaction<Result<string>>>
 
   /**
    * Construct and simulate a release_funds transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Release escrowed funds to organizer. Only callable after event date.
    * Token address is read from contract storage — never trusted from caller (S-001).
    */
-  release_funds: ({event_id, organizer}: {event_id: string, organizer: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  release_funds: ({event_id, organizer}: {event_id: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_marketplace transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_marketplace: (options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<string>>>
+  get_marketplace: (options?: MethodOptions) => Promise<AssembledTransaction<Result<string>>>
 
   /**
    * Construct and simulate a restricted_transfer transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Transfer ticket ownership. ONLY the stored marketplace address can call this.
    */
-  restricted_transfer: ({ticket_id, new_owner}: {ticket_id: string, new_owner: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  restricted_transfer: ({ticket_id, new_owner}: {ticket_id: string, new_owner: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
 }
 export class Client extends ContractClient {
@@ -413,7 +234,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAJdSZWxlYXNlIGVzY3Jvd2VkIGZ1bmRzIHRvIG9yZ2FuaXplci4gT25seSBjYWxsYWJsZSBhZnRlciBldmVudCBkYXRlLgpUb2tlbiBhZGRyZXNzIGlzIHJlYWQgZnJvbSBjb250cmFjdCBzdG9yYWdlIOKAlCBuZXZlciB0cnVzdGVkIGZyb20gY2FsbGVyIChTLTAwMSkuAAAAAA1yZWxlYXNlX2Z1bmRzAAAAAAAAAgAAAAAAAAAIZXZlbnRfaWQAAAAQAAAAAAAAAAlvcmdhbml6ZXIAAAAAAAATAAAAAQAAA+kAAAACAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
         "AAAAAAAAAAAAAAAPZ2V0X21hcmtldHBsYWNlAAAAAAAAAAABAAAD6QAAABMAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
         "AAAAAAAAAE1UcmFuc2ZlciB0aWNrZXQgb3duZXJzaGlwLiBPTkxZIHRoZSBzdG9yZWQgbWFya2V0cGxhY2UgYWRkcmVzcyBjYW4gY2FsbCB0aGlzLgAAAAAAABNyZXN0cmljdGVkX3RyYW5zZmVyAAAAAAIAAAAAAAAACXRpY2tldF9pZAAAAAAAABAAAAAAAAAACW5ld19vd25lcgAAAAAAABMAAAABAAAD6QAAAAIAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
-        "AAAABAAAAAAAAAAAAAAADUNvbnRyYWN0RXJyb3IAAAAAAAAWAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAA1FdmVudE5vdEZvdW5kAAAAAAAAAwAAAAAAAAAORXZlbnROb3RBY3RpdmUAAAAAAAQAAAAAAAAAFUV2ZW50Q2FwYWNpdHlFeGNlZWRlZAAAAAAAAAUAAAAAAAAAEUV2ZW50Tm90Q2FuY2VsbGVkAAAAAAAABgAAAAAAAAAaRXZlbnROb3RFbGlnaWJsZUZvclJlbGVhc2UAAAAAAAcAAAAAAAAAFUV2ZW50QWxyZWFkeUNvbXBsZXRlZAAAAAAAAAgAAAAAAAAAEkV2ZW50QWxyZWFkeUV4aXN0cwAAAAAAEgAAAAAAAAAPSW52YWxpZENhcGFjaXR5AAAAABMAAAAAAAAADEludmFsaWRQcmljZQAAABQAAAAAAAAAD0V2ZW50RGF0ZUluUGFzdAAAAAAVAAAAAAAAAA5UaWNrZXROb3RGb3VuZAAAAAAACQAAAAAAAAARVGlja2V0QWxyZWFkeVVzZWQAAAAAAAAKAAAAAAAAABZUaWNrZXROb3RPd25lZEJ5Q2FsbGVyAAAAAAALAAAAAAAAABNUaWNrZXRBbHJlYWR5RXhpc3RzAAAAABYAAAAAAAAAFE9ubHlPcmdhbml6ZXJBbGxvd2VkAAAADAAAAAAAAAAWT25seU1hcmtldHBsYWNlQWxsb3dlZAAAAAAADQAAAAAAAAAZSW5zdWZmaWNpZW50RXNjcm93QmFsYW5jZQAAAAAAAA4AAAAAAAAACE92ZXJmbG93AAAADwAAAAAAAAAJVW5kZXJmbG93AAAAAAAAEAAAAAAAAAAORGl2aXNpb25CeVplcm8AAAAAABE=",
+        "AAAABAAAAAAAAAAAAAAADUNvbnRyYWN0RXJyb3IAAAAAAAAXAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAA1FdmVudE5vdEZvdW5kAAAAAAAAAwAAAAAAAAAORXZlbnROb3RBY3RpdmUAAAAAAAQAAAAAAAAAFUV2ZW50Q2FwYWNpdHlFeGNlZWRlZAAAAAAAAAUAAAAAAAAAEUV2ZW50Tm90Q2FuY2VsbGVkAAAAAAAABgAAAAAAAAAaRXZlbnROb3RFbGlnaWJsZUZvclJlbGVhc2UAAAAAAAcAAAAAAAAAFUV2ZW50QWxyZWFkeUNvbXBsZXRlZAAAAAAAAAgAAAAAAAAAEkV2ZW50QWxyZWFkeUV4aXN0cwAAAAAAEgAAAAAAAAAPSW52YWxpZENhcGFjaXR5AAAAABMAAAAAAAAADEludmFsaWRQcmljZQAAABQAAAAAAAAAD0V2ZW50RGF0ZUluUGFzdAAAAAAVAAAAAAAAABBFdmVudFNhbGVzQ2xvc2VkAAAAFwAAAAAAAAAOVGlja2V0Tm90Rm91bmQAAAAAAAkAAAAAAAAAEVRpY2tldEFscmVhZHlVc2VkAAAAAAAACgAAAAAAAAAWVGlja2V0Tm90T3duZWRCeUNhbGxlcgAAAAAACwAAAAAAAAATVGlja2V0QWxyZWFkeUV4aXN0cwAAAAAWAAAAAAAAABRPbmx5T3JnYW5pemVyQWxsb3dlZAAAAAwAAAAAAAAAFk9ubHlNYXJrZXRwbGFjZUFsbG93ZWQAAAAAAA0AAAAAAAAAGUluc3VmZmljaWVudEVzY3Jvd0JhbGFuY2UAAAAAAAAOAAAAAAAAAAhPdmVyZmxvdwAAAA8AAAAAAAAACVVuZGVyZmxvdwAAAAAAABAAAAAAAAAADkRpdmlzaW9uQnlaZXJvAAAAAAAR",
         "AAAAAQAAACJGdWxsIGV2ZW50IHJlY29yZCBzdG9yZWQgb24tY2hhaW4uAAAAAAAAAAAABUV2ZW50AAAAAAAABwAAACpNYXhpbXVtIG51bWJlciBvZiB0aWNrZXRzIHRoYXQgY2FuIGJlIHNvbGQAAAAAAAhjYXBhY2l0eQAAAAsAAAAmSG93IG1hbnkgdGlja2V0cyBoYXZlIGJlZW4gc29sZCBzbyBmYXIAAAAAAA5jdXJyZW50X3N1cHBseQAAAAAACwAAACBVbml4IHRpbWVzdGFtcCBvZiB0aGUgZXZlbnQgZGF0ZQAAAAlkYXRlX3VuaXgAAAAAAAAGAAAARlNob3J0IGRpc3BsYXkgbmFtZSAoc3RvcmVkIGFzIFN0cmluZyB0byBoYW5kbGUgc3BhY2VzIGFuZCBsZW5ndGggPiAzMikAAAAAAARuYW1lAAAAEAAAAENBZGRyZXNzIHRoYXQgY3JlYXRlZCB0aGUgZXZlbnQgYW5kIHdpbGwgcmVjZWl2ZSBmdW5kcyBhZnRlciByZWxlYXNlAAAAAAlvcmdhbml6ZXIAAAAAAAATAAAAOFByaWNlIHBlciB0aWNrZXQgaW4gc3Ryb29wcyAoMSBYTE0gPSAxMF8wMDBfMDAwIHN0cm9vcHMpAAAAEHByaWNlX3Blcl90aWNrZXQAAAALAAAAAAAAAAZzdGF0dXMAAAAAB9AAAAALRXZlbnRTdGF0dXMA",
         "AAAAAQAAAClJbmRpdmlkdWFsIHRpY2tldCByZWNvcmQgc3RvcmVkIG9uLWNoYWluLgAAAAAAAAAAAAAGVGlja2V0AAAAAAADAAAAIldoaWNoIGV2ZW50IHRoaXMgdGlja2V0IGJlbG9uZ3MgdG8AAAAAAAhldmVudF9pZAAAABAAAAAcQ3VycmVudCBvd25lciBvZiB0aGlzIHRpY2tldAAAAAVvd25lcgAAAAAAABMAAADBTGlmZWN5Y2xlIHN0YXRlOiBBY3RpdmUg4oaSIFVzZWQgKHNjYW5uZWQpIG9yIFJlZnVuZGVkIChldmVudCBjYW5jZWxsZWQpLgpOZXZlciB1c2UgYSBib29sIGhlcmUg4oCUIG9uLWNoYWluIGRhdGEgaXMgcGVybWFuZW50IGFuZCBhbmFseXRpY3MgbXVzdApkaXN0aW5ndWlzaCB0aGUgdHdvIHRlcm1pbmFsIHN0YXRlcy4gU2VlIEQtMDE4LgAAAAAAAAZzdGF0dXMAAAAAB9AAAAAMVGlja2V0U3RhdHVz",
         "AAAAAgAAAGZTdG9yYWdlIGtleXMgZm9yIGFsbCBwZXJzaXN0ZW50IGRhdGEgaW4gVGlja2V0Q29udHJhY3QuCktleWVkIGJ5IGV2ZW50X2lkIG9yIHRpY2tldF9pZCAoYm90aCBTdHJpbmdzKS4AAAAAAAAAAAAHRGF0YUtleQAAAAAGAAAAAQAAAClTdG9yZXMgYW4gRXZlbnQgcmVjb3JkLCBrZXllZCBieSBldmVudF9pZAAAAAAAAAVFdmVudAAAAAAAAAEAAAAQAAAAAQAAACpTdG9yZXMgYSBUaWNrZXQgcmVjb3JkLCBrZXllZCBieSB0aWNrZXRfaWQAAAAAAAZUaWNrZXQAAAAAAAEAAAAQAAAAAQAAAEJTdG9yZXMgZXNjcm93IGJhbGFuY2UgKGluIHN0cm9vcHMpIGZvciBhbiBldmVudCwga2V5ZWQgYnkgZXZlbnRfaWQAAAAAAAZFc2Nyb3cAAAAAAAEAAAAQAAAAAAAAANlUaGUgb25lIGFkZHJlc3MgYWxsb3dlZCB0byBjYWxsIHJlc3RyaWN0ZWRfdHJhbnNmZXIuClNldCBvbmNlIGF0IGluaXRpYWxpemUoKSwgbmV2ZXIgY2hhbmdlcy4KTk9URTogU3RvcmVkIGluIGluc3RhbmNlKCkgc3RvcmFnZSDigJQgbm90IHBlcnNpc3RlbnQoKSDigJQgYmVjYXVzZSB0aGlzIElTCmNvbnRyYWN0LWxpZmV0aW1lIGRhdGEuIFNlZSBkZWNpc2lvbnMubWQgRC0wMTIuAAAAAAAAEk1hcmtldHBsYWNlQWRkcmVzcwAAAAAAAAAAAH5UaGUgdHJ1c3RlZCBYTE0gU0FDIGFkZHJlc3MuIFNldCBvbmNlIGF0IGluaXRpYWxpemUoKS4KTmV2ZXIgc3VwcGxpZWQgYnkgY2FsbGVycyDigJQgcHJldmVudHMgZmFrZS10b2tlbiBlc2Nyb3cgZHJhaW4gKFMtMDAxKS4AAAAAAAhYbG1Ub2tlbgAAAAAAAACEQWRtaW4gYWRkcmVzcyDigJQgc2V0IG9uY2UgYXQgaW5pdGlhbGl6ZSwgY2FuIHJlLWluaXRpYWxpemUgYWZ0ZXIgY29udHJhY3QgdXBncmFkZS4KU3RvcmVkIGluIGluc3RhbmNlKCkg4oCUIGNvbnRyYWN0LWxpZmV0aW1lIGRhdGEuAAAABUFkbWluAAAA",

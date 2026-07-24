@@ -18,6 +18,7 @@ pub enum ContractError {
     InvalidCapacity = 19,
     InvalidPrice = 20,
     EventDateInPast = 21,
+    EventSalesClosed = 23,
 
     // Ticket errors
     TicketNotFound = 9,

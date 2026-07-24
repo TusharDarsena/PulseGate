@@ -1,15 +1,15 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWallet } from '../../hooks/useWallet';
 import { useAppStore } from '../../store/useAppStore';
-import type { Event } from '../../types';
-import { formatEventDate } from '../../types';
+import { useEvent } from '../../hooks/useEvent';
+import { formatEventRange } from '../../lib/eventModel';
 
-export function OrganizerEventPage({ events }: { events: Event[] }) {
+export function OrganizerEventPage() {
   const { eventId = '' } = useParams();
   const navigate = useNavigate();
   const wallet = useAppStore((state) => state.organizerWallet);
   const { connectOrganizer } = useWallet();
-  const event = events.find((candidate) => candidate.eventId === eventId);
+  const { event, loading, error } = useEvent(eventId);
 
   if (!wallet.isConnected) {
     return (
@@ -19,14 +19,15 @@ export function OrganizerEventPage({ events }: { events: Event[] }) {
       </main>
     );
   }
-  if (!event) return <main className="min-h-screen pt-28 text-center">Event not found.</main>;
+  if (loading) return <main className="min-h-screen pt-28 text-center">Loading event…</main>;
+  if (!event) return <main className="min-h-screen pt-28 text-center">{error ?? 'Event not found.'}</main>;
   if (event.organizer !== wallet.publicKey) {
     return <main className="min-h-screen pt-28 text-center text-red-400">This Freighter account is not the event organizer.</main>;
   }
   return (
     <main className="min-h-screen pt-28 pb-24 px-4 max-w-3xl mx-auto">
       <h1 className="text-4xl font-bold">{event.name}</h1>
-      <p className="text-slate-400 mt-2">{formatEventDate(event.dateUnix)} · {event.venue}</p>
+      <p className="text-slate-400 mt-2">{formatEventRange(event)} · {event.venue}</p>
       <section className="mt-8 rounded-xl border border-[#272C33] bg-[#15181C] p-6">
         <h2 className="text-xl font-semibold">Check-in</h2>
         <p className="text-slate-400 mt-2 mb-5">Scanner access is scoped to this organizer event.</p>

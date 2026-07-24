@@ -1,369 +1,426 @@
-import React, { useState } from 'react';
+import { formatInTimeZone } from 'date-fns-tz';
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../auth/AuthProvider';
+import { REFUND_POLICY, RESALE_POLICY, zonedDateTimeToUnix } from '../../lib/eventModel';
+import { createEvent } from '../../lib/soroban';
+import {
+  createEventPublicationDraft,
+  fetchOpenEventPublicationDraft,
+  invokeEventPublication,
+  updatePreparedEventPublicationDraft,
+  type EventPublicationDraft,
+} from '../../lib/supabase';
+import { generateID } from '../../lib/utils';
+import { useAppStore } from '../../store/useAppStore';
+import { xlmToStroops } from '../../types';
+
+interface CreateEventPageProps {
+  readonly onSubmit: (published: boolean) => void;
+}
 
 interface CreateEventFormData {
   name: string;
-  date: string;
-  time: string;
+  summary: string;
+  description: string;
+  imageUrl: string;
+  category: string;
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  timezone: string;
   venue: string;
+  address: string;
   city: string;
+  organizerDisplayName: string;
+  supportContact: string;
+  entryInstructions: string;
   capacity: string;
   priceXlm: string;
-  imageUrl: string;
-  description: string;
 }
 
-interface CreateEventPageProps {
-  readonly onSubmit: (readModelSynced: boolean) => void;
-}
-
+const DEFAULT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const EMPTY_FORM: CreateEventFormData = {
   name: '',
-  date: '',
-  time: '',
+  summary: '',
+  description: '',
+  imageUrl: '',
+  category: '',
+  startDate: '',
+  startTime: '',
+  endDate: '',
+  endTime: '',
+  timezone: DEFAULT_TIMEZONE,
   venue: '',
+  address: '',
   city: '',
+  organizerDisplayName: '',
+  supportContact: '',
+  entryInstructions: '',
   capacity: '',
   priceXlm: '',
-  imageUrl: '',
-  description: '',
 };
 
-import { useAppStore } from '../../store/useAppStore';
-import { createEvent } from '../../lib/soroban';
-import { mirrorCreatedEvent, synchronizationWarning } from '../../lib/readModelSync';
-import { xlmToStroops } from '../../types';
+const CATEGORIES = ['Music', 'Sports', 'Theater', 'Comedy', 'Festivals', 'Tech'];
+const FALLBACK_TIMEZONES = [
+  'UTC',
+  'America/Los_Angeles',
+  'America/New_York',
+  'Europe/London',
+  'Europe/Paris',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Australia/Sydney',
+];
+
+function timezones(): string[] {
+  const supportedValuesOf = (
+    Intl as typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }
+  ).supportedValuesOf;
+  const values = supportedValuesOf ? supportedValuesOf('timeZone') : FALLBACK_TIMEZONES;
+  return [...new Set([DEFAULT_TIMEZONE, ...values])].sort();
+}
+
+function formFromDraft(draft: EventPublicationDraft): CreateEventFormData {
+  const start = new Date(draft.expected_date_unix * 1000);
+  const end = new Date(draft.end_unix * 1000);
+  return {
+    name: draft.expected_name,
+    summary: draft.summary,
+    description: draft.description,
+    imageUrl: draft.image_url,
+    category: draft.category,
+    startDate: formatInTimeZone(start, draft.timezone, 'yyyy-MM-dd'),
+    startTime: formatInTimeZone(start, draft.timezone, 'HH:mm'),
+    endDate: formatInTimeZone(end, draft.timezone, 'yyyy-MM-dd'),
+    endTime: formatInTimeZone(end, draft.timezone, 'HH:mm'),
+    timezone: draft.timezone,
+    venue: draft.venue,
+    address: draft.address,
+    city: draft.city,
+    organizerDisplayName: draft.organizer_display_name,
+    supportContact: draft.support_contact,
+    entryInstructions: draft.entry_instructions,
+    capacity: String(draft.expected_capacity),
+    priceXlm: (draft.expected_price_per_ticket / 10_000_000).toString(),
+  };
+}
 
 export function CreateEventPage({ onSubmit }: CreateEventPageProps) {
-  const [form, setForm] = useState<CreateEventFormData>(EMPTY_FORM);
-
-  const handleChange = (field: keyof CreateEventFormData) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value }));
-
+  const { user } = useAuth();
   const { organizerWallet: wallet, setTxState } = useAppStore();
+  const [form, setForm] = useState<CreateEventFormData>(EMPTY_FORM);
+  const [draft, setDraft] = useState<EventPublicationDraft | null>(null);
+  const [loadingDraft, setLoadingDraft] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const zoneOptions = useMemo(timezones, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const refreshDraft = async () => {
+    const next = await fetchOpenEventPublicationDraft();
+    setDraft(next);
+    if (next?.state === 'prepared') setForm(formFromDraft(next));
+    return next;
+  };
+
+  useEffect(() => {
+    void refreshDraft()
+      .catch((error) => setPageError(error instanceof Error ? error.message : 'Could not load draft.'))
+      .finally(() => setLoadingDraft(false));
+  }, []);
+
+  const change = (field: keyof CreateEventFormData) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((current) => ({ ...current, [field]: event.target.value }));
+
+  const retryPublication = async () => {
+    if (!draft) return;
+    setPageError(null);
+    setTxState({ status: 'submitting', message: 'Verifying the existing on-chain event…' });
+    try {
+      const action = draft.state === 'creation_submitting'
+        ? 'recover-submission'
+        : 'retry-publication';
+      const result = await invokeEventPublication(action, draft.draft_id);
+      if (result.state === 'prepared') {
+        await refreshDraft();
+        setTxState({ status: 'idle' });
+        setPageError('No on-chain event was found. Review the reserved draft before submitting.');
+        return;
+      }
+      setTxState({
+        status: 'success',
+        hash: result.transactionHash,
+        message: 'The existing event was verified and published.',
+      });
+      setTimeout(() => {
+        setTxState({ status: 'idle' });
+        onSubmit(true);
+      }, 1500);
+    } catch (error) {
+      setTxState({ status: 'idle' });
+      setPageError(error instanceof Error ? error.message : 'Publication retry failed.');
+      await refreshDraft().catch(() => undefined);
+    }
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user) {
+      setPageError('Sign in before creating an event.');
+      return;
+    }
     if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) {
-      alert('Please connect your organizer wallet (Freighter) first.');
+      setPageError('Connect the organizer Freighter wallet before creating an event.');
+      return;
+    }
+    if (draft && draft.intended_organizer_address !== wallet.publicKey) {
+      setPageError('Reconnect the organizer wallet recorded on this reserved draft.');
       return;
     }
 
-    setTxState({ status: 'building' });
+    setPageError(null);
+    setTxState({ status: 'building', message: 'Reserving the complete private event draft…' });
+    let activeDraft = draft;
+    let creationBegan = false;
     try {
-      const dateTimeStr = `${form.date}T${form.time}:00`;
-      const dateUnix = Math.floor(new Date(dateTimeStr).getTime() / 1000);
-
-      const price = parseFloat(form.priceXlm);
-      if (price > 900_000_000) {
-        alert('Price exceeds maximum safe limit for MVP precision.');
-        setTxState({ status: 'idle' });
-        return;
+      const dateUnix = zonedDateTimeToUnix(form.startDate, form.startTime, form.timezone);
+      const endUnix = zonedDateTimeToUnix(form.endDate, form.endTime, form.timezone);
+      if (endUnix <= dateUnix) throw new Error('Event end must be after its start.');
+      if (dateUnix <= Math.floor(Date.now() / 1000)) {
+        throw new Error('Event start must be in the future.');
       }
 
+      const capacity = Number.parseInt(form.capacity, 10);
+      const price = Number.parseFloat(form.priceXlm);
+      if (!Number.isSafeInteger(capacity) || capacity <= 0) {
+        throw new Error('Capacity must be a positive whole number.');
+      }
+      if (!Number.isFinite(price) || price <= 0 || price > 900_000_000) {
+        throw new Error('Enter a positive ticket price within the supported testnet range.');
+      }
       const priceStroops = xlmToStroops(price);
-      const capacity = parseInt(form.capacity, 10);
 
-      // Use timestamp-based ID — links on-chain event to Supabase metadata
-      const eventId = Date.now().toString();
+      const draftValues = {
+          name: form.name.trim(),
+          dateUnix,
+          endUnix,
+          timezone: form.timezone,
+          capacity,
+          pricePerTicket: Number(priceStroops),
+          summary: form.summary.trim(),
+          description: form.description.trim(),
+          imageUrl: form.imageUrl.trim(),
+          category: form.category,
+          venue: form.venue.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          organizerDisplayName: form.organizerDisplayName.trim(),
+          supportContact: form.supportContact.trim(),
+          entryInstructions: form.entryInstructions.trim(),
+      };
 
-      await createEvent(
-        { eventId, name: form.name, dateUnix, capacityXlm: capacity, priceStroops },
+      if (!activeDraft) {
+        activeDraft = await createEventPublicationDraft({
+          userId: user.id,
+          eventId: generateID(),
+          organizerAddress: wallet.publicKey,
+          ...draftValues,
+        });
+        setDraft(activeDraft);
+      } else {
+        activeDraft = await updatePreparedEventPublicationDraft(
+          activeDraft.draft_id,
+          draftValues,
+        );
+        setDraft(activeDraft);
+      }
+
+      await invokeEventPublication('begin-creation', activeDraft.draft_id);
+      creationBegan = true;
+      setTxState({ status: 'signing', message: 'Approve event creation in Freighter…' });
+      const transactionHash = await createEvent(
+        {
+          eventId: activeDraft.event_id,
+          name: activeDraft.expected_name,
+          dateUnix: activeDraft.expected_date_unix,
+          capacityXlm: activeDraft.expected_capacity,
+          priceStroops: BigInt(activeDraft.expected_price_per_ticket),
+        },
         wallet.publicKey,
         wallet.signFn,
       );
 
-      const syncResult = await mirrorCreatedEvent({
-        eventId,
-        organizerAddress: wallet.publicKey,
-        name: form.name,
-        description: form.description || null,
-        imageUrl: form.imageUrl || null,
-        venue: form.venue || null,
-        city: form.city || null,
-        category: null,
-        dateUnix,
-        capacity: capacity,
-        pricePerTicket: Number(priceStroops),
-      });
-
+      setTxState({ status: 'submitting', hash: transactionHash, message: 'Publishing verified event data…' });
+      const result = await invokeEventPublication(
+        'publish',
+        activeDraft.draft_id,
+        transactionHash,
+      );
       setTxState({
         status: 'success',
-        hash: eventId,
-        message: syncResult.ok ? undefined : synchronizationWarning(syncResult),
+        hash: transactionHash,
+        message: 'Event created on-chain and published.',
       });
       setTimeout(() => {
         setTxState({ status: 'idle' });
-        onSubmit(syncResult.ok);
-      }, syncResult.ok ? 1500 : 6000);
-
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create event';
-      setTxState({ status: 'error', errorMessage: msg });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+        onSubmit(result.state === 'published');
+      }, 1500);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Event creation failed.';
+      setTxState({ status: 'idle' });
+      setPageError(message);
+      if (activeDraft && creationBegan) {
+        await invokeEventPublication('recover-submission', activeDraft.draft_id)
+          .then((result) => {
+            if (result.state === 'published') {
+              setPageError(null);
+              onSubmit(true);
+            }
+          })
+          .catch(() => undefined);
+        await refreshDraft().catch(() => undefined);
+      }
     }
   };
 
-  const inputClass =
-    'w-full bg-[#15181C] border border-[#272C33] rounded-lg p-4 text-[#e6e0ee] placeholder-[#938ea1] focus:outline-none focus:border-[#7C5CFF] focus:ring-1 focus:ring-[#7C5CFF] transition-all';
+  if (loadingDraft) {
+    return <main className="min-h-screen pt-28 text-center text-slate-400">Loading publication state…</main>;
+  }
 
-  const labelClass = 'block text-xs font-semibold text-[#c9c4d8] uppercase tracking-widest mb-2';
+  const needsRecovery =
+    draft?.state === 'creation_submitting' ||
+    draft?.state === 'chain_created' ||
+    draft?.state === 'publication_failed';
 
   return (
-    <div className="bg-[#14121b] text-[#e6e0ee] min-h-screen pt-16">
+    <main className="min-h-screen pt-24 pb-28 px-4 max-w-5xl mx-auto">
+      <div className="mb-8">
+        <p className="text-sm font-semibold text-[#7C5CFF]">Organizer</p>
+        <h1 className="mt-2 text-4xl font-bold">Create event</h1>
+        <p className="mt-3 text-[#c9c4d8] max-w-2xl">
+          Complete public information is reserved privately before the organizer signs the
+          on-chain event. Only verified events enter public discovery.
+        </p>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-8 py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
-          {/* ── Form ── */}
-          <section className="lg:col-span-7 space-y-10">
-            <div>
-              <h2 className="text-3xl font-semibold text-[#e6e0ee] mb-2">Event Essentials</h2>
-              <p className="text-base text-[#c9c4d8]">
-                Provide the foundational details for your Stellar NFT-gated event.
-              </p>
-            </div>
-
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* Event Name */}
-              <div>
-                <label className={labelClass}>Event Name</label>
-                <input
-                  type="text"
-                  className={inputClass}
-                  placeholder="e.g. Stellar Interstellar Gala"
-                  value={form.name}
-                  onChange={handleChange('name')}
-                  required
-                />
-              </div>
-
-              {/* Date + Time */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className={labelClass}>Date</label>
-                  <input
-                    type="date"
-                    className={inputClass}
-                    value={form.date}
-                    onChange={handleChange('date')}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Time</label>
-                  <input
-                    type="time"
-                    className={inputClass}
-                    value={form.time}
-                    onChange={handleChange('time')}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Venue + City */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className={labelClass}>Venue</label>
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="Venue Name"
-                    value={form.venue}
-                    onChange={handleChange('venue')}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>City</label>
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="City, Country"
-                    value={form.city}
-                    onChange={handleChange('city')}
-                  />
-                </div>
-              </div>
-
-              {/* Capacity + Price */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className={labelClass}>Capacity</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      className={`${inputClass} pl-12`}
-                      placeholder="0"
-                      min="1"
-                      value={form.capacity}
-                      onChange={handleChange('capacity')}
-                      required
-                    />
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#938ea1]">
-                      group
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Price (XLM)</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      className={`${inputClass} pl-12`}
-                      placeholder="0.00"
-                      min="0"
-                      step="0.01"
-                      value={form.priceXlm}
-                      onChange={handleChange('priceXlm')}
-                      required
-                    />
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#938ea1]">
-                      payments
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Image URL */}
-              <div>
-                <label className={labelClass}>Event Poster URL</label>
-                <input
-                  type="url"
-                  className={inputClass}
-                  placeholder="https://..."
-                  value={form.imageUrl}
-                  onChange={handleChange('imageUrl')}
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className={labelClass}>Description</label>
-                <textarea
-                  className={inputClass}
-                  placeholder="Describe your event's unique experience..."
-                  rows={4}
-                  value={form.description}
-                  onChange={handleChange('description')}
-                />
-              </div>
-
-              {/* Disclaimer */}
-              <div className="bg-[#272C33]/20 border border-[#7C5CFF]/30 p-3 rounded-lg flex items-start gap-3 mt-4">
-                <span className="material-symbols-outlined text-[#7C5CFF] text-sm mt-0.5">info</span>
-                <p className="text-xs text-[#c9c4d8] leading-relaxed">
-                  Core details (capacity, price, date) are stored permanently on the Stellar blockchain.
-                  Rich metadata (name, venue, image, description) is stored in our database and linked by event ID.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-[#7C5CFF] hover:bg-[#8d72ff] text-[#EAEFF4] font-semibold text-xl py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(124,92,255,0.3)] active:scale-[0.98]"
-              >
-                Create Event on Stellar
-              </button>
-            </form>
-          </section>
-
-          {/* ── Live Preview ── */}
-          <aside className="lg:col-span-5">
-            <div className="sticky top-28 space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-[#7C5CFF] uppercase tracking-widest">
-                  Live Preview
-                </h3>
-                <span className="flex items-center gap-2 text-xs text-[#c9c4d8]">
-                  <span className="w-2 h-2 bg-green-500 rounded-full" />
-                  Real-time rendering
-                </span>
-              </div>
-
-              {/* NFT Ticket Preview Card */}
-              <div className="bg-[#15181C] border border-[#272C33] rounded-xl overflow-hidden shadow-2xl group">
-                <div className="aspect-[4/5] relative overflow-hidden">
-                  <img
-                    src={
-                      form.imageUrl ||
-                      'https://images.unsplash.com/photo-1540039155732-d67414006c3a?w=600&q=80'
-                    }
-                    alt="Event Preview"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1540039155732-d67414006c3a?w=600&q=80';
-                    }}
-                  />
-                  <div className="absolute top-4 right-4 bg-[#7C5CFF]/90 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-                    <p className="font-mono text-sm text-white">
-                      XLM {form.priceXlm || '0.00'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-6">
-                  <div className="space-y-2">
-                    <span className="bg-[#7C5CFF]/10 text-[#7C5CFF] px-2 py-1 rounded text-[10px] font-bold uppercase tracking-tighter">
-                      Verified Creator
-                    </span>
-                    <h4 className="text-2xl font-semibold text-[#e6e0ee] truncate">
-                      {form.name || 'Stellar Interstellar Gala'}
-                    </h4>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[#7C5CFF] text-sm">
-                        calendar_today
-                      </span>
-                      <span className="text-[#c9c4d8] text-sm">
-                        {form.date || 'Oct 24, 2024'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[#7C5CFF] text-sm">
-                        schedule
-                      </span>
-                      <span className="text-[#c9c4d8] text-sm">
-                        {form.time || '20:00 PM'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 col-span-2">
-                      <span className="material-symbols-outlined text-[#7C5CFF] text-sm">
-                        location_on
-                      </span>
-                      <span className="text-[#c9c4d8] text-sm truncate">
-                        {[form.venue, form.city].filter(Boolean).join(', ') || 'Nebula Lounge, San Francisco'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-[#272C33] flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-[#c9c4d8] uppercase tracking-widest font-medium">
-                        Network
-                      </span>
-                      <span className="font-mono text-sm text-[#e6e0ee]">Stellar Testnet</span>
-                    </div>
-                    <div className="w-12 h-12 bg-white rounded-lg p-1 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-black">qr_code_2</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Info tip */}
-              <div className="bg-[#272C33]/30 border border-[#272C33] p-4 rounded-lg flex gap-3">
-                <span className="material-symbols-outlined text-[#7C5CFF] flex-shrink-0">info</span>
-                <p className="text-xs text-[#c9c4d8] leading-relaxed">
-                  Once created, your tickets will be minted as NFTs on the Stellar network. Ensure
-                  your capacity and price are final before deployment.
-                </p>
-              </div>
-            </div>
-          </aside>
+      {pageError && (
+        <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">
+          {pageError}
         </div>
-      </main>
-    </div>
+      )}
+
+      {needsRecovery && draft ? (
+        <section className="rounded-xl border border-amber-400/30 bg-[#15181C] p-6">
+          <p className="text-xs uppercase tracking-widest text-amber-300">Publication interrupted</p>
+          <h2 className="mt-2 text-2xl font-semibold">{draft.expected_name}</h2>
+          <p className="mt-3 text-[#c9c4d8]">
+            Event ID: <span className="font-mono">{draft.event_id}</span>
+          </p>
+          <p className="mt-2 text-[#c9c4d8]">
+            State: {draft.state.replaceAll('_', ' ')}
+          </p>
+          {draft.last_error && (
+            <div className="mt-4 rounded-lg bg-black/20 p-4 text-sm text-amber-100">
+              {draft.last_error}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => void retryPublication()}
+            className="mt-6 rounded-lg bg-[#7C5CFF] px-5 py-3 font-semibold"
+          >
+            {draft.state === 'creation_submitting' ? 'Recover interrupted submission' : 'Retry publication'}
+          </button>
+          <p className="mt-3 text-xs text-[#938ea1]">
+            This verifies and publishes the reserved event ID. It never submits create_event again.
+          </p>
+        </section>
+      ) : (
+        <form onSubmit={submit} className="space-y-8">
+          <Section title="Public event information">
+            <Field label="Event name"><input required value={form.name} onChange={change('name')} /></Field>
+            <Field label="Short summary"><textarea required rows={2} value={form.summary} onChange={change('summary')} /></Field>
+            <Field label="Full description"><textarea required rows={5} value={form.description} onChange={change('description')} /></Field>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Image URL"><input required type="url" value={form.imageUrl} onChange={change('imageUrl')} /></Field>
+              <Field label="Category">
+                <select required value={form.category} onChange={change('category')}>
+                  <option value="">Select category</option>
+                  {CATEGORIES.map((category) => <option key={category}>{category}</option>)}
+                </select>
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Date and timezone">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Start date"><input required type="date" value={form.startDate} onChange={change('startDate')} /></Field>
+              <Field label="Start time"><input required type="time" value={form.startTime} onChange={change('startTime')} /></Field>
+              <Field label="End date"><input required type="date" value={form.endDate} onChange={change('endDate')} /></Field>
+              <Field label="End time"><input required type="time" value={form.endTime} onChange={change('endTime')} /></Field>
+            </div>
+            <Field label="IANA timezone">
+              <select required value={form.timezone} onChange={change('timezone')}>
+                {zoneOptions.map((zone) => <option key={zone}>{zone}</option>)}
+              </select>
+            </Field>
+          </Section>
+
+          <Section title="Venue and organizer">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Venue name"><input required value={form.venue} onChange={change('venue')} /></Field>
+              <Field label="City"><input required value={form.city} onChange={change('city')} /></Field>
+            </div>
+            <Field label="Full address"><input required value={form.address} onChange={change('address')} /></Field>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Organizer display name"><input required value={form.organizerDisplayName} onChange={change('organizerDisplayName')} /></Field>
+              <Field label="Support contact"><input required value={form.supportContact} onChange={change('supportContact')} /></Field>
+            </div>
+            <Field label="Entry instructions"><textarea required rows={3} value={form.entryInstructions} onChange={change('entryInstructions')} /></Field>
+          </Section>
+
+          <Section title="On-chain sale values">
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Capacity"><input required type="number" min="1" step="1" value={form.capacity} onChange={change('capacity')} /></Field>
+              <Field label="Price in XLM"><input required type="number" min="0.0000001" step="0.0000001" value={form.priceXlm} onChange={change('priceXlm')} /></Field>
+            </div>
+          </Section>
+
+          <Section title="Platform policies">
+            <p className="text-sm text-[#c9c4d8]"><strong>Refunds:</strong> {REFUND_POLICY.cancelled_event_original_price}</p>
+            <p className="text-sm text-[#c9c4d8]"><strong>Resale:</strong> {RESALE_POLICY.stellar_marketplace_unlocked}</p>
+          </Section>
+
+          <button
+            type="submit"
+            className="w-full rounded-xl bg-[#7C5CFF] py-4 text-lg font-semibold hover:brightness-110"
+          >
+            Reserve draft and create on Stellar
+          </button>
+        </form>
+      )}
+    </main>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border border-[#272C33] bg-[#15181C] p-6 space-y-4">
+      <h2 className="text-xl font-semibold">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactElement }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-[#c9c4d8]">
+        {label}
+      </span>
+      <div className="[&>input]:w-full [&>input]:rounded-lg [&>input]:border [&>input]:border-[#272C33] [&>input]:bg-[#0E1113] [&>input]:p-3 [&>textarea]:w-full [&>textarea]:rounded-lg [&>textarea]:border [&>textarea]:border-[#272C33] [&>textarea]:bg-[#0E1113] [&>textarea]:p-3 [&>select]:w-full [&>select]:rounded-lg [&>select]:border [&>select]:border-[#272C33] [&>select]:bg-[#0E1113] [&>select]:p-3">
+        {children}
+      </div>
+    </label>
   );
 }

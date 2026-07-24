@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { refreshPublishedEventFromChain, supabase } from './supabase';
 
 export interface ReadModelSyncResult {
   ok: boolean;
@@ -45,40 +45,6 @@ export function synchronizationWarning(result: ReadModelSyncResult): string {
   return `The blockchain transaction succeeded, but the app data did not synchronize. Do not retry the blockchain action. Refresh later or contact support. ${detail}`;
 }
 
-export interface CreatedEventMirror {
-  eventId: string;
-  organizerAddress: string;
-  name: string;
-  description: string | null;
-  imageUrl: string | null;
-  venue: string | null;
-  city: string | null;
-  category: string | null;
-  dateUnix: number;
-  capacity: number;
-  pricePerTicket: number;
-}
-
-export function mirrorCreatedEvent(event: CreatedEventMirror): Promise<ReadModelSyncResult> {
-  return synchronize('mirror the created event', async () => {
-    await requireWrite(supabase.from('events').upsert({
-      event_id: event.eventId,
-      organizer_address: event.organizerAddress,
-      name: event.name,
-      description: event.description,
-      image_url: event.imageUrl,
-      venue: event.venue,
-      city: event.city,
-      category: event.category,
-      status: 'Active',
-      current_supply: 0,
-      date_unix: event.dateUnix,
-      capacity: event.capacity,
-      price_per_ticket: event.pricePerTicket,
-    }, { onConflict: 'event_id' }));
-  });
-}
-
 export function mirrorPurchasedTicket(input: {
   ticketId: string;
   eventId: string;
@@ -91,25 +57,38 @@ export function mirrorPurchasedTicket(input: {
       owner_address: input.ownerAddress,
       status: 'Active',
     }));
-    await requireWrite(supabase.rpc('increment_event_supply', { row_id: input.eventId }));
   });
 }
 
-function mirrorEventStatus(eventId: string, status: 'Cancelled' | 'Completed', operation: string) {
+export function refreshPurchasedEvent(
+  eventId: string,
+  transactionHash: string,
+): Promise<ReadModelSyncResult> {
+  return mirrorEventState(eventId, transactionHash, 'refresh the event sale preview');
+}
+
+function mirrorEventState(
+  eventId: string,
+  transactionHash: string,
+  operation: string,
+) {
   return synchronize(operation, async () => {
-    await requireWrite(
-      supabase.from('events').update({ status }).eq('event_id', eventId).select('event_id'),
-      true,
-    );
+    await refreshPublishedEventFromChain(eventId, transactionHash);
   });
 }
 
-export function mirrorCancelledEvent(eventId: string): Promise<ReadModelSyncResult> {
-  return mirrorEventStatus(eventId, 'Cancelled', 'mirror the cancelled event');
+export function mirrorCancelledEvent(
+  eventId: string,
+  transactionHash: string,
+): Promise<ReadModelSyncResult> {
+  return mirrorEventState(eventId, transactionHash, 'refresh the cancelled event');
 }
 
-export function mirrorCompletedEvent(eventId: string): Promise<ReadModelSyncResult> {
-  return mirrorEventStatus(eventId, 'Completed', 'mirror the completed event');
+export function mirrorCompletedEvent(
+  eventId: string,
+  transactionHash: string,
+): Promise<ReadModelSyncResult> {
+  return mirrorEventState(eventId, transactionHash, 'refresh the completed event');
 }
 
 function mirrorTicketStatus(ticketId: string, status: 'Refunded' | 'Used', operation: string) {
