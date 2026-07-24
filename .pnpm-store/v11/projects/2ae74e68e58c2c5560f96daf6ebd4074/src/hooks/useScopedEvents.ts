@@ -31,8 +31,11 @@ function useScopedLoader(key: string, loader: () => Promise<Event[]>) {
   }, [key]);
 
   useEffect(() => {
-    void reload();
+    const timeout = setTimeout(() => {
+      void reload();
+    }, 0);
     return () => {
+      clearTimeout(timeout);
       requestRef.current += 1;
     };
   }, [reload]);

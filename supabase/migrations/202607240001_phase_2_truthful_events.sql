@@ -212,6 +212,7 @@ WHERE
   date_unix IS NOT NULL AND
   end_unix > date_unix AND
   btrim(timezone) <> '' AND
+  timezone IN (SELECT name FROM pg_timezone_names) AND
   btrim(venue) <> '' AND
   btrim(address) <> '' AND
   btrim(city) <> '' AND
@@ -294,6 +295,12 @@ BEGIN
     OR verified_current_supply > verified_capacity
     OR btrim(verified_transaction_hash) = '' THEN
     RAISE EXCEPTION 'Authoritative event state is invalid';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_timezone_names WHERE name = draft.timezone
+  ) THEN
+    RAISE EXCEPTION 'Publication draft has an invalid IANA timezone';
   END IF;
 
   INSERT INTO public.events (

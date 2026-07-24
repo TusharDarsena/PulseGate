@@ -140,7 +140,8 @@ export async function fetchDiscoverableEvents(
     query = query.eq('category', filters.category);
   }
   if (filters.city && filters.city !== 'All') {
-    query = query.eq('city', filters.city);
+    const city = filters.city.trim().replaceAll('%', '').replaceAll('_', '');
+    if (city) query = query.ilike('city', `%${city}%`);
   }
   if (filters.startUnix) query = query.gte('date_unix', filters.startUnix);
   if (filters.endUnix) query = query.lte('date_unix', filters.endUnix);

@@ -94,7 +94,10 @@ A visitor can open or share an event URL, sign in only when buying, return to th
 
 ### Required final state
 
-- Public discovery returns only complete, published events.
+- Public discovery returns only complete, verified, published events that meet
+  listing criteria such as Active/upcoming.
+- Direct `/events/:eventId` access resolves every verified published event,
+  including sold-out, started, cancelled, and completed events.
 - Event details use real start, end, timezone, venue, address, organizer, support, price, supply, refund, resale, and entry data.
 - The only Slice 1 actions are Buy 1 ticket, Share event, and Add to calendar.
 - Before checkout and again before final confirmation, Soroban revalidates status, start, capacity, supply, price, and organizer.
@@ -104,7 +107,10 @@ A visitor can open or share an event URL, sign in only when buying, return to th
 
 ### Required system changes
 
-- Add the DR-07 metadata and `publish_state` contract to Supabase and app models.
+- Keep `events` as the trusted published read model and add a separate private
+  `event_publication_drafts` table for complete metadata reservation and
+  interrupted-publication recovery. Only the trusted publisher promotes or
+  refreshes published event rows.
 - Make one normalized event record power discovery, detail, receipt, ticket, calendar, and maps.
 - Add an authoritative event loader through `lib/soroban.ts`.
 - Add `EventSalesClosed`, tests, regenerated bindings, and frontend error mapping.

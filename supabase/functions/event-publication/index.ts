@@ -144,7 +144,7 @@ async function markFailure(
       updated_at: new Date().toISOString(),
     })
     .eq('draft_id', draft.draft_id)
-    .neq('state', 'published');
+    .in('state', ['creation_submitting', 'chain_created', 'publication_failed']);
 }
 
 async function verifyTransaction(
@@ -383,6 +383,16 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'publish' || action === 'retry-publication') {
+      const allowedStates = action === 'publish'
+        ? ['creation_submitting', 'chain_created']
+        : ['chain_created', 'publication_failed'];
+      if (draft.state !== 'published' && !allowedStates.includes(draft.state)) {
+        throw new Error(
+          action === 'publish'
+            ? 'This draft has not entered the chain-creation flow.'
+            : 'Only an existing on-chain event can retry publication.',
+        );
+      }
       const suppliedHash = typeof body.transactionHash === 'string'
         ? body.transactionHash
         : draft.creation_tx_hash;

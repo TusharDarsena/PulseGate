@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
@@ -156,7 +156,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
   const loading = loadingTickets || eventState.loading;
   const error = errorTickets || eventState.error;
 
-  const activeTickets = tickets.filter(t => t.status === 'Active');
+  const activeTickets = tickets.filter((ticket) => ticket.status === 'Active');
   const historyTickets = [...tickets].sort((a, b) => {
     const da = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
     const db = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
@@ -164,12 +164,13 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
   });
 
   useEffect(() => {
-    if (activeTickets.length === 0) return;
+    const active = tickets.filter((ticket) => ticket.status === 'Active');
+    if (active.length === 0) return;
 
     let isMounted = true;
     async function checkListings() {
       const results: Record<string, unknown> = {};
-      await Promise.all(activeTickets.map(async (t) => {
+      await Promise.all(active.map(async (t) => {
         const listing = await fetchOpenListingByTicket(t.ticketId);
         if (listing) {
           results[t.ticketId] = listing;
@@ -181,7 +182,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
     }
     checkListings();
     return () => { isMounted = false; };
-  }, [activeTickets]); // Dependency changed to activeTickets to ensure it syncs when relevant tickets change.
+  }, [tickets]);
 
   return (
     <main className="pt-24 pb-32 px-4 md:px-8 max-w-7xl mx-auto min-h-screen">

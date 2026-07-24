@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { useEvent } from '../hooks/useEvent';
 import { useXlmPrice } from '../hooks/useXlmPrice';
@@ -35,16 +35,10 @@ export function PurchasePage({
   invalidateTickets,
 }: PurchasePageProps) {
   const { event, loading, error, reload } = useEvent(eventId);
-  const [reviewedFingerprint, setReviewedFingerprint] = useState<string | null>(null);
+  const reviewedFingerprint = useRef<string | null>(null);
   const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const { attendeeWallet: wallet, setTxState } = useAppStore();
   const { usdPerXlm } = useXlmPrice();
-
-  useEffect(() => {
-    if (event?.authority === 'confirmed' && reviewedFingerprint === null) {
-      setReviewedFingerprint(authoritativeFingerprint(event));
-    }
-  }, [event, reviewedFingerprint]);
 
   if (loading && !event) {
     return <div className="p-20 text-center text-slate-400">Checking current sale conditions…</div>;
@@ -58,6 +52,8 @@ export function PurchasePage({
 
   const handlePurchase = async () => {
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
+    const reviewBaseline =
+      reviewedFingerprint.current ?? authoritativeFingerprint(event);
 
     setTxState({ status: 'building', message: 'Reconfirming event on Stellar…' });
     const refreshed = await reload();
@@ -71,15 +67,15 @@ export function PurchasePage({
     const nextFingerprint = authoritativeFingerprint(refreshed);
     if (nextState !== 'on_sale') {
       setTxState({ status: 'idle' });
-      setReviewedFingerprint(nextFingerprint);
+      reviewedFingerprint.current = nextFingerprint;
       setReviewNotice(
         `The event is now ${EVENT_SALES_LABELS[nextState].toLowerCase()}. No payment was submitted.`,
       );
       return;
     }
-    if (reviewedFingerprint !== nextFingerprint) {
+    if (reviewBaseline !== nextFingerprint) {
       setTxState({ status: 'idle' });
-      setReviewedFingerprint(nextFingerprint);
+      reviewedFingerprint.current = nextFingerprint;
       setReviewNotice(
         'Price or availability changed. Review the updated information, then confirm again.',
       );

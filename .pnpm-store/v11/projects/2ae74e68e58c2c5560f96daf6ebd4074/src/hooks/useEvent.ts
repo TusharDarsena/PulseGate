@@ -53,8 +53,11 @@ export function useEvent(eventId: string) {
   }, [eventId]);
 
   useEffect(() => {
-    void reload();
+    const timeout = setTimeout(() => {
+      void reload();
+    }, 0);
     return () => {
+      clearTimeout(timeout);
       requestRef.current += 1;
     };
   }, [reload]);

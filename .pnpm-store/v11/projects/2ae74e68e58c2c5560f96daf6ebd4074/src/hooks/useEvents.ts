@@ -16,6 +16,13 @@ export function useEvents(filters: DiscoveryFilters = {}): {
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRef = useRef(0);
+  const {
+    category,
+    city,
+    endUnix,
+    search,
+    startUnix,
+  } = filters;
 
   const fetchEvents = useCallback(async () => {
     const fetchId = ++fetchRef.current;
@@ -27,7 +34,13 @@ export function useEvents(filters: DiscoveryFilters = {}): {
     setError(null);
 
     try {
-      const data = await fetchDiscoverableEvents(filters);
+      const data = await fetchDiscoverableEvents({
+        category,
+        city,
+        endUnix,
+        search,
+        startUnix,
+      });
 
       if (fetchId !== fetchRef.current) return;
 
@@ -41,11 +54,11 @@ export function useEvents(filters: DiscoveryFilters = {}): {
       if (fetchId === fetchRef.current) setLoading(false);
     }
   }, [
-    filters.category,
-    filters.city,
-    filters.endUnix,
-    filters.search,
-    filters.startUnix,
+    category,
+    city,
+    endUnix,
+    search,
+    startUnix,
   ]);
 
   useEffect(() => {

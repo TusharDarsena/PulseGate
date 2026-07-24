@@ -1,5 +1,7 @@
--- Phase 0: Database Setup
--- Run this in your Supabase SQL Editor
+-- Phase 0/1 database bootstrap.
+-- For a clean setup, run this file and then every SQL file in
+-- supabase/migrations in filename order. Existing projects apply only the
+-- unapplied migrations; Phase 2 intentionally remains an upgrade migration.
 
 -- 1. Update existing `events` table with missing columns
 ALTER TABLE public.events

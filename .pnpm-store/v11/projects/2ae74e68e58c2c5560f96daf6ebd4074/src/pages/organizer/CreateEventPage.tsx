@@ -113,7 +113,7 @@ export function CreateEventPage({ onSubmit }: CreateEventPageProps) {
   const [draft, setDraft] = useState<EventPublicationDraft | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
-  const zoneOptions = useMemo(timezones, []);
+  const zoneOptions = useMemo(() => timezones(), []);
 
   const refreshDraft = async () => {
     const next = await fetchOpenEventPublicationDraft();
@@ -123,9 +123,18 @@ export function CreateEventPage({ onSubmit }: CreateEventPageProps) {
   };
 
   useEffect(() => {
-    void refreshDraft()
-      .catch((error) => setPageError(error instanceof Error ? error.message : 'Could not load draft.'))
-      .finally(() => setLoadingDraft(false));
+    const timeout = setTimeout(() => {
+      void fetchOpenEventPublicationDraft()
+        .then((next) => {
+          setDraft(next);
+          if (next?.state === 'prepared') setForm(formFromDraft(next));
+        })
+        .catch((error) => setPageError(
+          error instanceof Error ? error.message : 'Could not load draft.',
+        ))
+        .finally(() => setLoadingDraft(false));
+    }, 0);
+    return () => clearTimeout(timeout);
   }, []);
 
   const change = (field: keyof CreateEventFormData) =>
