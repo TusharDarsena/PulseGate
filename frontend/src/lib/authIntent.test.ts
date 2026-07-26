@@ -13,6 +13,7 @@ describe('validated authentication return', () => {
 
   it.each([
     '/events/event-1/checkout',
+    '/purchases/operation-1',
     '/tickets',
     '/tickets/ticket-1',
     '/tickets/ticket-1/qr',
@@ -25,7 +26,6 @@ describe('validated authentication return', () => {
   it.each([
     'https://attacker.example/account',
     '//attacker.example/account',
-    '/purchases/operation-1',
     '/events',
     '/scanner',
     '/account\\@attacker.example',

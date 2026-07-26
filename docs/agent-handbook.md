@@ -45,9 +45,9 @@ The chain owns organizer, status, supply, capacity, date, and price. Supabase ad
 
 ### Primary purchase
 
-`PurchasePage` generates a ticket ID → `purchaseTicket()` → TicketContract validates event/capacity, creates the ticket, increments supply, updates escrow, then transfers XLM → frontend inserts the ticket mirror and increments mirrored supply.
+`PurchasePage` allocates a durable purchase operation and stable ticket ID, prepares the generated TicketContract transaction, and binds the delegated-wallet signing request to a server-issued attempt ID. The signed transaction hash is recorded before submission. TicketContract then validates event/capacity, creates the ticket, increments supply, updates escrow, and transfers XLM.
 
-Never write the Supabase ticket before the contract transaction succeeds.
+The purchase-operation service resolves uncertain results from the configured RPC and accepts success only after verifying the expected `tk_buy` event for the operation's ticket, buyer, and event. It stores an immutable receipt snapshot at `/purchases/:operationId`. Phase 3 does not write the ticket/event read model from the browser; trusted reconciliation is Phase 4 work.
 
 ### QR check-in
 
@@ -124,6 +124,7 @@ Important corrections to the old AGENTS file:
 | `frontend/src/lib/constants.ts` | Contract IDs, network passphrase, RPC URL, and Supabase environment values. |
 | `frontend/src/lib/soroban.ts` | Only handwritten module importing generated bindings. Client creation, all contract wrappers, keyed reads, and error translation. |
 | `frontend/src/lib/stellar.ts` | Public Horizon balance reads only. Attendee provisioning and signing use the delegated-wallet boundary. |
+| `frontend/src/lib/purchaseOperations.ts` | Authenticated purchase-operation, attempt-binding, recovery, and explicit test-funding client. |
 | `frontend/src/lib/qr.ts` | QR payload building and local signature verification. No network calls. |
 | `frontend/src/lib/supabase.ts` | Supabase client, row types, shared queries, and metadata upserts. Read-model adapter only. |
 | `frontend/src/hooks/useWallet.ts` | Organizer Freighter connection only. It never replaces the attendee account or wallet. |
@@ -133,7 +134,8 @@ Important corrections to the old AGENTS file:
 | `frontend/src/hooks/useListings.ts` | Open-listing polling, joined event display data, race suppression, and invalidation. |
 | `frontend/src/types/index.ts` | App-facing models, separate attendee/organizer wallet types, transaction types, and conversion helpers. |
 | `frontend/src/App.tsx` | Durable React Router route tree, protected-route gates, and page orchestration. |
-| Pages | User-flow orchestration: adapters, tx state, post-chain mirrors, and hook invalidation. |
+| `frontend/src/pages/PurchaseReceiptPage.tsx` | Durable operation receipt and unresolved-transaction recovery route. |
+| Pages | User-flow orchestration: adapters, transaction state, post-chain synchronization, and hook invalidation. |
 | Components | Presentation and callbacks. UI primitives must not gain contract, wallet, or Supabase knowledge. |
 
 Existing SDK boundaries are intentional:
@@ -151,6 +153,9 @@ Do not introduce new SDK imports across pages/components to bypass these adapter
 | Path | Responsibility |
 | --- | --- |
 | `supabase_schema.sql` | Read-model tables, permissive MVP RLS, and `increment_event_supply` RPC. |
+| `supabase/migrations/202607270001_phase_3_purchase_operations.sql` | Private purchase operations, attempts, funding requests, idempotent allocators, and owner-read/service-write RLS. |
+| `supabase/functions/purchase-operation/` | Trusted operation allocation and transaction/event resolution. It never builds, signs, or submits XDR. |
+| `supabase/functions/test-funding/` | Explicit testnet activation and rate-limited demo-account top-ups. |
 | `scripts/fund.sh` | Creates/funds expected Stellar testnet CLI identities. |
 | `scripts/deploy.sh` | Builds, deploys Ticket then Marketplace, initializes both mutually, and writes frontend contract/network env values. |
 
@@ -228,13 +233,15 @@ For each state-changing flow:
 
 1. validate local prerequisites;
 2. submit and confirm the Soroban transaction;
-3. update the matching Supabase rows;
+3. update the matching Supabase rows through the flow's trusted synchronization boundary;
 4. invalidate every affected hook;
 5. report the correct result to the user.
 
 Never pre-write Supabase for optimistic authorization. A failed chain call must not leave a successful-looking read-model row.
 
 A mirror failure after chain success is a synchronization failure, not a failed blockchain transaction. Do not retry the financial transaction blindly.
+
+For primary purchases in Phase 3, the browser writes only through the private purchase-operation service. It does not create ticket rows or increment event supply. The immutable operation receipt proves the confirmed purchase while Phase 4 adds trusted ticket/read-model reconciliation and repair.
 
 ### Polling and models
 

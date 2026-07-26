@@ -4,7 +4,7 @@ import {
   signTransaction as freighterSignTransaction,
 } from '@stellar/freighter-api';
 import { useCallback } from 'react';
-import { fetchXlmBalance } from '../lib/stellar';
+import { fetchXlmBalance, formatStroops } from '../lib/stellar';
 import { EMPTY_ORGANIZER_WALLET, useAppStore } from '../store/useAppStore';
 import type { SignFn } from '../types';
 
@@ -25,10 +25,11 @@ export function useWallet() {
         if (result.error) throw new Error(result.error);
         return { signedTxXdr: result.signedTxXdr, signerAddress: publicKey };
       };
+      const balance = await fetchXlmBalance(publicKey);
       setOrganizerWallet({
         isConnected: true,
         publicKey,
-        xlmBalance: await fetchXlmBalance(publicKey),
+        xlmBalance: formatStroops(balance.balanceStroops),
         signFn,
       });
     } catch (error) {

@@ -45,28 +45,6 @@ export function synchronizationWarning(result: ReadModelSyncResult): string {
   return `The blockchain transaction succeeded, but the app data did not synchronize. Do not retry the blockchain action. Refresh later or contact support. ${detail}`;
 }
 
-export function mirrorPurchasedTicket(input: {
-  ticketId: string;
-  eventId: string;
-  ownerAddress: string;
-}): Promise<ReadModelSyncResult> {
-  return synchronize('mirror the ticket purchase', async () => {
-    await requireWrite(supabase.from('tickets').insert({
-      ticket_id: input.ticketId,
-      event_id: input.eventId,
-      owner_address: input.ownerAddress,
-      status: 'Active',
-    }));
-  });
-}
-
-export function refreshPurchasedEvent(
-  eventId: string,
-  transactionHash: string,
-): Promise<ReadModelSyncResult> {
-  return mirrorEventState(eventId, transactionHash, 'refresh the event sale preview');
-}
-
 function mirrorEventState(
   eventId: string,
   transactionHash: string,

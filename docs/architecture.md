@@ -52,8 +52,24 @@
 ### Transaction Flow (D-007 revised)
 `AssembledTransaction.signAndSend()` handles build → simulate → sign → submit in a single client-side call. Fetches a fresh sequence number each time. No backend XDR server for MVP. Never skip simulation.
 
+Primary purchases add a purchase-specific durability boundary without changing
+that submission architecture. The server atomically reserves one live
+`purchase_operation` and ticket ID for the authenticated user, attendee wallet,
+event, network, and TicketContract. Before the Dfns signer returns signed XDR to
+`signAndSend()`, an operation-bound wrapper computes the deterministic
+transaction hash and records only the hash, sequence, fee, and envelope
+expiration. Signed XDR is never persisted.
+
+The authenticated `purchase-operation` Edge Function does not build, sign, or
+submit transactions. It resolves interrupted attempts through the configured
+RPC and the immutable `(tk_buy, ticket_id)` contract event. The event payload
+must contain the operation's server-derived attendee wallet and event ID, and
+its transaction must have succeeded. That proof remains valid after the ticket
+is used, refunded, or resold. Current ticket ownership or `Active` status is not
+a receipt-validity condition.
+
 ### Routing and State Management (D-025)
-React Router owns durable routes for discovery, event details, checkout, tickets, account, organizer events, and event-scoped check-in. The root redirects to `/events`; `/auth/callback` handles Google PKCE return. No purchase receipt route is exposed in Phase 1.
+React Router owns durable routes for discovery, event details, checkout, purchase receipts, tickets, account, organizer events, and event-scoped check-in. The root redirects to `/events`; `/auth/callback` handles Google PKCE return. `/purchases/:operationId` is authenticated but deliberately does not require wallet readiness, so a user can read a receipt while recovering delegated signing.
 
 Protected routes store a short-lived same-origin intent with an enumerated action. Invalid, external, or expired destinations are rejected, and consuming an intent never submits a transaction.
 
@@ -61,6 +77,14 @@ Protected routes store a short-lived same-origin intent with an enumerated actio
 
 ### Data Layer (D-004, D-029 revised)
 **Supabase** is used as a searchable read model for event and ticket list queries. `events` contains trusted published rows only. User-editable preparation and interrupted-publication recovery live separately in the private `event_publication_drafts` table.
+
+`purchase_operations` and `purchase_operation_attempts` are private,
+owner-readable durability records. Authenticated browser clients cannot mutate
+them. The operation also stores the immutable receipt snapshot after trusted
+`tk_buy` verification: event identity, start and timezone, venue, purchaser,
+amount, charged fee, transaction hash, ledger, close time, network, and
+contract. A small browser recovery bridge may store operation, event, ticket,
+and transaction IDs only; Supabase remains the durable record.
 
 Before `create_event`, the browser reserves a complete draft with a stable event ID, authenticated user, intended organizer, deployment identity, and expected immutable chain values. The organizer's Soroban creation transaction supplies the binding; there is no separate metadata-signature protocol. The authenticated `event-publication` Edge Function reads `get_event`, verifies network, contract, transaction, organizer, name, start, capacity, and price, then atomically publishes that same draft. Only this trusted service may write published event rows or chain-verification fields.
 
@@ -70,7 +94,13 @@ Discovery sale information is a preview. The centralized direct-event loader com
 
 Phase 1 adds `profiles`, a service-written attendee wallet record, and service-role-only Dfns mapping/challenge/audit tables. `get_my_attendee_wallet()` returns only the current user's address, network, and readiness. The authenticated `/tickets/:ticketId` route does not yet claim authoritative ownership; that enforcement belongs to trusted reconciliation.
 
-All state-changing flows confirm the Soroban transaction before calling `lib/readModelSync.ts`. Browser ticket/listing writes remain the accepted MVP boundary outside this phase. Published event creation and event status/supply refreshes use the trusted chain-reading Edge Function; the browser cannot write `events`. Mirror failures remain distinct from blockchain failures and must never invite a repeated chain action.
+Primary purchase no longer calls `lib/readModelSync.ts`, writes a ticket row, or refreshes event supply from the browser. Phase 3 stops at authoritative `chain_confirmed` plus a durable receipt. Trusted, atomic ticket and event-supply reconciliation belongs to Phase 4. Other legacy ticket/listing flows retain their existing mirror behavior until that phase. Mirror delay must never invite a repeated financial action.
+
+Test funding is explicit. The authenticated `test-funding` function derives the
+server-mapped attendee wallet, uses Friendbot only for initial account
+activation, and verifies the resulting Horizon balance. An activated but
+underfunded wallet uses a separately configured, rate-limited demo top-up
+account; funding never replaces the attendee wallet.
 
 
 ### QR Verification (D-005, D-006)

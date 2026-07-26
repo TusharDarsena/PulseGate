@@ -22,6 +22,7 @@ import { EventDetailPage } from './pages/EventDetailPage';
 import { MarketplacePage } from './pages/MarketplacePage';
 import { MyTicketsPage } from './pages/MyTicketsPage';
 import { PurchasePage } from './pages/PurchasePage';
+import { PurchaseReceiptPage } from './pages/PurchaseReceiptPage';
 import { QRDisplayPage } from './pages/QRDisplayPage';
 import { ScannerPage } from './pages/ScannerPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
@@ -82,19 +83,14 @@ function EventRoute() {
   return <EventDetailPage eventId={eventId} onPurchase={() => navigate(`/events/${eventId}/checkout`)} />;
 }
 
-function CheckoutRoute({
-  invalidateTickets,
-}: {
-  invalidateTickets: ReturnType<typeof useTickets>['invalidate'];
-}) {
+function CheckoutRoute() {
   const { eventId = '' } = useParams();
   const navigate = useNavigate();
   return (
     <PurchasePage
       eventId={eventId}
       onBack={() => navigate(`/events/${eventId}`)}
-      onPurchaseComplete={() => navigate('/tickets')}
-      invalidateTickets={invalidateTickets}
+      onOpenReceipt={(operationId) => navigate(`/purchases/${operationId}`)}
     />
   );
 }
@@ -124,9 +120,12 @@ function App() {
         <Route path="/events/:eventId" element={<EventRoute />} />
         <Route path="/events/:eventId/checkout" element={
           <RequireAuth action="open_checkout" attendeeWallet>
-            <CheckoutRoute
-              invalidateTickets={ticketsState.invalidate}
-            />
+            <CheckoutRoute />
+          </RequireAuth>
+        } />
+        <Route path="/purchases/:operationId" element={
+          <RequireAuth action="open_purchase">
+            <PurchaseReceiptPage />
           </RequireAuth>
         } />
         <Route path="/marketplace" element={

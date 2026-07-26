@@ -106,6 +106,27 @@ When a choice changes, revise its existing entry. Add a new decision only when t
 
 **References.** [Architecture: Transaction Flow](./architecture.md#transaction-flow-d-007-revised) · [`lib/soroban.ts`](../frontend/src/lib/soroban.ts)
 
+### D-036 — Primary purchases use one durable operation and immutable event proof
+
+**Decision.** Each primary checkout reserves one server-locked purchase
+operation, ticket ID, and sequence of transaction attempts. Generated bindings,
+Dfns, and `signAndSend()` remain client-side. The operation-bound signer records
+the deterministic transaction hash and non-secret expiration metadata before
+submission can continue. Only the trusted purchase service confirms the
+operation, using the successful `(tk_buy, ticket_id)` event and its buyer/event
+payload rather than the ticket's mutable current owner or status.
+
+**Reason.** A browser may close after signing or submission, while ticket
+ownership and status may legitimately change after purchase. A stable operation
+prevents duplicate payment, and the immutable contract event keeps historical
+receipts valid after use, refund, or resale.
+
+**Consequence.** Primary purchase receipt recovery is independent of the ticket
+read model. Phase 3 may end at `chain_confirmed`; Phase 4 is responsible for
+trusted ticket and event-supply reconciliation.
+
+**References.** [Architecture: Transaction Flow](./architecture.md#transaction-flow-d-007-revised) · [`purchaseOperations.ts`](../frontend/src/lib/purchaseOperations.ts) · [`purchase-operation`](../supabase/functions/purchase-operation/index.ts)
+
 ### D-008 / D-028 — Human accounts, delegated attendee wallets, and separate organizer wallets
 
 **Decision.** Supabase Auth provides the stable human `user_id` through Google or six-digit email OTP. Each user has one recoverable Dfns delegated Stellar Testnet attendee wallet authorized by the user's passkey. Raw Stellar secrets never enter application storage. Organizers connect Freighter separately; that connection neither replaces nor signs out the attendee account.

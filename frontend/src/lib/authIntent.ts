@@ -3,6 +3,7 @@ const MAX_AGE_MS = 15 * 60 * 1000;
 
 export type ProtectedAction =
   | 'open_checkout'
+  | 'open_purchase'
   | 'open_tickets'
   | 'open_ticket'
   | 'open_account'
@@ -18,6 +19,7 @@ export interface AuthIntent {
 
 const ACTION_PATHS: Record<ProtectedAction, RegExp> = {
   open_checkout: /^\/events\/[^/?#]+\/checkout(?:\?.*)?$/,
+  open_purchase: /^\/purchases\/[^/?#]+(?:\?.*)?$/,
   open_tickets: /^\/tickets(?:\?.*)?$/,
   open_ticket: /^\/tickets\/[^/?#]+(?:\/qr)?(?:\?.*)?$/,
   open_account: /^\/account(?:\?.*)?$/,

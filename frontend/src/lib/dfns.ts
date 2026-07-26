@@ -205,6 +205,7 @@ export function buildDelegatedSigners(address: string): {
       network: 'StellarTestnet',
       kind: 'Transaction',
       transaction: `0x${envelopeHex}`,
+      externalId: opts?.externalId,
     });
     if (!result.signedData) throw new Error('Dfns did not return signed transaction data.');
     return {

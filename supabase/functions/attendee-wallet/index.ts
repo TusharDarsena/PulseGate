@@ -46,6 +46,15 @@ function validateSignatureRequest(value: unknown): Record<string, unknown> {
     if (request.network !== 'StellarTestnet' || typeof request.transaction !== 'string') {
       throw new Error('Only Stellar Testnet transaction XDR is accepted.');
     }
+    if (
+      request.externalId !== undefined &&
+      (
+        typeof request.externalId !== 'string' ||
+        !/^purchase:[0-9a-f-]{36}:\d+:[0-9a-f]{64}$/i.test(request.externalId)
+      )
+    ) {
+      throw new Error('The transaction operation attempt ID is invalid.');
+    }
   } else if (request.kind === 'Message') {
     if (typeof request.message !== 'string' || !request.message.startsWith('0x')) {
       throw new Error('Message signatures require hexadecimal bytes.');
@@ -262,6 +271,55 @@ Deno.serve(async (request) => {
 
     if (action === 'signature-init') {
       const signatureRequest = validateSignatureRequest(body.request);
+      const attemptExternalId = signatureRequest.kind === 'Transaction'
+        ? String(signatureRequest.externalId)
+        : null;
+      if (attemptExternalId) {
+        const { data: attempt, error: attemptError } = await admin
+          .from('purchase_operation_attempts')
+          .select('operation_id,state')
+          .eq('external_id', attemptExternalId)
+          .eq('state', 'approval_required')
+          .single();
+        if (attemptError || !attempt) throw new Error('The purchase attempt is not awaiting approval.');
+        const { data: operation, error: operationError } = await admin
+          .from('purchase_operations')
+          .select('user_id,state')
+          .eq('operation_id', attempt.operation_id)
+          .eq('user_id', user.id)
+          .eq('state', 'approval_required')
+          .single();
+        if (operationError || !operation) {
+          throw new Error('The purchase attempt does not belong to this attendee.');
+        }
+        await admin
+          .from('wallet_action_challenges')
+          .update({
+            consumed_at: new Date().toISOString(),
+            provider_auth_token: 'expired',
+          })
+          .eq('user_id', user.id)
+          .eq('operation_attempt_external_id', attemptExternalId)
+          .is('consumed_at', null)
+          .lte('expires_at', new Date().toISOString());
+        const { data: existing } = await admin
+          .from('wallet_action_challenges')
+          .select('request_id,provider_request')
+          .eq('user_id', user.id)
+          .eq('operation_attempt_external_id', attemptExternalId)
+          .is('consumed_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+        const storedProvider = existing?.provider_request as {
+          publicChallenge?: unknown;
+        } | undefined;
+        if (existing && storedProvider?.publicChallenge) {
+          return json({
+            requestId: existing.request_id,
+            challenge: storedProvider.publicChallenge,
+          });
+        }
+      }
       const { token } = await serviceDfns().auth.delegatedLogin({
         body: { username: link.provider_username },
       });
@@ -281,7 +339,9 @@ Deno.serve(async (request) => {
           provider_request: {
             request: providerRequest,
             challengeIdentifier,
+            publicChallenge,
           },
+          operation_attempt_external_id: attemptExternalId,
           expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
         })
         .select('request_id')
@@ -303,6 +363,7 @@ Deno.serve(async (request) => {
       const provider = stored.provider_request as {
         request: Parameters<ReturnType<typeof delegatedDfns>['keys']['generateSignatureComplete']>[0];
         challengeIdentifier: string;
+        publicChallenge?: unknown;
       };
       const result = await delegatedDfns(stored.provider_auth_token).keys.generateSignatureComplete(
         provider.request,

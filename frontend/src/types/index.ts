@@ -14,7 +14,7 @@ export type TxStatus = 'idle' | 'building' | 'signing' | 'submitting' | 'success
 
 export type SignFn = (
   xdr: string,
-  opts?: { networkPassphrase?: string; address?: string },
+  opts?: { networkPassphrase?: string; address?: string; externalId?: string },
 ) => Promise<{ signedTxXdr: string; signerAddress?: string }>;
 
 export type MessageSignFn = (message: Uint8Array, externalId?: string) => Promise<Uint8Array>;

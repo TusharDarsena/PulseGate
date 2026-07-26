@@ -94,6 +94,8 @@ VITE_TICKET_CONTRACT_ID=$TICKET_ID
 VITE_MARKETPLACE_CONTRACT_ID=$MARKETPLACE_ID
 VITE_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 VITE_RPC_URL="https://soroban-testnet.stellar.org:443"
+VITE_HORIZON_URL="https://horizon-testnet.stellar.org"
+VITE_STELLAR_EXPLORER_URL="https://stellar.expert/explorer/testnet"
 EOF
 
 echo "✓ Saved contract IDs to frontend/.env.local"

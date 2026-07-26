@@ -2,6 +2,8 @@ export const TICKET_CONTRACT_ID = import.meta.env.VITE_TICKET_CONTRACT_ID as str
 export const MARKETPLACE_CONTRACT_ID = import.meta.env.VITE_MARKETPLACE_CONTRACT_ID as string;
 export const NETWORK_PASSPHRASE = import.meta.env.VITE_NETWORK_PASSPHRASE as string;
 export const RPC_URL = import.meta.env.VITE_RPC_URL as string;
+export const HORIZON_URL = import.meta.env.VITE_HORIZON_URL as string;
+export const STELLAR_EXPLORER_URL = import.meta.env.VITE_STELLAR_EXPLORER_URL as string;
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -11,6 +13,8 @@ if (
   !MARKETPLACE_CONTRACT_ID ||
   !NETWORK_PASSPHRASE ||
   !RPC_URL ||
+  !HORIZON_URL ||
+  !STELLAR_EXPLORER_URL ||
   !SUPABASE_URL ||
   !SUPABASE_ANON_KEY
 ) {
