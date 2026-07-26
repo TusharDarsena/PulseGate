@@ -11,7 +11,7 @@ pub enum DataKey {
     /// TicketContract address — set once at initialize, stored in instance().
     TicketContract,
     /// Royalty rate as integer percentage [0, 100] — set once at initialize,
-    /// stored in instance(). See decisions.md D-010.
+    /// stored in instance(). See docs/architecture.md D-010.
     RoyaltyRate,
     /// Admin address — set once at initialize, can re-initialize after contract upgrade.
     Admin,

@@ -1,6 +1,6 @@
 # Changelog
 
-This changelog records significant product milestones, architectural changes, security corrections, and verified outcomes. Routine refactors and detailed decision rationale belong in commit history and `docs/decisions.md`.
+This changelog records significant product milestones, architectural changes, security corrections, and verified outcomes. Routine refactors and detailed decision rationale belong in commit history and the relevant sections of `docs/architecture.md`.
 
 ## 2026-07-21 — Documentation, schema, and deployment alignment
 

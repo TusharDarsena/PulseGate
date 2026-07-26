@@ -25,13 +25,12 @@ Supabase can decide what appears in a list. It must never authorize a purchase, 
 ## 2. How project documentation is used
 
 - **Code and tests** show current behavior.
-- **`docs/architecture.md`** defines intended boundaries, storage models, public contract surface, wallet flow, QR flow, and deployment sequence.
-- **`docs/decisions.md`** records rationale and accepted limitations. Consult only the entries relevant to a proposed architectural change.
+- **`docs/architecture.md`** defines intended boundaries, storage models, public contract surface, wallet flow, QR flow, deployment sequence, rationale, and accepted limitations.
 - **`AGENTS.md`** defines navigation, invariants, coupling, and completion rules.
 
 If code and `architecture.md` disagree, do not silently choose one. Reconcile them in the same change.
 
-Update `decisions.md` only when introducing or reversing a significant architectural choice. Do not add entries for routine refactors, bug fixes, formatting, or implementation details.
+Update the relevant decision section in `architecture.md` only when introducing or reversing a significant architectural choice. Do not add entries for routine refactors, bug fixes, formatting, or implementation details.
 
 ---
 
@@ -304,7 +303,7 @@ Do not silently redesign these during an unrelated fix:
 - escrow release depends on event time, not attendance threshold;
 - some `i128` values are downcast to JavaScript `Number`.
 
-A task may intentionally replace one of these. That is an architectural change: update every affected layer, revise `architecture.md`, and add or revise the relevant rationale in `decisions.md`.
+A task may intentionally replace one of these. That is an architectural change: update every affected layer and revise the relevant architecture and rationale in `architecture.md`.
 
 ---
 
@@ -374,4 +373,4 @@ A change is complete only when:
 - no flow trusts Supabase for authorization;
 - affected hooks are invalidated after successful writes;
 - `architecture.md` reflects changed boundaries, storage, public functions, lifecycles, QR/wallet flows, or deployment sequence;
-- `decisions.md` changes only when the architectural rationale itself changed.
+- `architecture.md` changes when the architectural boundary or its rationale changes.

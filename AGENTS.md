@@ -5,8 +5,8 @@ guidance only for the part of the repository being changed:
 
 - `contracts/AGENTS.md` for Soroban/Rust work.
 - `frontend/AGENTS.md` for React, wallet, QR, routing, and Supabase adapter work.
-- `docs/architecture.md` for intended system boundaries.
-- `docs/decisions.md` for the rationale behind architectural choices.
+- `docs/architecture.md` for intended system boundaries and the rationale
+  behind architectural choices.
 - `docs/agent-handbook.md` for the complete historical project map and coupling
   tables. Read only the sections relevant to the current task.
 - `docs/codex-cost-guide.md` for this repository's cost-conscious workflow.
@@ -50,8 +50,9 @@ When changing a shared boundary, update every affected layer in the same change:
 - Wallet, QR, or route changes: all producers/consumers, hydration or protection
   gates, navigation, refresh/direct-link behavior, and relevant docs.
 
-Do not update `docs/decisions.md` for routine fixes. Update it only when adding
-or reversing a significant architectural decision.
+Do not add decision entries for routine fixes. Update the relevant decision
+section in `docs/architecture.md` only when adding or reversing a significant
+architectural decision.
 
 ## Cost-Conscious Workflow
 

@@ -14,7 +14,7 @@ pub enum DataKey {
     /// The one address allowed to call restricted_transfer.
     /// Set once at initialize(), never changes.
     /// NOTE: Stored in instance() storage — not persistent() — because this IS
-    /// contract-lifetime data. See decisions.md D-012.
+    /// contract-lifetime data. See docs/architecture.md D-012.
     MarketplaceAddress,
     /// The trusted XLM SAC address. Set once at initialize().
     /// Never supplied by callers — prevents fake-token escrow drain (S-001).
