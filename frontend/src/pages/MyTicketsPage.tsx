@@ -13,6 +13,7 @@ import {
   synchronizationWarning,
 } from '../lib/readModelSync';
 import { useAppStore } from '../store/useAppStore';
+import type { PurchaseOperationResponse } from '../lib/purchaseOperations';
 
 interface ListingMinimal {
   listing_id?: string;
@@ -23,13 +24,28 @@ interface MyTicketsPageProps {
   tickets: Ticket[];
   loadingTickets: boolean;
   errorTickets: string | null;
+  onViewTicket: (ticketId: string) => void;
+  onViewReceipt: (operationId: string) => void;
   onShowQR: (ticketId: string) => void;
   onBrowseMore: () => void;
   invalidateTickets: () => void;
+  pendingSync: PurchaseOperationResponse[];
+  retryPending: () => void;
 }
 
-export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR, onBrowseMore, invalidateTickets }: MyTicketsPageProps) {
-  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
+export function MyTicketsPage({
+  tickets,
+  loadingTickets,
+  errorTickets,
+  onViewTicket,
+  onViewReceipt,
+  onShowQR,
+  onBrowseMore,
+  invalidateTickets,
+  pendingSync,
+  retryPending,
+}: MyTicketsPageProps) {
+  const [activeTab, setActiveTab] = useState<'UPCOMING' | 'PAST'>('UPCOMING');
   const [openListings, setOpenListings] = useState<Record<string, unknown>>({});
   const [showListingModal, setShowListingModal] = useState<string | null>(null);
   const [askPrice, setAskPrice] = useState('');
@@ -75,7 +91,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
     setTxState({ status: 'building' });
 
     try {
-      const ticket = activeTickets.find(t => t.ticketId === showListingModal);
+      const ticket = upcomingTickets.find(t => t.ticketId === showListingModal);
       if (!ticket) throw new Error("Ticket not found.");
 
       const listingId = generateID();
@@ -156,8 +172,14 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
   const loading = loadingTickets || eventState.loading;
   const error = errorTickets || eventState.error;
 
-  const activeTickets = tickets.filter((ticket) => ticket.status === 'Active');
-  const historyTickets = [...tickets].sort((a, b) => {
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const upcomingTickets = tickets.filter((ticket) => {
+    const event = events.find((candidate) => candidate.eventId === ticket.eventId);
+    const eventEnds = event ? (event.endUnix || event.dateUnix) : 0;
+    return ticket.status === 'Active' && eventEnds >= nowUnix;
+  });
+  const upcomingIds = new Set(upcomingTickets.map((ticket) => ticket.ticketId));
+  const pastTickets = tickets.filter((ticket) => !upcomingIds.has(ticket.ticketId)).sort((a, b) => {
     const da = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
     const db = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
     return db - da;
@@ -191,25 +213,32 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
         <h1 className="text-3xl md:text-4xl font-bold mb-2">My Tickets</h1>
         <p className="text-[#c9c4d8] text-sm md:text-base">View your event tickets, entry status, and event details.</p>
       </section>
+      {pendingSync.length > 0 && (
+        <section className="mb-8 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-amber-100">
+          <p className="font-semibold">Some confirmed tickets are still syncing.</p>
+          <p className="mt-1 text-sm text-amber-200/80">Your payment will not be repeated.</p>
+          <button onClick={retryPending} className="mt-3 rounded-lg border border-amber-300/40 px-3 py-2 text-sm">Retry synchronization</button>
+        </section>
+      )}
 
       {/* Tabs */}
       <nav className="flex gap-6 border-b border-[#272C33] mb-10">
         <button
-          onClick={() => setActiveTab('ACTIVE')}
-          className={`pb-4 text-sm font-semibold transition-colors ${activeTab === 'ACTIVE' ? 'border-b-2 border-[#7C5CFF] text-[#7C5CFF]' : 'border-b-2 border-transparent text-[#c9c4d8] hover:text-white'}`}
+          onClick={() => setActiveTab('UPCOMING')}
+          className={`pb-4 text-sm font-semibold transition-colors ${activeTab === 'UPCOMING' ? 'border-b-2 border-[#7C5CFF] text-[#7C5CFF]' : 'border-b-2 border-transparent text-[#c9c4d8] hover:text-white'}`}
         >
-          ACTIVE
+          UPCOMING
         </button>
         <button
-          onClick={() => setActiveTab('HISTORY')}
-          className={`pb-4 text-sm font-semibold transition-colors ${activeTab === 'HISTORY' ? 'border-b-2 border-[#7C5CFF] text-[#7C5CFF]' : 'border-b-2 border-transparent text-[#c9c4d8] hover:text-white'}`}
+          onClick={() => setActiveTab('PAST')}
+          className={`pb-4 text-sm font-semibold transition-colors ${activeTab === 'PAST' ? 'border-b-2 border-[#7C5CFF] text-[#7C5CFF]' : 'border-b-2 border-transparent text-[#c9c4d8] hover:text-white'}`}
         >
-          HISTORY
+          PAST
         </button>
       </nav>
 
       {/* Ticket Grid */}
-      {activeTab === 'ACTIVE' ? (
+      {activeTab === 'UPCOMING' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
             <div className="col-span-full flex justify-center py-20">
@@ -220,7 +249,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
               {error}
             </div>
           ) : (
-            activeTickets.map(ticket => {
+            upcomingTickets.map(ticket => {
               const event = events.find(e => e.eventId === ticket.eventId);
               if (!event) return null;
               return (
@@ -228,6 +257,8 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
                   key={ticket.ticketId}
                   ticket={ticket}
                   event={event}
+                  onViewTicket={onViewTicket}
+                  onViewReceipt={onViewReceipt}
                   onShowQR={onShowQR}
                   onRefund={event.status === 'Cancelled' ? handleRefund : undefined}
                   onListForSale={() => setShowListingModal(ticket.ticketId)}
@@ -238,7 +269,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
             })
           )}
 
-          {/* Empty State / Upcoming Placeholder */}
+          {/* Browse-more card */}
           <button
             onClick={onBrowseMore}
             className="bg-[#15181C] border border-dashed border-[#272C33] rounded-xl flex flex-col items-center justify-center p-16 min-h-[300px] text-center opacity-60 hover:opacity-100 transition-opacity"
@@ -250,7 +281,7 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
       ) : (
         <section className="mt-10">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Recent History</h2>
+            <h2 className="text-2xl font-bold">Past tickets</h2>
           </div>
           <div className="bg-[#15181C]/70 backdrop-blur-md border border-[#272C33] rounded-xl p-6">
             <div className="overflow-x-auto">
@@ -260,11 +291,11 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
                     <th className="pb-4 text-xs font-semibold tracking-wider uppercase">EVENT</th>
                     <th className="pb-4 text-xs font-semibold tracking-wider uppercase">PURCHASED</th>
                     <th className="pb-4 text-xs font-semibold tracking-wider uppercase">STATUS</th>
-                    <th className="pb-4 text-xs font-semibold tracking-wider uppercase text-right">TICKET ID</th>
+                    <th className="pb-4 text-xs font-semibold tracking-wider uppercase text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#272C33]/30">
-                  {historyTickets.map(ticket => {
+                  {pastTickets.map(ticket => {
                     const event = events.find(e => e.eventId === ticket.eventId);
                     if (!event) return null;
                     return (
@@ -288,17 +319,22 @@ export function MyTicketsPage({ tickets, loadingTickets, errorTickets, onShowQR,
                           </span>
                         </td>
                         <td className="py-6 text-right">
-                          <span className="font-mono text-[#7C5CFF]/70 text-sm">
-                            {ticket.ticketId.substring(0, 12)}...
-                          </span>
+                          <button onClick={() => onViewTicket(ticket.ticketId)} className="text-sm text-[#7C5CFF] hover:underline">
+                            View ticket
+                          </button>
+                          {ticket.receiptOperationId && (
+                            <button onClick={() => onViewReceipt(ticket.receiptOperationId!)} className="ml-4 text-sm text-[#c9c4d8] hover:underline">
+                              Receipt
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
-                  {historyTickets.length === 0 && (
+                  {pastTickets.length === 0 && (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-slate-400">
-                        No recent history.
+                        No past tickets.
                       </td>
                     </tr>
                   )}

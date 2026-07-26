@@ -2,6 +2,9 @@ import {
   nativeToScVal,
   rpc,
   scValToNative,
+  Contract,
+  Networks,
+  TransactionBuilder,
 } from 'npm:@stellar/stellar-sdk@16.1.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 
@@ -89,6 +92,120 @@ interface PurchaseAttempt {
   estimated_fee_stroops: string | number;
   state: string;
   signed_at: string | null;
+}
+
+const READ_ONLY_KEY = Deno.env.get('STELLAR_READ_ONLY_PUBLIC_KEY')
+  ?? 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+
+function statusTag(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'tag' in value) return String((value as { tag: unknown }).tag);
+  return String(value);
+}
+
+async function simulateRead(
+  server: rpc.Server,
+  operation: PurchaseOperation,
+  method: 'get_ticket' | 'get_event',
+  value: string,
+) {
+  const account = await server.getAccount(READ_ONLY_KEY);
+  const tx = new TransactionBuilder(account, {
+    fee: '100',
+    networkPassphrase: Deno.env.get('STELLAR_NETWORK_PASSPHRASE') ?? Networks.TESTNET,
+  })
+    .addOperation(new Contract(operation.ticket_contract_id).call(
+      method,
+      nativeToScVal(value, { type: 'string' }),
+    ))
+    .setTimeout(30)
+    .build();
+  const simulated = await server.simulateTransaction(tx);
+  if ('error' in simulated || !simulated.results || simulated.results.length !== 1) {
+    throw new Error('The TicketContract state is temporarily unavailable.');
+  }
+  return scValToNative(simulated.results[0].retval) as Record<string, unknown>;
+}
+
+async function readSorobanState(server: rpc.Server, operation: PurchaseOperation) {
+  const ticketResult = await simulateRead(server, operation, 'get_ticket', operation.ticket_id);
+  const ticket = ticketResult && 'Ok' in ticketResult ? ticketResult.Ok as Record<string, unknown> : ticketResult;
+  if (!ticket || String(ticket.event_id) !== operation.event_id) {
+    throw new Error('The verified ticket belongs to a different event.');
+  }
+  const eventResult = await simulateRead(server, operation, 'get_event', operation.event_id);
+  const event = eventResult && 'Ok' in eventResult ? eventResult.Ok as Record<string, unknown> : eventResult;
+  if (!ticket || !event) throw new Error('The TicketContract record could not be read.');
+  return {
+    owner: String(ticket.owner), eventId: String(ticket.event_id), status: statusTag(ticket.status),
+    eventStatus: statusTag(event.status), currentSupply: BigInt(String(event.current_supply)),
+    capacity: BigInt(String(event.capacity)),
+  };
+}
+
+async function synchronizePurchase(admin: AdminClient, userId: string, operationId: unknown) {
+  let operation = await loadOperation(admin, userId, operationId);
+  if (operation.state === 'complete') return operationResponse(admin, operation);
+  const synchronizable = ['chain_confirmed', 'mirror_syncing', 'sync_warning'];
+  if (!synchronizable.includes(operation.state)) {
+    throw new Error('This purchase has not been confirmed on Stellar.');
+  }
+  const { error: syncingError } = await admin.from('purchase_operations').update({
+    state: 'mirror_syncing', failure_category: null, failure_detail: null, updated_at: new Date().toISOString(),
+  }).eq('operation_id', operation.operation_id).in('state', synchronizable);
+  if (syncingError) throw syncingError;
+  operation = await loadOperation(admin, userId, operation.operation_id);
+  if (operation.state === 'complete') return operationResponse(admin, operation);
+  if (!synchronizable.includes(operation.state)) {
+    throw new Error('This purchase is no longer ready for synchronization.');
+  }
+  try {
+    const chain = await readSorobanState(new rpc.Server(required('STELLAR_RPC_URL')), operation);
+    const { data, error } = await admin.rpc('finalize_verified_purchase_sync', {
+      requested_operation_id: operation.operation_id,
+      verified_ticket_id: operation.ticket_id,
+      verified_event_id: chain.eventId,
+      verified_owner_address: chain.owner,
+      verified_ticket_status: chain.status,
+      verified_event_status: chain.eventStatus,
+      verified_event_supply: chain.currentSupply.toString(),
+      verified_event_capacity: chain.capacity.toString(),
+      verified_transaction_hash: operation.transaction_hash,
+      verified_ledger_sequence: operation.ledger_sequence,
+      verified_at: new Date().toISOString(),
+      verified_network: required('STELLAR_NETWORK'),
+      verified_ticket_contract_id: required('TICKET_CONTRACT_ID'),
+    });
+    if (error || !data) throw new Error(error?.message || 'The ticket mirror could not be finalized.');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Ticket synchronization is delayed.';
+    await admin.from('purchase_operations').update({
+      state: 'sync_warning', failure_category: 'synchronization_error',
+      failure_detail: detail.slice(0, 1000), updated_at: new Date().toISOString(),
+    }).eq('operation_id', operation.operation_id).eq('state', 'mirror_syncing');
+  }
+  return operationResponse(admin, await loadOperation(admin, userId, operation.operation_id));
+}
+
+async function loadOperationForTicket(
+  admin: AdminClient,
+  userId: string,
+  ticketIdValue: unknown,
+) {
+  const ticketId = requireString(ticketIdValue, 'ticket ID');
+  const { data, error } = await admin
+    .from('purchase_operations')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('ticket_id', ticketId)
+    .eq('network', required('STELLAR_NETWORK'))
+    .eq('ticket_contract_id', required('TICKET_CONTRACT_ID'))
+    .in('state', ['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'])
+    .order('confirmed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? operationResponse(admin, data as PurchaseOperation) : null;
 }
 
 async function loadWallet(admin: AdminClient, userId: string) {
@@ -413,7 +530,13 @@ async function confirmFromEvent(
   const { error } = await admin
     .from('purchase_operations')
     .update(update)
-    .eq('operation_id', operation.operation_id);
+    .eq('operation_id', operation.operation_id)
+    .in('state', [
+      'signed_submission_pending',
+      'confirming',
+      'status_unknown',
+      'chain_confirmed',
+    ]);
   if (error) throw error;
   await admin
     .from('purchase_operation_attempts')
@@ -434,24 +557,97 @@ async function confirmFromEvent(
   );
 }
 
+async function persistUnknownStatus(
+  admin: AdminClient,
+  operation: PurchaseOperation,
+  attempt: PurchaseAttempt,
+  detail: string,
+) {
+  const { error: attemptError } = await admin.from('purchase_operation_attempts').update({
+    state: 'status_unknown',
+    failure_category: 'status_unavailable',
+    failure_detail: detail,
+  })
+    .eq('operation_id', operation.operation_id)
+    .eq('attempt_number', attempt.attempt_number)
+    .in('state', ['signed_submission_pending', 'confirming', 'status_unknown']);
+  if (attemptError) throw attemptError;
+  const { error: operationError } = await admin.from('purchase_operations').update({
+    state: 'status_unknown',
+    failure_category: 'status_unavailable',
+    failure_detail: detail,
+    updated_at: new Date().toISOString(),
+  })
+    .eq('operation_id', operation.operation_id)
+    .in('state', ['signed_submission_pending', 'confirming', 'status_unknown']);
+  if (operationError) throw operationError;
+}
+
 async function resolve(
   admin: AdminClient,
   userId: string,
   body: Record<string, unknown>,
 ) {
   const operation = await loadOperation(admin, userId, body.operationId);
-  if (operation.state === 'chain_confirmed') return operationResponse(admin, operation);
-
-  const server = new rpc.Server(required('STELLAR_RPC_URL'));
-  const purchaseEvent = await findPurchaseEvent(server, operation);
-  if (purchaseEvent) {
-    return confirmFromEvent(admin, userId, operation, purchaseEvent, server);
+  if (operation.state === 'complete') return operationResponse(admin, operation);
+  if (operation.state === 'chain_confirmed' || operation.state === 'sync_warning' || operation.state === 'mirror_syncing') {
+    return synchronizePurchase(admin, userId, operation.operation_id);
   }
 
+  const server = new rpc.Server(required('STELLAR_RPC_URL'));
   const attempt = await loadLatestAttempt(admin, operation.operation_id);
+  let purchaseEvent: Awaited<ReturnType<typeof findPurchaseEvent>>;
+  try {
+    purchaseEvent = await findPurchaseEvent(server, operation);
+  } catch (error) {
+    if (!attempt?.signed_transaction_hash) throw error;
+    await persistUnknownStatus(
+      admin,
+      operation,
+      attempt,
+      'Stellar RPC is temporarily unavailable while checking the signed transaction.',
+    );
+    return operationResponse(
+      admin,
+      await loadOperation(admin, userId, operation.operation_id),
+    );
+  }
+  if (purchaseEvent) {
+    try {
+      const confirmed = await confirmFromEvent(admin, userId, operation, purchaseEvent, server);
+      return synchronizePurchase(admin, userId, confirmed.operation.operation_id);
+    } catch (error) {
+      if (!attempt?.signed_transaction_hash) throw error;
+      await persistUnknownStatus(
+        admin,
+        operation,
+        attempt,
+        'The purchase event was found, but its confirmation details are temporarily unavailable.',
+      );
+      return operationResponse(
+        admin,
+        await loadOperation(admin, userId, operation.operation_id),
+      );
+    }
+  }
+
   if (!attempt?.signed_transaction_hash) return operationResponse(admin, operation);
 
-  const transaction = await server.getTransaction(attempt.signed_transaction_hash);
+  let transaction: Awaited<ReturnType<rpc.Server['getTransaction']>>;
+  try {
+    transaction = await server.getTransaction(attempt.signed_transaction_hash);
+  } catch {
+    await persistUnknownStatus(
+      admin,
+      operation,
+      attempt,
+      'Stellar RPC is temporarily unavailable while checking the signed transaction.',
+    );
+    return operationResponse(
+      admin,
+      await loadOperation(admin, userId, operation.operation_id),
+    );
+  }
   if (transaction.status === 'FAILED') {
     const detail = 'Stellar definitively rejected the signed purchase transaction.';
     await admin.from('purchase_operation_attempts').update({
@@ -465,7 +661,9 @@ async function resolve(
       failure_category: 'chain_rejected',
       failure_detail: detail,
       updated_at: new Date().toISOString(),
-    }).eq('operation_id', operation.operation_id);
+    })
+      .eq('operation_id', operation.operation_id)
+      .in('state', ['signed_submission_pending', 'confirming', 'status_unknown']);
     return operationResponse(
       admin,
       await loadOperation(admin, userId, operation.operation_id),
@@ -473,40 +671,24 @@ async function resolve(
   }
 
   if (transaction.status === 'SUCCESS') {
-    throw new Error('The transaction succeeded, but its immutable purchase event is unavailable.');
+    await persistUnknownStatus(
+      admin,
+      operation,
+      attempt,
+      'The transaction succeeded, but its immutable purchase event is temporarily unavailable.',
+    );
+    return operationResponse(
+      admin,
+      await loadOperation(admin, userId, operation.operation_id),
+    );
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  const signedAt = attempt.signed_at ? Math.floor(new Date(attempt.signed_at).getTime() / 1000) : 0;
-  const retainedFrom = transaction.oldestLedgerCloseTime;
-  const safelyObserved = signedAt > 0 && signedAt >= retainedFrom;
-  if (attempt.transaction_max_time < now && safelyObserved) {
-    const detail = 'The signed transaction expired without appearing on Stellar.';
-    await admin.from('purchase_operation_attempts').update({
-      state: 'pre_submission_failed',
-      failure_category: 'signed_attempt_not_submitted',
-      failure_detail: detail,
-      resolved_at: new Date().toISOString(),
-    }).eq('operation_id', operation.operation_id).eq('attempt_number', attempt.attempt_number);
-    await admin.from('purchase_operations').update({
-      state: 'pre_submission_failed',
-      failure_category: 'signed_attempt_not_submitted',
-      failure_detail: detail,
-      updated_at: new Date().toISOString(),
-    }).eq('operation_id', operation.operation_id);
-  } else {
-    await admin.from('purchase_operation_attempts').update({
-      state: 'status_unknown',
-      failure_category: 'status_unavailable',
-      failure_detail: 'The signed transaction is not yet visible on Stellar.',
-    }).eq('operation_id', operation.operation_id).eq('attempt_number', attempt.attempt_number);
-    await admin.from('purchase_operations').update({
-      state: 'status_unknown',
-      failure_category: 'status_unavailable',
-      failure_detail: 'The signed transaction is not yet visible on Stellar.',
-      updated_at: new Date().toISOString(),
-    }).eq('operation_id', operation.operation_id);
-  }
+  await persistUnknownStatus(
+    admin,
+    operation,
+    attempt,
+    'The signed transaction is not yet visible on Stellar.',
+  );
   return operationResponse(
     admin,
     await loadOperation(admin, userId, operation.operation_id),
@@ -532,10 +714,12 @@ Deno.serve(async (request) => {
       case 'allocate':
         return json(await allocate(admin, user.id, body));
       case 'get':
-        return json(await operationResponse(
-          admin,
-          await loadOperation(admin, user.id, body.operationId),
-        ));
+        {
+          const loaded = await loadOperation(admin, user.id, body.operationId);
+          return json(['chain_confirmed', 'mirror_syncing', 'sync_warning'].includes(loaded.state)
+            ? await synchronizePurchase(admin, user.id, loaded.operation_id)
+            : await operationResponse(admin, loaded));
+        }
       case 'begin-attempt':
         return json(await beginAttempt(admin, user.id, body));
       case 'mark-preparing': {
@@ -580,6 +764,19 @@ Deno.serve(async (request) => {
         return json(await recordPreSubmissionFailure(admin, user.id, body));
       case 'resolve':
         return json(await resolve(admin, user.id, body));
+      case 'retry-purchase-sync':
+        return json(await synchronizePurchase(admin, user.id, body.operationId));
+      case 'get-ticket-operation':
+        return json({ result: await loadOperationForTicket(admin, user.id, body.ticketId) });
+      case 'list-pending-sync': {
+        const { data, error } = await admin.from('purchase_operations').select('*')
+          .eq('user_id', user.id).in('state', ['chain_confirmed', 'mirror_syncing', 'sync_warning'])
+          .eq('network', required('STELLAR_NETWORK'))
+          .eq('ticket_contract_id', required('TICKET_CONTRACT_ID'))
+          .order('updated_at', { ascending: false }).limit(10);
+        if (error) throw error;
+        return json({ operations: await Promise.all((data as PurchaseOperation[] ?? []).map((item) => operationResponse(admin, item))) });
+      }
       default:
         return json({ error: 'Unknown purchase-operation action.' }, 400);
     }

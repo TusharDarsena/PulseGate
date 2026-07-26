@@ -154,6 +154,21 @@ export function resolvePurchaseOperation(operationId: string) {
   return invoke<PurchaseOperationResponse>({ action: 'resolve', operationId });
 }
 
+export function retryPurchaseSync(operationId: string) {
+  return invoke<PurchaseOperationResponse>({ action: 'retry-purchase-sync', operationId });
+}
+
+export function listPendingPurchaseSync() {
+  return invoke<{ operations: PurchaseOperationResponse[] }>({ action: 'list-pending-sync' });
+}
+
+export function getPurchaseOperationForTicket(ticketId: string) {
+  return invoke<{ result: PurchaseOperationResponse | null }>({
+    action: 'get-ticket-operation',
+    ticketId,
+  });
+}
+
 export async function recordPreparationFailure(operationId: string, detail: string) {
   return invoke<PurchaseOperationResponse>({
     action: 'pre-submission-failed',

@@ -280,7 +280,7 @@ export function PurchasePage({
       const resolved = await resolvePurchaseOperation(operation.operation_id);
       setOperationResponse(resolved);
       savePurchaseRecovery(resolved.operation);
-      if (resolved.operation.state === 'chain_confirmed') {
+      if (['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'].includes(resolved.operation.state)) {
         onOpenReceipt(operation.operation_id);
       } else {
         setNotice('The transaction was signed, but its final status is still being verified.');
@@ -290,7 +290,7 @@ export function PurchasePage({
       if (recovered) {
         setOperationResponse(recovered);
         savePurchaseRecovery(recovered.operation);
-        if (recovered.operation.state === 'chain_confirmed') {
+        if (['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'].includes(recovered.operation.state)) {
           onOpenReceipt(operation.operation_id);
           return;
         }
@@ -423,7 +423,7 @@ export function PurchasePage({
               Start a new purchase attempt
             </Button>
           )}
-          {operation?.state === 'chain_confirmed' ? (
+          {operation && ['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'].includes(operation.state) ? (
             <Button
               onClick={() => onOpenReceipt(operation.operation_id)}
               size="lg"

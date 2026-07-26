@@ -2,6 +2,9 @@
 -- For a clean setup, run this file and then every SQL file in
 -- supabase/migrations in filename order. Existing projects apply only the
 -- unapplied migrations; Phase 2 intentionally remains an upgrade migration.
+-- The permissive ticket policies below are bootstrap history. Phase 4 removes
+-- browser INSERT authority and adds owner-derived ticket RPCs plus service-only
+-- purchase finalization in 202607270002_phase_4_recoverable_owned_ticket.sql.
 
 -- 1. Update existing `events` table with missing columns
 ALTER TABLE public.events

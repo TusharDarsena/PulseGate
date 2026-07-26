@@ -141,7 +141,8 @@ Monitor contract interactions and event health via Stellar's public infrastructu
 Event and ticket lists are discovered via **Supabase** (read-cache layer). On-chain state is the financial source of truth; Supabase provides fast list queries without full RPC ledger scans. See D-004, D-029.
 
 - **Event Discovery**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts` (queries `public.events` table).
-- **Ticket Library**: `useTickets` calls `fetchTicketsByOwner(wallet)` from `lib/supabase.ts` (queries `public.tickets` by `owner_address`).
+- **Ticket Library**: `useTickets` calls the owner-derived `get_my_tickets()` RPC from `lib/supabase.ts`; it repairs up to ten pending purchase synchronizations through the private purchase-operation service.
+- **Durable Ticket Routes**: `/tickets/:ticketId` first uses the owner-derived ticket RPC, repairs that ticket's caller-owned confirmed operation once when needed, and uses one current Soroban ownership read only as the final fallback.
 - **Polling**: Both hooks refresh every 30s. Primary purchase does not write or invalidate these mirrors from the browser; trusted reconciliation is a separate server-side boundary.
 - **Purchase Receipt**: `/purchases/:operationId` reads the buyer-owned durable operation and immutable chain-confirmed receipt snapshot.
 - **On-chain Authority**: The scanner calls `get_ticket(ticketId)` on-chain to verify ownership and status before every `mark_used` call.
@@ -221,6 +222,19 @@ connection and is not affected by human sign-out.
     The purchase-operation and test-funding Edge Functions use
     `supabase/.env.example`. Demo top-ups additionally require a funded
     `TESTNET_TOPUP_SECRET`; it must never be exposed through a `VITE_` variable.
+    Phase 4 read-only Soroban synchronization also needs the public key of a
+    funded Testnet source account in `STELLAR_READ_ONLY_PUBLIC_KEY`; no secret
+    key is used for these simulations.
+
+    For an existing linked Supabase project, apply the Phase 4 migration only
+    if `202607270002_phase_4_recoverable_owned_ticket.sql` is not already in
+    migration history, then deploy `purchase-operation` only when its source or
+    secrets changed:
+
+    ```bash
+    supabase db push
+    supabase functions deploy purchase-operation
+    ```
 4.  **Run Development Server**:
     ```bash
     npm run dev

@@ -6,6 +6,7 @@ import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 import {
   getPurchaseOperation,
   resolvePurchaseOperation,
+  retryPurchaseSync,
   savePurchaseRecovery,
   type PurchaseOperationResponse,
 } from '../lib/purchaseOperations';
@@ -17,6 +18,7 @@ const UNRESOLVED = new Set([
   'confirming',
   'status_unknown',
 ]);
+const SYNC_PENDING = new Set(['chain_confirmed', 'mirror_syncing', 'sync_warning']);
 
 export function PurchaseReceiptPage() {
   const { operationId = '' } = useParams();
@@ -65,7 +67,7 @@ export function PurchaseReceiptPage() {
     );
   }
 
-  const confirmed = operation.state === 'chain_confirmed';
+  const confirmed = ['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'].includes(operation.state);
   const event = eventState.events[0];
   const amount = BigInt(operation.receipt_amount_stroops ?? operation.expected_price_stroops);
   const fee = BigInt(operation.confirmed_fee_stroops ?? operation.estimated_fee_stroops);
@@ -128,7 +130,7 @@ export function PurchaseReceiptPage() {
           )}
           <ReceiptFact
             label="Ticket library"
-            value={confirmed ? 'Synchronization pending' : 'Waiting for confirmation'}
+            value={operation.state === 'complete' ? 'Available in My Tickets' : 'Synchronization pending'}
           />
         </dl>
       </section>
@@ -142,6 +144,14 @@ export function PurchaseReceiptPage() {
       <div className="mt-6 flex flex-wrap gap-3">
         {UNRESOLVED.has(operation.state) && (
           <Button onClick={() => void load(true)}>Check status</Button>
+        )}
+        {SYNC_PENDING.has(operation.state) && (
+          <Button onClick={() => void retryPurchaseSync(operation.operation_id).then(setResponse).catch((e) => setError(e instanceof Error ? e.message : 'Synchronization retry failed.'))}>
+            Retry ticket sync
+          </Button>
+        )}
+        {operation.state === 'complete' && (
+          <Button onClick={() => navigate(`/tickets/${operation.ticket_id}`)}>View ticket</Button>
         )}
         {operation.transaction_hash && (
           <a

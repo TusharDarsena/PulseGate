@@ -14,6 +14,9 @@ Risk meanings:
 
 ## Baseline gate — Use one auditable source snapshot
 
+**Implementation status:** Phase 4 coding is complete; its proof gate,
+deployment, and end-to-end verification remain pending.
+
 ### At present
 
 The uploaded source exports are not fully consistent. The integration export contains `readModelSync.ts`, while the frontend export still shows purchase logic from another revision. Documentation also claims Google/email sign-in and secure burner storage although the current frontend creates a local burner and mock wallet-address profile.

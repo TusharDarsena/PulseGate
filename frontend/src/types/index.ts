@@ -74,6 +74,7 @@ export interface Ticket {
   owner: string;
   status: TicketStatus;
   purchasedAt?: string;
+  receiptOperationId?: string;
 }
 
 export interface AttendeeWalletState {

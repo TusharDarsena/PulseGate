@@ -178,9 +178,10 @@ boundary:
    That proof remains valid after later use, refund, or resale; current owner
    and current `Active` status are not receipt-validity conditions.
 
-Primary purchase ends at durable `chain_confirmed` plus a receipt in Phase 3.
-Trusted ticket and event-supply reconciliation belongs to Phase 4. The browser
-does not write a ticket row or refresh event supply as proof of purchase.
+Primary purchase continues from durable `chain_confirmed` into a trusted
+`mirror_syncing`/`complete` ticket projection in Phase 4. The service reads
+current Soroban state and atomically finalizes ticket provenance and event
+supply; `sync_warning` is retryable and never submits another payment.
 See [`frontend/src/lib/purchaseOperations.ts`](../frontend/src/lib/purchaseOperations.ts)
 and [`supabase/functions/purchase-operation/index.ts`](../supabase/functions/purchase-operation/index.ts).
 
@@ -205,8 +206,9 @@ must never authorize chain actions. Published event rows are trusted; editable
 preparation and interrupted-publication recovery use the private
 `event_publication_drafts` table.
 
-Private `purchase_operations` and `purchase_operation_attempts` are owner-
-readable durability records and are not browser-mutable. Trusted verification
+Private `purchase_operations` and `purchase_operation_attempts` are retrievable
+by their owner only through the purchase-operation service and are not directly
+browser-readable or browser-mutable. Trusted verification
 stores the immutable receipt snapshot: event identity, start and timezone,
 venue, purchaser, amount, charged fee, transaction hash, ledger, close time,
 network, and contract.
@@ -226,8 +228,9 @@ started, cancelled, and completed events. Discovery sale information is only a
 preview: direct event loading and checkout re-read the chain and require
 explicit reconfirmation after price, supply, status, or time changes.
 
-The authenticated ticket route does not yet claim authoritative ownership;
-trusted reconciliation owns that enforcement. Test funding uses the mapped
+The authenticated ticket route is owner-checked by `get_my_ticket()`, with a
+single current-chain fallback requiring the restored attendee wallet. Test
+funding uses the mapped
 attendee wallet, Friendbot only for initial activation, and a separate
 rate-limited demo top-up account for activated but underfunded wallets.
 

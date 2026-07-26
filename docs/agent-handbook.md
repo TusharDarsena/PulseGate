@@ -46,7 +46,7 @@ The chain owns organizer, status, supply, capacity, date, and price. Supabase ad
 
 `PurchasePage` allocates a durable purchase operation and stable ticket ID, prepares the generated TicketContract transaction, and binds the delegated-wallet signing request to a server-issued attempt ID. The signed transaction hash is recorded before submission. TicketContract then validates event/capacity, creates the ticket, increments supply, updates escrow, and transfers XLM.
 
-The purchase-operation service resolves uncertain results from the configured RPC and accepts success only after verifying the expected `tk_buy` event for the operation's ticket, buyer, and event. It stores an immutable receipt snapshot at `/purchases/:operationId`. Phase 3 does not write the ticket/event read model from the browser; trusted reconciliation is Phase 4 work.
+The purchase-operation service resolves uncertain results from the configured RPC and accepts success only after verifying the expected `tk_buy` event for the operation's ticket, buyer, and event. It stores an immutable receipt snapshot at `/purchases/:operationId`, then reads current Soroban ticket/event state and atomically finalizes the owner-derived ticket projection. A `sync_warning` is retryable and never submits another financial transaction.
 
 ### QR check-in
 
@@ -151,8 +151,9 @@ Do not introduce new SDK imports across pages/components to bypass these adapter
 
 | Path | Responsibility |
 | --- | --- |
-| `supabase_schema.sql` | Read-model tables, permissive MVP RLS, and `increment_event_supply` RPC. |
+| `supabase_schema.sql` | Phase 0/1 bootstrap read-model tables; later ordered migrations progressively harden the legacy policies. |
 | `supabase/migrations/202607270001_phase_3_purchase_operations.sql` | Private purchase operations, attempts, funding requests, idempotent allocators, and owner-read/service-write RLS. |
+| `supabase/migrations/202607270002_phase_4_recoverable_owned_ticket.sql` | Owner-derived ticket RPCs, service-only verified finalization, provenance, and synchronization RLS. |
 | `supabase/functions/purchase-operation/` | Trusted operation allocation and transaction/event resolution. It never builds, signs, or submits XDR. |
 | `supabase/functions/test-funding/` | Explicit testnet activation and rate-limited demo-account top-ups. |
 | `scripts/fund.sh` | Creates/funds expected Stellar testnet CLI identities. |

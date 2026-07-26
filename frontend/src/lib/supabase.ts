@@ -104,6 +104,21 @@ export interface TicketRow {
   owner_address: string;
   status: string; // 'Active' | 'Used' | 'Refunded'
   purchased_at: string;
+  event_name?: string;
+  event_summary?: string;
+  event_description?: string;
+  event_image_url?: string;
+  event_category?: string;
+  event_date_unix?: number;
+  event_end_unix?: number;
+  event_timezone?: string;
+  event_venue?: string;
+  event_address?: string;
+  event_city?: string;
+  event_status?: string;
+  event_capacity?: number;
+  event_price_per_ticket?: number;
+  receipt_operation_id?: string | null;
 }
 
 export interface ListingRow {
@@ -343,23 +358,23 @@ export async function refreshPublishedEventFromChain(
 }
 
 /**
- * Fetch tickets for a specific wallet directly from Supabase.
+ * Fetch tickets for the attendee wallet derived server-side from auth.uid().
  */
-export async function fetchTicketsByOwner(walletAddress: string): Promise<TicketRow[]> {
-  if (!walletAddress) return [];
-  
-  const { data, error } = await supabase
-    .from('tickets')
-    .select('*')
-    .eq('owner_address', walletAddress)
-    .order('purchased_at', { ascending: false });
+export async function fetchMyTickets(): Promise<TicketRow[]> {
+  const { data, error } = await supabase.rpc('get_my_tickets');
 
   if (error) {
-    console.error('[supabase] fetchTicketsByOwner failed:', error.message);
+    console.error('[supabase] fetchMyTickets failed:', error.message);
     throw new Error('Service Unavailable / Database unreachable');
   }
 
-  return data ?? [];
+  return (data ?? []) as TicketRow[];
+}
+
+export async function fetchMyTicket(ticketId: string): Promise<TicketRow | null> {
+  const { data, error } = await supabase.rpc('get_my_ticket', { requested_ticket_id: ticketId });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as TicketRow[])[0] ?? null;
 }
 
 /**

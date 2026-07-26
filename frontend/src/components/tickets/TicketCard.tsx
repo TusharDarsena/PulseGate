@@ -5,6 +5,8 @@ import { EventActions } from '../events/EventActions';
 interface TicketCardProps {
   ticket: Ticket;
   event: Event;
+  onViewTicket: (ticketId: string) => void;
+  onViewReceipt?: (operationId: string) => void;
   onShowQR: (ticketId: string) => void;
   onRefund?: (ticketId: string) => void;
   onListForSale?: (ticketId: string) => void;
@@ -12,7 +14,17 @@ interface TicketCardProps {
   hasOpenListing?: boolean;
 }
 
-export function TicketCard({ ticket, event, onShowQR, onRefund, onListForSale, onCancelListing, hasOpenListing }: TicketCardProps) {
+export function TicketCard({
+  ticket,
+  event,
+  onViewTicket,
+  onViewReceipt,
+  onShowQR,
+  onRefund,
+  onListForSale,
+  onCancelListing,
+  hasOpenListing,
+}: TicketCardProps) {
   return (
     <div className="bg-[#15181C] border border-[#272C33] rounded-xl overflow-hidden relative group hover:border-[#7C5CFF]/50 transition-all duration-300">
       <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#7C5CFF]"></div>
@@ -49,6 +61,20 @@ export function TicketCard({ ticket, event, onShowQR, onRefund, onListForSale, o
         </div>
         
         <div className="flex flex-col gap-2">
+          <button
+            onClick={() => onViewTicket(ticket.ticketId)}
+            className="w-full py-3 bg-transparent border border-[#7C5CFF]/30 text-[#7C5CFF] font-semibold text-xs rounded-lg hover:bg-[#7C5CFF]/10 active:scale-95 transition-all"
+          >
+            VIEW TICKET
+          </button>
+          {ticket.receiptOperationId && onViewReceipt && (
+            <button
+              onClick={() => onViewReceipt(ticket.receiptOperationId!)}
+              className="w-full py-3 bg-transparent border border-[#272C33] text-[#c9c4d8] font-semibold text-xs rounded-lg hover:bg-white/5 active:scale-95 transition-all"
+            >
+              VIEW RECEIPT
+            </button>
+          )}
           {hasOpenListing && onCancelListing ? (
             <button 
               onClick={() => onCancelListing(ticket.ticketId)}

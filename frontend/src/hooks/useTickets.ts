@@ -1,9 +1,10 @@
-// useTickets.ts — tickets owned by the current wallet, discovered via Supabase.
+// useTickets.ts — tickets owned by the authenticated attendee, discovered via Supabase.
 // Call invalidate() after a purchase to refresh immediately.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAppStore } from '../store/useAppStore';
-import { fetchTicketsByOwner } from '../lib/supabase';
+import { useAuth } from '../auth/AuthProvider';
+import { fetchMyTickets } from '../lib/supabase';
+import { listPendingPurchaseSync, retryPurchaseSync, type PurchaseOperationResponse } from '../lib/purchaseOperations';
 import type { Ticket, TicketStatus } from '../types';
 
 const POLL_INTERVAL_MS = 30_000;
@@ -13,21 +14,25 @@ export function useTickets(): {
   loading: boolean;
   error: string | null;
   invalidate: () => void;
+  pendingSync: PurchaseOperationResponse[];
+  retryPending: () => void;
 } {
-  const { attendeeWallet: wallet } = useAppStore();
+  const { user, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingSync, setPendingSync] = useState<PurchaseOperationResponse[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRef = useRef(0);
+  const repairedMount = useRef<string | null>(null);
 
-  const fetchTickets = useCallback(async (publicKey: string) => {
+  const fetchTickets = useCallback(async () => {
     const fetchId = ++fetchRef.current;
     setLoading(true);
     setError(null);
 
     try {
-      const data = await fetchTicketsByOwner(publicKey);
+      const data = await fetchMyTickets();
 
       if (fetchId !== fetchRef.current) return;
 
@@ -37,6 +42,7 @@ export function useTickets(): {
         owner: row.owner_address,
         status: row.status as TicketStatus,
         purchasedAt: row.purchased_at,
+        receiptOperationId: row.receipt_operation_id ?? undefined,
       }));
 
       setTickets(resolved);
@@ -48,9 +54,9 @@ export function useTickets(): {
     }
   }, []);
 
-  const startPolling = useCallback((publicKey: string) => {
-    fetchTickets(publicKey);
-    intervalRef.current = setInterval(() => fetchTickets(publicKey), POLL_INTERVAL_MS);
+  const startPolling = useCallback(() => {
+    fetchTickets();
+    intervalRef.current = setInterval(() => fetchTickets(), POLL_INTERVAL_MS);
   }, [fetchTickets]);
 
   const stopPolling = useCallback(() => {
@@ -63,20 +69,44 @@ export function useTickets(): {
   // Re-fetch immediately and reset the 30s timer (call after purchase)
   const invalidate = useCallback(() => {
     stopPolling();
-    if (wallet.readiness === 'ready' && wallet.address) {
-      startPolling(wallet.address);
-    }
-  }, [wallet.readiness, wallet.address, startPolling, stopPolling]);
+    if (user) startPolling();
+  }, [startPolling, stopPolling, user]);
 
   useEffect(() => {
-    if (wallet.readiness !== 'ready' || !wallet.address) {
+    if (authLoading) return;
+    if (!user) {
       setTimeout(() => setTickets([]), 0);
+      setTimeout(() => setPendingSync([]), 0);
+      repairedMount.current = null;
       stopPolling();
       return;
     }
-    setTimeout(() => startPolling(wallet.address!), 0);
-    return stopPolling;
-  }, [wallet.readiness, wallet.address, startPolling, stopPolling]);
+    let active = true;
+    const startTimer = window.setTimeout(() => startPolling(), 0);
+    if (repairedMount.current !== user.id) {
+      repairedMount.current = user.id;
+      void listPendingPurchaseSync().then(async ({ operations }) => {
+        const pending = operations.slice(0, 10);
+        const results = await Promise.all(pending.map((item) => retryPurchaseSync(item.operation.operation_id).catch(() => item)));
+        if (!active) return;
+        setPendingSync(results.filter((item) => item.operation.state !== 'complete'));
+        if (pending.length) fetchTickets();
+      }).catch(() => undefined);
+    }
+    return () => {
+      active = false;
+      window.clearTimeout(startTimer);
+      stopPolling();
+    };
+  }, [authLoading, user, startPolling, stopPolling, fetchTickets]);
 
-  return { tickets, loading, error, invalidate };
+  const retryPending = useCallback(() => {
+    void Promise.all(pendingSync.map((item) => retryPurchaseSync(item.operation.operation_id).catch(() => item)))
+      .then((results) => {
+        setPendingSync(results.filter((item) => item.operation.state !== 'complete'));
+        if (user) fetchTickets();
+      });
+  }, [fetchTickets, pendingSync, user]);
+
+  return { tickets, loading, error, invalidate, pendingSync, retryPending };
 }

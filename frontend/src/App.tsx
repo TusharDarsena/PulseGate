@@ -143,9 +143,13 @@ function App() {
               tickets={ticketsState.tickets}
               loadingTickets={ticketsState.loading}
               errorTickets={ticketsState.error}
+              onViewTicket={(id) => navigate(`/tickets/${id}`)}
+              onViewReceipt={(id) => navigate(`/purchases/${id}`)}
               onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
               onBrowseMore={() => navigate('/events')}
               invalidateTickets={ticketsState.invalidate}
+              pendingSync={ticketsState.pendingSync}
+              retryPending={ticketsState.retryPending}
             />
           </RequireAuth>
         } />
