@@ -1,0 +1,46 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml",
+    "compress": false,
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "topFilesLength": 10,
+    "tokenBudget": 120000,
+    "showLineNumbers": false,
+    "copyToClipboard": false
+  },
+  "include": [
+    "**/*"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDotIgnore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      ".agents/**",
+      ".dist/**",
+      "screenshots/**",
+      "reports/**",
+      "contracts/**/test_snapshots/**",
+      "frontend/src/contracts/**",
+      "frontend/public/favicon.svg",
+      "**/package-lock.json",
+      "**/pnpm-lock.yaml",
+      "source_library_workspace*.html",
+      "browsepage.html",
+      "CHANGELOG.md",
+      "docs/product/**",
+      "docs/agent-handbook.md",
+      "examples/**",
+      "repomix-output.*"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  },
+  "tokenCount": {
+    "encoding": "o200k_base"
+  }
+}

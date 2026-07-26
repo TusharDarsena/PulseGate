@@ -31,3 +31,7 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+
+# AI/repository packing outputs
+repomix-output.*
+.repomix/
