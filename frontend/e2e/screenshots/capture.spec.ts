@@ -17,6 +17,7 @@ import {
   installOrganizerDashboardPopulatedMocks,
 } from './helpers/install-tier2-tier3-mocks';
 import { installAuthCallbackErrorMocks } from './helpers/install-auth-callback-mocks';
+import { installAccountWalletReadyMocks } from './helpers/install-account-wallet-ready-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -64,6 +65,8 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installNotFoundMocks(page);
     } else if (capture.id === 'auth-callback-error-mobile') {
       await installAuthCallbackErrorMocks(page);
+    } else if (capture.id === 'account-wallet-ready-mobile') {
+      await installAccountWalletReadyMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
@@ -85,6 +88,12 @@ for (const capture of SCREENSHOT_CAPTURES) {
     }
 
     await stabilizePage(page);
+
+    if (capture.id === 'account-wallet-ready-mobile') {
+
+      await page.evaluate(() => window.scrollTo(0, 96));
+
+    }
 
     if (capture.scrollToText) {
       const scrollTarget = page.getByText(capture.scrollToText, { exact: false }).first();
