@@ -7,6 +7,7 @@ import { installPurchaseReceiptConfirmedMocks } from './helpers/install-purchase
 import { installMyTicketsUpcomingMocks } from './helpers/install-my-tickets-mocks';
 import { installScannerReadyMocks } from './helpers/install-scanner-ready-mocks';
 import { installEventDraftReadyMocks } from './helpers/install-event-draft-mocks';
+import { installOrganizerEventReadyMocks } from './helpers/install-organizer-event-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -36,6 +37,8 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installScannerReadyMocks(page);
     } else if (capture.id === 'organizer-event-draft-ready-desktop') {
       await installEventDraftReadyMocks(page);
+    } else if (capture.id === 'organizer-event-ready-desktop') {
+      await installOrganizerEventReadyMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
