@@ -14,6 +14,7 @@ export interface ScreenshotCapture {
   readonly version: `v${number}`;
   readonly viewportName: ScreenshotViewportName;
   readonly viewport: Readonly<{ width: number; height: number }>;
+  readonly fixedTime?: string;
   readonly folder: readonly string[];
   readonly readyText: string;
   readonly visibleTexts: readonly string[];
@@ -144,6 +145,72 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     scrollToText: 'VIEW TICKET',
     purpose: 'Represents the authenticated mobile My Tickets surface with a synchronized upcoming ticket ready for viewing, receipt access, QR entry, or resale.',
     reviewFocus: 'Review upcoming-tab clarity, ticket-card hierarchy, event date and venue readability, ticket identity treatment, primary and secondary action priority, mobile navigation, spacing, clipping, and overflow.',
+  },
+
+  {
+    id: 'scanner-ready-mobile',
+    tier: 1,
+    page: 'scanner',
+    state: 'ready',
+    route: '/organizer/events/event-seed-a-01/check-in',
+    role: 'organizer',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'mobile-390x844',
+    viewport: { width: 390, height: 844 },
+    fixedTime: '2026-09-12T18:15:00+05:30',
+    folder: ['01-tier-1-core-flow', 'scanner'],
+    readyText: 'Door Status',
+    visibleTexts: [
+      'Midnight Frequency',
+      'Ready for check-in',
+      'Door Status',
+      'Sold',
+      '214',
+      'Checked in',
+      '37',
+      'Remaining',
+      '177',
+      'Organizer Wallet',
+      'Connected:',
+      'Scanner',
+      'Enable camera',
+    ],
+    visibleLabels: ['Go back'],
+    scrollToText: 'Enable camera',
+    purpose: 'Represents the authenticated organizer mobile check-in surface after ownership, authoritative event status, the door window, and the matching wallet are confirmed, before camera activation.',
+    reviewFocus: 'Review ready-for-check-in status, door statistics, organizer-wallet confirmation, camera CTA prominence, mobile panel stacking, spacing, clipping, and overflow.',
+  },
+
+  {
+    id: 'organizer-event-draft-ready-desktop',
+    tier: 1,
+    page: 'organizer-event-draft',
+    state: 'ready',
+    route: '/organizer/drafts/draft-seed-a-07',
+    role: 'organizer',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'desktop-1440x900',
+    viewport: { width: 1440, height: 900 },
+    folder: ['01-tier-1-core-flow', 'organizer-event-draft'],
+    readyText: 'Midnight Frequency',
+    visibleTexts: [
+      'Private event workspace',
+      'Revision 4 · Saved',
+      'Public event information',
+      'Delete draft',
+      'Save draft',
+    ],
+    visibleLabels: [
+      'Event name',
+      'Short summary',
+      'Full description',
+      'Poster URL',
+      'Category',
+    ],
+    purpose: 'Represents a signed-in organizer reopening a populated, saved event draft in its stable editable workspace.',
+    reviewFocus: 'Review draft hierarchy, saved-state clarity, edit and delete action prominence, form grouping, field density, desktop spacing, back navigation, and clipping or overflow.',
   },
 
 ];

@@ -5,6 +5,8 @@ import { installEventDetailReadyMocks } from './helpers/install-event-detail-moc
 import { installPurchaseReviewReadyMocks } from './helpers/install-purchase-review-mocks';
 import { installPurchaseReceiptConfirmedMocks } from './helpers/install-purchase-receipt-mocks';
 import { installMyTicketsUpcomingMocks } from './helpers/install-my-tickets-mocks';
+import { installScannerReadyMocks } from './helpers/install-scanner-ready-mocks';
+import { installEventDraftReadyMocks } from './helpers/install-event-draft-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -18,7 +20,7 @@ test.afterAll(async () => {
 for (const capture of SCREENSHOT_CAPTURES) {
   test(`${capture.id}: ${capture.purpose}`, async ({ page }, testInfo) => {
     await page.setViewportSize(capture.viewport);
-    await page.clock.setFixedTime('2026-07-27T12:00:00+05:30');
+    await page.clock.setFixedTime(capture.fixedTime ?? '2026-07-27T12:00:00+05:30');
 
     if (capture.id === 'browse-ready-desktop') {
       await installBrowseReadyMocks(page);
@@ -30,6 +32,10 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installPurchaseReceiptConfirmedMocks(page);
     } else if (capture.id === 'my-tickets-upcoming-mobile') {
       await installMyTicketsUpcomingMocks(page);
+    } else if (capture.id === 'scanner-ready-mobile') {
+      await installScannerReadyMocks(page);
+    } else if (capture.id === 'organizer-event-draft-ready-desktop') {
+      await installEventDraftReadyMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
