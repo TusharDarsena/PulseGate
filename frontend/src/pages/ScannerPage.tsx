@@ -1,286 +1,646 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { useAppStore } from '../store/useAppStore';
+import { useParams } from 'react-router-dom';
+import { useEvent } from '../hooks/useEvent';
+import { useWallet } from '../hooks/useWallet';
+import { formatEventRange } from '../lib/eventModel';
 import { verifyQRPayload } from '../lib/qr';
-import { getTicket, markUsed } from '../lib/soroban';
-
-import { fetchUserProfile } from '../lib/supabase';
-import { mirrorUsedTicket, synchronizationWarning } from '../lib/readModelSync';
+import { getAuthoritativeTicket, prepareMarkUsed } from '../lib/soroban';
+import {
+  getMyOrganizerEvent,
+  invokeCheckInOperation,
+  type CheckInOperation,
+  type CheckInStats,
+  type OwnedOrganizerEvent,
+} from '../lib/supabase';
+import { useAppStore } from '../store/useAppStore';
+import { truncateKey, xlmToStroops, type Event } from '../types';
 
 interface ScannerPageProps {
   invalidateTickets: () => void;
 }
 
+type CameraState = 'idle' | 'starting' | 'running' | 'paused' | 'blocked' | 'unavailable';
+
+type ScanResultKind =
+  | 'confirmed'
+  | 'expired'
+  | 'invalid_qr'
+  | 'not_found'
+  | 'wrong_event'
+  | 'transferred'
+  | 'refunded'
+  | 'already_used'
+  | 'wrong_wallet'
+  | 'status_unavailable'
+  | 'status_unknown'
+  | 'chain_failed'
+  | 'sync_warning';
+
+interface ScanResult {
+  kind: ScanResultKind;
+  ticketId?: string;
+  walletAddress?: string;
+  operation?: CheckInOperation;
+  detail?: string;
+}
+
+const PENDING_STATES = ['signed_submission_pending', 'confirmation_pending', 'status_unknown'];
+const CONFIRMED_STATES = ['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'];
+
 export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
-  const [scanResult, setScanResult] = useState<'idle' | 'success' | 'error'>('idle');
-  const [scanDetails, setScanDetails] = useState<{ ticketId: string; walletAddress: string } | null>(null);
-  const [attendeeProfile, setAttendeeProfile] = useState<{ displayName: string; avatarUrl: string } | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
-  const { organizerWallet: wallet } = useAppStore();
-  const scannerRef = React.useRef<Html5Qrcode | null>(null);
+  const { eventId = '' } = useParams();
+  const wallet = useAppStore((state) => state.organizerWallet);
+  const { connectOrganizer } = useWallet();
+  const chainState = useEvent(eventId);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const processingRef = useRef(false);
+  const [owned, setOwned] = useState<OwnedOrganizerEvent | null>(null);
+  const [ownershipLoading, setOwnershipLoading] = useState(true);
+  const [ownershipError, setOwnershipError] = useState<string | null>(null);
+  const [cameraState, setCameraState] = useState<CameraState>('idle');
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [stats, setStats] = useState<CheckInStats>({
+    sold: 0,
+    checkedIn: 0,
+    remaining: 0,
+    unresolved: 0,
+  });
+  const [operations, setOperations] = useState<CheckInOperation[]>([]);
+  const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1000));
 
-  const handleScan = React.useCallback(async (data: string) => {
-    setSyncWarning(null);
-    // Pause immediately to prevent spam
-    if (scannerRef.current) {
-      scannerRef.current.pause(true);
-    }
-    // Step 1: Verify format, timestamp, and ed25519 signature locally. (D-005, D-006)
-    const parsed = verifyQRPayload(data);
-    if (!parsed) {
-      setScanResult('error');
-      setScanDetails(null);
-      return;
-    }
+  const event = chainState.event;
+  const opensAt = event ? event.dateUnix - 7_200 : null;
+  const withinWindow = Boolean(event && opensAt !== null && nowUnix >= opensAt && nowUnix < event.endUnix);
+  const walletMatches = Boolean(event && wallet.publicKey && wallet.publicKey === event.organizer);
+  const scannerReady = Boolean(
+    owned &&
+      event &&
+      event.authority === 'confirmed' &&
+      event.status === 'Active' &&
+      withinWindow &&
+      wallet.isConnected &&
+      walletMatches,
+  );
+  const unresolvedOperation = useMemo(
+    () => operations.find((operation) => PENDING_STATES.includes(operation.state)),
+    [operations],
+  );
 
-    // Step 2: Confirm on-chain that the ticket is Active and the owner matches.
-    const ticket = await getTicket(parsed.ticketId);
-    if (!ticket || ticket.status !== 'Active' || ticket.owner !== parsed.walletAddress) {
-      setScanResult('error');
-      setScanDetails(null);
-      return;
-    }
+  const rememberOperation = (operation: CheckInOperation) => {
+    setOperations((current) => [
+      operation,
+      ...current.filter((item) => item.operation_id !== operation.operation_id),
+    ]);
+  };
 
-    // Step 3: Fetch Attendee Profile from Supabase
-    const profileData = await fetchUserProfile(parsed.walletAddress);
-
-    if (profileData) {
-      setAttendeeProfile({
-        displayName: profileData.display_name || 'Anonymous Attendee',
-        avatarUrl: profileData.avatar_url || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&q=80',
-      });
-    } else {
-      setAttendeeProfile(null);
-    }
-
-    // Step 4: Mark ticket as used on-chain. Requires organizer wallet. (D-005)
-    if (!wallet.publicKey || !wallet.signFn) {
-      setScanResult('error');
-      setScanDetails(null);
-      return;
-    }
-
+  const refreshStats = React.useCallback(async () => {
+    if (!eventId || !owned) return;
     try {
-      await markUsed(parsed.ticketId, wallet.publicKey, wallet.signFn);
-      const syncResult = await mirrorUsedTicket(parsed.ticketId);
-      if (syncResult.ok) {
-        invalidateTickets();
-        setSyncWarning(null);
-      } else {
-        setSyncWarning(synchronizationWarning(syncResult));
-      }
-      setScanDetails(parsed);
-      setScanResult('success');
-    } catch (err) {
-      console.error('[ScannerPage] markUsed failed:', err);
-      setScanResult('error');
-      setScanDetails(null);
+      const payload = await invokeCheckInOperation('stats', { eventId });
+      if (payload.stats) setStats(payload.stats);
+    } catch {
+      setStats((current) => ({ ...current, unresolved: current.unresolved }));
     }
-  }, [wallet.publicKey, wallet.signFn, invalidateTickets]);
+  }, [eventId, owned]);
 
   useEffect(() => {
-    // Slight delay to ensure DOM is ready
-    const timer = setTimeout(() => {
-      scannerRef.current = new Html5Qrcode("qr-reader");
-      scannerRef.current.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          handleScan(decodedText);
-        },
-        () => {
-          // ignore parse errors
-        }
-      ).catch(err => {
-        console.error("Failed to start scanner:", err);
-      });
-    }, 100);
-
+    let active = true;
+    const timeout = setTimeout(() => {
+      setOwnershipLoading(true);
+      setOwnershipError(null);
+      void getMyOrganizerEvent(eventId)
+        .then((next) => {
+          if (active) setOwned(next);
+        })
+        .catch((error) => {
+          if (active) {
+            setOwned(null);
+            setOwnershipError(error instanceof Error ? error.message : 'Could not verify event ownership.');
+          }
+        })
+        .finally(() => {
+          if (active) setOwnershipLoading(false);
+        });
+    }, 0);
     return () => {
-      clearTimeout(timer);
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(console.error);
-      }
+      active = false;
+      clearTimeout(timeout);
     };
-  }, [handleScan]);
+  }, [eventId]);
 
-  // Dev-only buttons — render behind import.meta.env.DEV guard so they tree-shake in prod.
-  const DEV_MODE = import.meta.env.DEV;
+  useEffect(() => {
+    if (!owned) return;
+    const timeout = setTimeout(() => {
+      void invokeCheckInOperation('list', { eventId })
+        .then((payload) => setOperations(payload.operations ?? []))
+        .catch(() => setOperations([]));
+      void refreshStats();
+    }, 0);
+    return () => clearTimeout(timeout);
+  }, [eventId, owned, refreshStats]);
+
+  useEffect(() => () => {
+    if (scannerRef.current?.isScanning) {
+      scannerRef.current.stop().catch(() => undefined);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowUnix(Math.floor(Date.now() / 1000));
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const stopCamera = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop().catch(() => undefined);
+    }
+    setCameraState('idle');
+  };
+
+  const resumeScanning = () => {
+    setScanResult(null);
+    processingRef.current = false;
+    if (scannerRef.current?.isScanning) {
+      scannerRef.current.resume();
+      setCameraState('running');
+    }
+  };
+
+  const showResult = (result: ScanResult) => {
+    setScanResult(result);
+    setCameraState((current) => current === 'running' ? 'paused' : current);
+  };
+
+  const processScan = React.useCallback(async (raw: string) => {
+    if (processingRef.current || !event || !wallet.publicKey || !wallet.signFn) return;
+    processingRef.current = true;
+    setBusy(true);
+    setScanResult(null);
+    if (scannerRef.current?.isScanning) {
+      scannerRef.current.pause(true);
+      setCameraState('paused');
+    }
+
+    let operationId: string | null = null;
+    let signedHashPersisted = false;
+    let transactionPrepared = false;
+
+    try {
+      if (!walletMatches) {
+        showResult({ kind: 'wrong_wallet', detail: `Switch to ${truncateKey(event.organizer)}.` });
+        return;
+      }
+
+      const parsed = verifyQRPayload(raw);
+      if (!parsed.ok) {
+        showResult({ kind: parsed.reason === 'expired' ? 'expired' : 'invalid_qr' });
+        return;
+      }
+
+      let ticketRead;
+      try {
+        ticketRead = await getAuthoritativeTicket(parsed.ticketId);
+      } catch (error) {
+        showResult({
+          kind: 'status_unavailable',
+          ticketId: parsed.ticketId,
+          walletAddress: parsed.walletAddress,
+          detail: error instanceof Error ? error.message : 'Ticket status unavailable.',
+        });
+        return;
+      }
+
+      if (ticketRead.kind === 'not_found') {
+        showResult({ kind: 'not_found', ticketId: parsed.ticketId });
+        return;
+      }
+
+      const { ticket } = ticketRead;
+      if (ticket.eventId !== eventId) {
+        showResult({ kind: 'wrong_event', ticketId: parsed.ticketId });
+        return;
+      }
+      if (ticket.status === 'Refunded') {
+        showResult({ kind: 'refunded', ticketId: parsed.ticketId });
+        return;
+      }
+      if (ticket.status === 'Used') {
+        showResult({ kind: 'already_used', ticketId: parsed.ticketId });
+        return;
+      }
+      if (ticket.owner !== parsed.walletAddress) {
+        showResult({
+          kind: 'transferred',
+          ticketId: parsed.ticketId,
+          walletAddress: parsed.walletAddress,
+        });
+        return;
+      }
+
+      const allocated = await invokeCheckInOperation('allocate', {
+        idempotencyKey: crypto.randomUUID(),
+        eventId,
+        ticketId: parsed.ticketId,
+        expectedOwnerAddress: parsed.walletAddress,
+      });
+      if (!allocated.operation) throw new Error('The check-in operation was not allocated.');
+      operationId = allocated.operation.operation_id;
+      rememberOperation(allocated.operation);
+
+      if (PENDING_STATES.includes(allocated.operation.state)) {
+        showResult({ kind: 'status_unknown', operation: allocated.operation, ticketId: parsed.ticketId });
+        return;
+      }
+      if (CONFIRMED_STATES.includes(allocated.operation.state)) {
+        showResult({
+          kind: allocated.operation.state === 'sync_warning' ? 'sync_warning' : 'confirmed',
+          operation: allocated.operation,
+          ticketId: parsed.ticketId,
+          walletAddress: parsed.walletAddress,
+        });
+        await refreshStats();
+        return;
+      }
+
+      const transaction = await prepareMarkUsed(
+        eventId,
+        parsed.ticketId,
+        parsed.walletAddress,
+        wallet.publicKey,
+      );
+      if (
+        wallet.xlmBalance === null ||
+        xlmToStroops(Number(wallet.xlmBalance)) < transaction.estimatedFeeStroops
+      ) {
+        throw new Error('The organizer wallet does not have enough XLM for the network fee.');
+      }
+      transactionPrepared = true;
+
+      const begun = await invokeCheckInOperation('begin-attempt', {
+        operationId,
+        ...transaction.identity,
+      });
+      if (begun.operation) rememberOperation(begun.operation);
+
+      await transaction.submit(wallet.signFn, async ({ signedTransactionHash }) => {
+        const signed = await invokeCheckInOperation('record-signed-attempt', {
+          operationId,
+          signedTransactionHash,
+        });
+        if (!signed.operation) throw new Error('The signed check-in was not persisted.');
+        signedHashPersisted = true;
+        rememberOperation(signed.operation);
+      });
+
+      const resolved = await invokeCheckInOperation('resolve', { operationId });
+      if (resolved.operation) {
+        rememberOperation(resolved.operation);
+        showResult({
+          kind: resolved.operation.state === 'sync_warning' ? 'sync_warning' : 'confirmed',
+          operation: resolved.operation,
+          ticketId: parsed.ticketId,
+          walletAddress: parsed.walletAddress,
+        });
+        invalidateTickets();
+        await Promise.all([chainState.reload(), refreshStats()]);
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Check-in failed.';
+      if (operationId) {
+        try {
+          if (signedHashPersisted) {
+            const unresolved = await invokeCheckInOperation('resolve', { operationId });
+            if (unresolved.operation) {
+              rememberOperation(unresolved.operation);
+              showResult({
+                kind: unresolved.operation.state === 'chain_failed' ? 'chain_failed' : 'status_unknown',
+                operation: unresolved.operation,
+                detail,
+              });
+              return;
+            }
+          } else {
+            const failed = await invokeCheckInOperation('pre-submission-failed', {
+              operationId,
+              category: transactionPrepared && /reject|declin|cancel/i.test(detail)
+                ? 'approval_rejected'
+                : transactionPrepared
+                  ? 'signing_provider_failed'
+                  : 'preparation_failed',
+              detail,
+            });
+            if (failed.operation) rememberOperation(failed.operation);
+          }
+        } catch {
+          // The durable operation remains recoverable from this scanner route.
+        }
+      }
+      showResult({ kind: 'chain_failed', detail });
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    chainState,
+    event,
+    eventId,
+    invalidateTickets,
+    refreshStats,
+    wallet.publicKey,
+    wallet.signFn,
+    wallet.xlmBalance,
+    walletMatches,
+  ]);
+
+  const enableCamera = async () => {
+    if (!scannerReady || cameraState === 'starting' || cameraState === 'running') return;
+    setCameraState('starting');
+    setScanResult(null);
+    try {
+      scannerRef.current ??= new Html5Qrcode('qr-reader');
+      await scannerRef.current.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 260, height: 260 } },
+        (decodedText) => void processScan(decodedText),
+        () => undefined,
+      );
+      setCameraState('running');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setCameraState(/permission|notallowed|denied/i.test(message) ? 'blocked' : 'unavailable');
+    }
+  };
+
+  const resolveOperation = async (operation: CheckInOperation) => {
+    setBusy(true);
+    try {
+      const payload = await invokeCheckInOperation(
+        operation.state === 'sync_warning' ? 'retry-sync' : 'resolve',
+        { operationId: operation.operation_id },
+      );
+      if (payload.operation) {
+        rememberOperation(payload.operation);
+        showResult({
+          kind: payload.operation.state === 'chain_failed'
+            ? 'chain_failed'
+            : payload.operation.state === 'status_unknown'
+              ? 'status_unknown'
+              : payload.operation.state === 'sync_warning'
+                ? 'sync_warning'
+                : 'confirmed',
+          operation: payload.operation,
+          ticketId: payload.operation.ticket_id,
+          walletAddress: payload.operation.expected_owner_address,
+        });
+        await refreshStats();
+      }
+    } catch (error) {
+      showResult({
+        kind: 'status_unknown',
+        operation,
+        detail: error instanceof Error ? error.message : 'Could not resolve operation.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (ownershipLoading) {
+    return <main className="min-h-screen pt-28 text-center text-slate-400">Verifying organizer access...</main>;
+  }
+  if (!owned) {
+    return (
+      <main className="min-h-screen pt-28 px-4 text-center">
+        <h1 className="text-3xl font-bold">Event unavailable</h1>
+        <p className="mt-3 text-slate-400">
+          {ownershipError ?? 'This event does not exist or is not owned by your signed-in account.'}
+        </p>
+      </main>
+    );
+  }
+  if (chainState.loading) return <main className="min-h-screen pt-28 text-center">Loading authoritative event state...</main>;
+  if (!event) return <main className="min-h-screen pt-28 text-center">{chainState.error ?? 'Event status unavailable.'}</main>;
+
+  const gate = scannerGate({
+    event,
+    walletConnected: wallet.isConnected,
+    walletMatches,
+    withinWindow,
+    opensAt,
+    nowUnix,
+  });
 
   return (
-    <div className="bg-black text-[#e6e0ee] font-sans overflow-hidden h-screen flex flex-col pt-24">
-
-      {/* Main Viewport */}
-      <main className="flex-grow relative flex flex-col overflow-hidden bg-black">
-        {/* Camera Viewport */}
-        <div className="absolute inset-0 z-0 overflow-hidden bg-neutral-900">
-          <div id="qr-reader" className="w-full h-full [&>video]:object-cover [&>video]:w-full [&>video]:h-full border-none"></div>
-          
-          {/* Central Focus Area Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="relative w-72 h-72 md:w-96 md:h-96">
-              <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-[#7C5CFF]"></div>
-              <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-[#7C5CFF]"></div>
-              <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-[#7C5CFF]"></div>
-              <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-[#7C5CFF]"></div>
-              
-              {/* Scanning Line Animation Simulation */}
-              <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-[#7C5CFF] shadow-[0_0_15px_#7C5CFF]"></div>
-              <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                <span className="material-symbols-outlined text-9xl text-white">qr_code_scanner</span>
+    <main className="min-h-screen bg-[#0E1113] pt-24 pb-28 text-[#e6e0ee]">
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-h-[70vh] overflow-hidden rounded-xl border border-[#272C33] bg-black">
+          <div className="relative h-[68vh] min-h-[34rem]">
+            <div id="qr-reader" className="absolute inset-0 [&>video]:h-full [&>video]:w-full [&>video]:object-cover" />
+            {cameraState !== 'running' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-neutral-950">
+                <div className="text-center">
+                  <span className="material-symbols-outlined text-7xl text-[#7C5CFF]">qr_code_scanner</span>
+                  <p className="mt-3 text-lg font-semibold">{gate.title}</p>
+                  <p className="mt-2 max-w-md text-sm text-slate-400">{gate.detail}</p>
+                </div>
               </div>
+            )}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="h-72 w-72 border-2 border-[#7C5CFF] shadow-[0_0_30px_rgba(124,92,255,0.35)]" />
+            </div>
+            <div className="absolute left-4 right-4 top-4 rounded-lg border border-[#343941] bg-[#15181C]/90 p-4 backdrop-blur">
+              <p className="text-sm font-semibold">{event.name}</p>
+              <p className="text-xs text-slate-400">{event.venue} · {formatEventRange(event)}</p>
             </div>
           </div>
         </div>
 
-        {/* UI Overlays */}
-        <div className="relative z-10 h-full flex flex-col justify-between p-6 pointer-events-none">
-          {/* Top Guidance */}
-          <div className="w-full flex justify-center pt-8">
-            <div className="bg-[#1c1a24]/80 backdrop-blur-md px-6 py-3 rounded-full border border-[#484555]/30 flex items-center gap-3">
-              <span className="material-symbols-outlined text-[#7C5CFF]">center_focus_weak</span>
-              <p className="text-sm">Position the QR code within the frame</p>
-            </div>
-          </div>
-          
-          {/* Controls & Mock States */}
-          <div className="flex flex-col items-center gap-6 pb-16 pointer-events-auto">
-            <button className="bg-[#7C5CFF] text-white font-semibold px-12 py-4 rounded-xl shadow-[0_0_30px_rgba(124,92,255,0.4)] flex items-center gap-3 active:scale-95 transition-all">
-              <span className="material-symbols-outlined">photo_camera</span>
-              START SCANNING
-            </button>
-            <div className="flex items-center gap-3 p-2 bg-[#36333e]/60 backdrop-blur-sm rounded-lg border border-[#484555]">
-              {DEV_MODE && (
-                <>
-                  <button
-                    onClick={() => {
-                      // Simulate a valid but unverifiable payload for UI testing
-                      // In dev, verifyQRPayload will fail (no real secret) so we set success directly
-                      setScanDetails({ ticketId: 'dev-ticket-id', walletAddress: wallet.publicKey ?? 'GTEST' });
-                      setScanResult('success');
-                    }}
-                    className="px-4 py-2 bg-emerald-500/20 text-emerald-400 font-bold text-[10px] rounded border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors uppercase tracking-widest"
-                  >
-                    Mock Valid
-                  </button>
-                  <button
-                    onClick={() => handleScan('invalid:data:0')}
-                    className="px-4 py-2 bg-red-500/20 text-red-400 font-bold text-[10px] rounded border border-red-500/30 hover:bg-red-500/30 transition-colors uppercase tracking-widest"
-                  >
-                    Mock Error
-                  </button>
-                </>
-              )}
-              <button
-                className="px-4 py-2 bg-[#7C5CFF]/10 text-[#7C5CFF] font-bold text-[10px] rounded border border-[#7C5CFF]/30 hover:bg-[#7C5CFF]/20 transition-colors uppercase tracking-widest"
-              >
-                Flash Toggle
+        <aside className="space-y-4">
+          <Panel title="Door Status">
+            <p className="text-sm text-slate-300">{gate.title}</p>
+            <p className="mt-2 text-xs text-slate-500">{gate.detail}</p>
+            <dl className="mt-4 space-y-2 text-sm">
+              <Metric label="Sold" value={String(stats.sold || event.currentSupply)} />
+              <Metric label="Checked in" value={String(stats.checkedIn)} />
+              <Metric label="Remaining" value={String(stats.remaining || Math.max(event.currentSupply - stats.checkedIn, 0))} />
+              <Metric label="Unresolved" value={String(stats.unresolved)} />
+            </dl>
+          </Panel>
+
+          <Panel title="Organizer Wallet">
+            <p className="break-all font-mono text-xs text-slate-300">{event.organizer}</p>
+            {!wallet.isConnected ? (
+              <button type="button" onClick={() => void connectOrganizer()} className="mt-4 w-full rounded-lg bg-[#7C5CFF] px-4 py-3 font-semibold">
+                Connect Freighter
               </button>
-            </div>
-          </div>
-        </div>
+            ) : (
+              <p className={walletMatches ? 'mt-3 text-sm text-emerald-300' : 'mt-3 text-sm text-amber-200'}>
+                Connected: {wallet.publicKey ? truncateKey(wallet.publicKey) : 'Unknown'}
+              </p>
+            )}
+          </Panel>
 
-        {/* VALID SCAN OVERLAY (Success State) */}
-        {scanResult === 'success' && (
-          <div className="absolute inset-0 z-50 bg-[#14121b]/85 backdrop-blur-md flex items-center justify-center p-6">
-            <div className="w-full max-w-md bg-[#0f0d16] border border-[#7C5CFF]/30 rounded-xl overflow-hidden shadow-2xl">
-              <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-8 flex flex-col items-center gap-4 text-center">
-                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)]">
-                  <span className="material-symbols-outlined text-white text-5xl" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-bold text-emerald-400">Entry Granted</h2>
-                  <p className="text-sm text-[#c9c4d8]">Validated via Stellar Ledger</p>
-                </div>
-              </div>
-              <div className="p-8 space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#484555]">
-                    <img className="w-full h-full object-cover" src={attendeeProfile?.avatarUrl ?? "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&q=80"} alt="Attendee" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold text-[#7C5CFF] uppercase">Attendee</p>
-                    <h3 className="text-xl font-bold text-white">
-                      {attendeeProfile?.displayName ?? `${scanDetails?.walletAddress.slice(0,6)}...${scanDetails?.walletAddress.slice(-4)}`}
-                    </h3>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#2b2933] p-4 rounded-lg border border-[#484555] text-left">
-                    <p className="text-xs font-semibold text-[#c9c4d8] mb-1">TICKET TYPE</p>
-                    <p className="text-base font-bold text-white">General Admission</p>
-                  </div>
-                  <div className="bg-[#2b2933] p-4 rounded-lg border border-[#484555] text-left">
-                    <p className="text-xs font-semibold text-[#c9c4d8] mb-1">ACCESS</p>
-                    <p className="text-base font-bold text-white">Entry ticket</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-xs font-semibold text-[#c9c4d8]">TICKET ID</span>
-                    <span className="font-mono text-sm text-[#7C5CFF]">
-                      {scanDetails?.ticketId.substring(0, 12)}...
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-xs font-semibold text-[#c9c4d8]">WALLET</span>
-                    <span className="font-mono text-xs text-[#7C5CFF]">
-                      {scanDetails ? `${scanDetails.walletAddress.slice(0,4)}...${scanDetails.walletAddress.slice(-4)}` : '—'}
-                    </span>
-                  </div>
-                  <div className="w-full h-1 bg-[#36333e] rounded-full overflow-hidden">
-                    <div className="w-full h-full bg-emerald-500"></div>
-                  </div>
-                </div>
-                {syncWarning && (
-                  <p className="rounded-lg bg-amber-500/10 p-3 text-left text-xs text-amber-300">
-                    {syncWarning}
-                  </p>
-                )}
-                <button 
-                  onClick={() => {
-                    setScanResult('idle');
-                    if (scannerRef.current) scannerRef.current.resume();
-                  }}
-                  className="w-full bg-[#7C5CFF] text-white font-semibold text-xl py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-transform"
-                >
-                  <span className="material-symbols-outlined">refresh</span>
-                  SCAN NEXT
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* ERROR SCAN OVERLAY */}
-        {scanResult === 'error' && (
-          <div className="absolute inset-0 z-50 bg-[#14121b]/85 backdrop-blur-md flex items-center justify-center p-6">
-            <div className="w-full max-w-md bg-[#0f0d16] border border-red-500/30 rounded-xl overflow-hidden shadow-2xl">
-              <div className="bg-red-500/10 border-b border-red-500/20 p-8 flex flex-col items-center gap-4 text-center">
-                <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center shadow-[0_0_25px_rgba(239,68,68,0.5)]">
-                  <span className="material-symbols-outlined text-white text-5xl" style={{ fontVariationSettings: "'wght' 700" }}>close</span>
-                </div>
-                <div className="space-y-1">
-                  <h2 className="text-2xl font-bold text-red-400">Invalid Ticket</h2>
-                  <p className="text-sm text-[#c9c4d8]">Ticket already used or not found</p>
-                </div>
-              </div>
-              <div className="p-8">
-                <button 
-                  onClick={() => {
-                    setScanResult('idle');
-                    if (scannerRef.current) scannerRef.current.resume();
-                  }}
-                  className="w-full bg-[#272C33] text-white font-semibold text-xl py-4 rounded-xl flex items-center justify-center gap-3 active:scale-95 transition-transform hover:bg-[#36333e]"
-                >
-                  <span className="material-symbols-outlined">refresh</span>
-                  TRY AGAIN
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
+          <Panel title="Scanner">
+            <button
+              type="button"
+              onClick={() => void enableCamera()}
+              disabled={!scannerReady || cameraState === 'starting' || cameraState === 'running' || busy}
+              className="w-full rounded-lg bg-[#7C5CFF] px-4 py-3 font-semibold disabled:opacity-40"
+            >
+              {cameraState === 'starting' ? 'Starting camera...' : 'Enable camera'}
+            </button>
+            {cameraState === 'running' && (
+              <button type="button" onClick={() => void stopCamera()} className="mt-3 w-full rounded-lg border border-[#343941] px-4 py-3">
+                Stop camera
+              </button>
+            )}
+            {cameraState === 'blocked' && <p className="mt-3 text-sm text-amber-200">Camera access blocked. Retry permission or adjust browser settings.</p>}
+            {cameraState === 'unavailable' && <p className="mt-3 text-sm text-amber-200">Camera unavailable. Use another supported device.</p>}
+            {unresolvedOperation && (
+              <button
+                type="button"
+                onClick={() => void resolveOperation(unresolvedOperation)}
+                disabled={busy}
+                className="mt-3 w-full rounded-lg border border-amber-400/40 px-4 py-3 text-amber-100 disabled:opacity-40"
+              >
+                Resolve pending check-in
+              </button>
+            )}
+          </Panel>
+        </aside>
+      </section>
+
+      {scanResult && (
+        <ResultOverlay
+          result={scanResult}
+          busy={busy}
+          onNext={resumeScanning}
+          onResolve={scanResult.operation ? () => void resolveOperation(scanResult.operation!) : undefined}
+        />
+      )}
+    </main>
+  );
+}
+
+function scannerGate({
+  event,
+  walletConnected,
+  walletMatches,
+  withinWindow,
+  opensAt,
+  nowUnix,
+}: {
+  event: Event;
+  walletConnected: boolean;
+  walletMatches: boolean;
+  withinWindow: boolean;
+  opensAt: number | null;
+  nowUnix: number;
+}) {
+  if (event.authority !== 'confirmed') {
+    return { title: 'Event status unavailable', detail: event.authorityError ?? 'Retry authoritative read.' };
+  }
+  if (event.status === 'Cancelled') return { title: 'Event cancelled', detail: 'No check-ins are permitted.' };
+  if (event.status === 'Completed') return { title: 'Event completed', detail: 'No check-ins are permitted.' };
+  if (!walletConnected) return { title: 'Organizer wallet required', detail: 'Connect Freighter before scanning.' };
+  if (!walletMatches) return { title: 'Wrong organizer wallet', detail: `Switch to ${truncateKey(event.organizer)}.` };
+  if (opensAt !== null && nowUnix < opensAt) {
+    return { title: `Check-in opens at ${new Date(opensAt * 1000).toLocaleString()}`, detail: 'Camera remains disabled until the door window opens.' };
+  }
+  if (!withinWindow || nowUnix >= event.endUnix) return { title: 'Check-in closed', detail: 'No new check-in transactions may be submitted.' };
+  return { title: 'Ready for check-in', detail: 'Enable the camera to scan attendee QR codes.' };
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border border-[#272C33] bg-[#15181C] p-5">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="font-semibold">{value}</dd>
     </div>
   );
+}
+
+function ResultOverlay({
+  result,
+  busy,
+  onNext,
+  onResolve,
+}: {
+  result: ScanResult;
+  busy: boolean;
+  onNext: () => void;
+  onResolve?: () => void;
+}) {
+  const content = resultContent(result);
+  const positive = result.kind === 'confirmed' || result.kind === 'sync_warning';
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4">
+      <section className="w-full max-w-md rounded-xl border border-[#343941] bg-[#15181C] p-6 text-center shadow-2xl">
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${positive ? 'bg-emerald-500' : 'bg-red-500'}`}>
+          <span className="material-symbols-outlined text-4xl text-white">{positive ? 'check' : 'close'}</span>
+        </div>
+        <h2 className={`mt-5 text-2xl font-bold ${positive ? 'text-emerald-300' : 'text-red-300'}`}>
+          {content.title}
+        </h2>
+        <p className="mt-2 text-sm text-slate-300">{content.detail}</p>
+        {result.ticketId && (
+          <p className="mt-4 break-all font-mono text-xs text-slate-500">{result.ticketId}</p>
+        )}
+        {result.operation?.transaction_hash && (
+          <p className="mt-2 truncate font-mono text-xs text-slate-500">{result.operation.transaction_hash}</p>
+        )}
+        {onResolve && ['status_unknown', 'sync_warning'].includes(result.kind) && (
+          <button type="button" onClick={onResolve} disabled={busy} className="mt-6 w-full rounded-lg border border-amber-400/40 px-4 py-3 text-amber-100 disabled:opacity-40">
+            {busy ? 'Resolving...' : 'Resolve operation'}
+          </button>
+        )}
+        <button type="button" onClick={onNext} disabled={busy || result.kind === 'status_unknown'} className="mt-3 w-full rounded-lg bg-[#7C5CFF] px-4 py-3 font-semibold disabled:opacity-40">
+          {positive ? 'Scan next ticket' : 'Try another scan'}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function resultContent(result: ScanResult): { title: string; detail: string } {
+  switch (result.kind) {
+    case 'confirmed':
+      return { title: 'Entry confirmed', detail: 'Stellar confirmed the check-in.' };
+    case 'sync_warning':
+      return { title: 'Entry confirmed', detail: 'Stellar confirmed entry; app synchronization is delayed.' };
+    case 'expired':
+      return { title: 'QR expired', detail: 'Ask the attendee to refresh their QR.' };
+    case 'invalid_qr':
+      return { title: 'QR could not be verified', detail: 'The payload or signature is invalid.' };
+    case 'not_found':
+      return { title: 'Ticket not found', detail: 'No authoritative ticket exists for this ID.' };
+    case 'wrong_event':
+      return { title: 'Ticket belongs to another event', detail: 'Do not admit this attendee for this event.' };
+    case 'transferred':
+      return { title: 'Ticket has been transferred', detail: 'The current owner must show their own QR.' };
+    case 'refunded':
+      return { title: 'Ticket was refunded', detail: 'Refunded tickets are not eligible for entry.' };
+    case 'already_used':
+      return { title: 'Ticket already checked in', detail: 'This ticket has already been consumed on-chain.' };
+    case 'wrong_wallet':
+      return { title: 'Switch organizer wallet', detail: result.detail ?? 'Connect the event organizer wallet.' };
+    case 'status_unavailable':
+      return { title: 'Ticket status unavailable', detail: result.detail ?? 'Retry the authoritative read before admitting.' };
+    case 'status_unknown':
+      return { title: 'Check-in status unknown', detail: result.detail ?? 'A signed transaction may exist. Resolve it before rescanning this ticket.' };
+    case 'chain_failed':
+      return { title: 'Check-in failed', detail: result.detail ?? 'Re-read the ticket and use a fresh QR if still eligible.' };
+  }
 }

@@ -96,6 +96,11 @@ impl<'a> TestSetup<'a> {
         self.ticket.purchase(event_id, buyer, ticket_id);
     }
 
+    fn open_check_in(&self, event_id: &String) {
+        let event = self.ticket.get_event(event_id);
+        self.env.ledger().set_timestamp(event.date_unix - 1);
+    }
+
     /// List a ticket as the seller.
     fn list(&self, listing_id: &String, ticket_id: &String, event_id: &String, price: i128) {
         self.marketplace
@@ -288,7 +293,9 @@ fn test_stale_listing_fails_fast_ticket_used() {
     // but it is Used. restricted_transfer will fail.
     // However, since owner == seller still, TicketOwnerMismatch won't fire.
     // The fail happens at restricted_transfer level (TicketAlreadyUsed from ticket contract).
-    s.ticket.mark_used(&ticket_id, &s.organizer);
+    s.open_check_in(&event_id);
+    s.ticket
+        .mark_used(&event_id, &ticket_id, &s.seller, &s.organizer);
 
     // Buy attempt should fail (entire tx rolled back — no XLM lost by buyer)
     let buyer_balance_before = s.xlm.balance(&s.buyer);

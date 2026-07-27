@@ -16,6 +16,12 @@ export interface AuthoritativeEvent {
   status: { tag: string } | string;
 }
 
+export interface AuthoritativeTicket {
+  owner: string;
+  event_id: string;
+  status: { tag: string } | string;
+}
+
 export interface VerifiedContractEvent {
   topic: 'ev_create' | 'ev_cancel' | 'ev_rel';
   eventId: string;
@@ -26,11 +32,25 @@ export interface VerifiedContractEvent {
   ledgerClosedAt: string;
 }
 
+export interface VerifiedTicketUsedEvent {
+  topic: 'tk_used';
+  ticketId: string;
+  transactionHash: string;
+  ledgerSequence: number;
+  ledgerClosedAt: string;
+}
+
 export type TransactionEventResolution =
   | { status: 'not_found' }
   | { status: 'failed' }
   | { status: 'success_without_event' }
   | { status: 'verified'; proof: VerifiedContractEvent };
+
+export type TicketUsedEventResolution =
+  | { status: 'not_found' }
+  | { status: 'failed' }
+  | { status: 'success_without_event' }
+  | { status: 'verified'; proof: VerifiedTicketUsedEvent };
 
 function unwrapResult(value: unknown, missingMessage: string): unknown {
   const result = value as {
@@ -70,6 +90,16 @@ export function eventStatus(
   return tag;
 }
 
+export function ticketStatus(
+  value: AuthoritativeTicket['status'],
+): 'Active' | 'Used' | 'Refunded' {
+  const tag = typeof value === 'string' ? value : value?.tag;
+  if (tag !== 'Active' && tag !== 'Used' && tag !== 'Refunded') {
+    throw new Error('The TicketContract returned an unsupported ticket status.');
+  }
+  return tag;
+}
+
 export async function readAuthoritativeEvent(
   server: rpc.Server,
   contractId: string,
@@ -101,6 +131,34 @@ export async function readAuthoritativeEvent(
     throw new Error('The TicketContract returned an incomplete event record.');
   }
   return record as AuthoritativeEvent;
+}
+
+export async function readAuthoritativeTicket(
+  server: rpc.Server,
+  contractId: string,
+  ticketId: string,
+): Promise<AuthoritativeTicket> {
+  const queried = await server.queryContract<unknown>(
+    contractId,
+    'get_ticket',
+    { ticket_id: ticketId },
+  );
+  const ticket = unwrapResult(
+    queried.result,
+    'The ticket does not exist on the configured TicketContract.',
+  );
+  if (!ticket || typeof ticket !== 'object') {
+    throw new Error('The TicketContract returned an invalid ticket record.');
+  }
+  const record = ticket as Partial<AuthoritativeTicket>;
+  if (
+    typeof record.owner !== 'string' ||
+    typeof record.event_id !== 'string' ||
+    record.status === undefined
+  ) {
+    throw new Error('The TicketContract returned an incomplete ticket record.');
+  }
+  return record as AuthoritativeTicket;
 }
 
 export async function readAuthoritativeEscrow(
@@ -205,6 +263,62 @@ export async function resolveExactContractEvent(
         eventId,
         organizer: decoded.organizer,
         releasedAmount: decoded.releasedAmount,
+        transactionHash: event.txHash.toLowerCase(),
+        ledgerSequence: event.ledger,
+        ledgerClosedAt: event.ledgerClosedAt,
+      },
+    };
+  }
+  return { status: 'success_without_event' };
+}
+
+export async function resolveExactTicketUsedEvent(
+  server: rpc.Server,
+  networkPassphrase: string,
+  contractId: string,
+  transactionHash: string,
+  expectedSource: string,
+  ticketId: string,
+): Promise<TicketUsedEventResolution> {
+  const transaction = await server.getTransaction(transactionHash);
+  if (transaction.status === 'NOT_FOUND') return { status: 'not_found' };
+  if (transaction.status === 'FAILED') return { status: 'failed' };
+
+  if (
+    transactionSource(
+      'envelopeXdr' in transaction ? transaction.envelopeXdr : undefined,
+      networkPassphrase,
+    ) !== expectedSource
+  ) {
+    throw new Error('The transaction source does not match the organizer wallet.');
+  }
+
+  const response = await server.getEvents({
+    startLedger: Math.max(1, transaction.ledger),
+    filters: [{
+      type: 'contract',
+      contractIds: [contractId],
+      topics: [[
+        nativeToScVal('tk_used', { type: 'symbol' }).toXDR('base64'),
+        nativeToScVal(ticketId, { type: 'string' }).toXDR('base64'),
+      ]],
+    }],
+    limit: 100,
+  });
+
+  for (const event of response.events) {
+    if (
+      event.contractId !== contractId ||
+      event.txHash.toLowerCase() !== transactionHash.toLowerCase() ||
+      !event.inSuccessfulContractCall
+    ) {
+      continue;
+    }
+    return {
+      status: 'verified',
+      proof: {
+        topic: 'tk_used',
+        ticketId,
         transactionHash: event.txHash.toLowerCase(),
         ledgerSequence: event.ledger,
         ledgerClosedAt: event.ledgerClosedAt,

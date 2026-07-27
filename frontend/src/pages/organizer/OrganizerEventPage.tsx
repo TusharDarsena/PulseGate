@@ -332,6 +332,9 @@ export function OrganizerEventPage() {
   const exactWalletConnected = wallet.isConnected && wallet.publicKey === event.organizer;
   const actionsHaveAuthority = event.authority === 'confirmed' && escrowXlm !== null;
   const venueEditable = event.authority === 'confirmed' && event.currentSupply === 0;
+  const scannerAuthorityUnavailable =
+    event.authority !== 'confirmed' ||
+    event.organizer !== owned.organizer_address;
 
   return (
     <main className="min-h-screen pt-24 pb-28 px-4 max-w-6xl mx-auto">
@@ -433,10 +436,16 @@ export function OrganizerEventPage() {
             <button
               type="button"
               onClick={() => navigate(`/organizer/events/${eventId}/check-in`)}
-              className="w-full rounded-lg bg-[#7C5CFF] px-4 py-3 font-semibold"
+              disabled={scannerAuthorityUnavailable}
+              className="w-full rounded-lg bg-[#7C5CFF] px-4 py-3 font-semibold disabled:opacity-40"
             >
               Open scanner
             </button>
+            {scannerAuthorityUnavailable && (
+              <p className="mt-2 text-xs text-amber-200">
+                Scanner opens after authoritative event ownership is confirmed from Stellar.
+              </p>
+            )}
             {!wallet.isConnected && (
               <button type="button" onClick={() => void connectOrganizer()} className="w-full rounded-lg border border-[#7C5CFF]/60 px-4 py-3">
                 Connect organizer wallet

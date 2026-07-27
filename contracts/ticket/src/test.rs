@@ -81,6 +81,16 @@ impl<'a> TestSetup<'a> {
         self.contract.purchase(event_id, &self.buyer, ticket_id);
     }
 
+    fn open_check_in(&self, event_id: &String) {
+        let event = self.contract.get_event(event_id);
+        self.env.ledger().set_timestamp(event.date_unix - 1);
+    }
+
+    fn mark_used(&self, event_id: &String, ticket_id: &String) {
+        self.contract
+            .mark_used(event_id, ticket_id, &self.buyer, &self.organizer);
+    }
+
     fn str(&self, s: &str) -> String {
         String::from_str(&self.env, s)
     }
@@ -310,9 +320,101 @@ fn test_mark_used_sets_used_status() {
     s.create_event(&event_id, 10);
     s.purchase(&event_id, &ticket_id);
 
-    s.contract.mark_used(&ticket_id, &s.organizer);
+    s.open_check_in(&event_id);
+    s.mark_used(&event_id, &ticket_id);
 
     assert_eq!(s.contract.get_ticket(&ticket_id).status, TicketStatus::Used);
+}
+
+#[test]
+fn test_mark_used_requires_expected_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_scan_expected");
+    let other_event_id = s.str("ev_scan_other");
+    let ticket_id = s.str("t_scan_expected");
+
+    s.create_event(&event_id, 10);
+    s.create_event(&other_event_id, 10);
+    s.purchase(&event_id, &ticket_id);
+    s.open_check_in(&event_id);
+
+    assert_err(
+        s.contract
+            .try_mark_used(&other_event_id, &ticket_id, &s.buyer, &s.organizer),
+        ContractError::TicketWrongEvent,
+    );
+    assert_eq!(
+        s.contract.get_ticket(&ticket_id).status,
+        TicketStatus::Active
+    );
+}
+
+#[test]
+fn test_mark_used_requires_current_owner_to_match_qr_owner() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_scan_owner");
+    let ticket_id = s.str("t_scan_owner");
+
+    s.create_event(&event_id, 10);
+    s.purchase(&event_id, &ticket_id);
+    s.contract.restricted_transfer(&ticket_id, &s.buyer2);
+    s.open_check_in(&event_id);
+
+    assert_err(
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.organizer),
+        ContractError::TicketNotOwnedByCaller,
+    );
+    assert_eq!(
+        s.contract.get_ticket(&ticket_id).status,
+        TicketStatus::Active
+    );
+}
+
+#[test]
+fn test_mark_used_enforces_fixed_check_in_window() {
+    let s = TestSetup::new();
+    let early_event_id = s.str("ev_scan_early");
+    let open_event_id = s.str("ev_scan_open");
+    let closed_event_id = s.str("ev_scan_closed");
+    let start = s.env.ledger().timestamp() + 10_000;
+
+    for event_id in [&early_event_id, &open_event_id, &closed_event_id] {
+        s.contract.create_event(
+            &s.organizer,
+            event_id,
+            &s.str("DoorWindow"),
+            &start,
+            &(start + 100),
+            &10,
+            &TestSetup::PRICE,
+        );
+    }
+    s.purchase(&early_event_id, &s.str("t_early"));
+    s.purchase(&open_event_id, &s.str("t_open"));
+    s.purchase(&closed_event_id, &s.str("t_closed"));
+
+    s.env.ledger().set_timestamp(start - 7_201);
+    assert_err(
+        s.contract
+            .try_mark_used(&early_event_id, &s.str("t_early"), &s.buyer, &s.organizer),
+        ContractError::CheckInNotOpen,
+    );
+
+    s.env.ledger().set_timestamp(start - 7_200);
+    s.contract
+        .mark_used(&open_event_id, &s.str("t_open"), &s.buyer, &s.organizer);
+    assert_eq!(
+        s.contract.get_ticket(&s.str("t_open")).status,
+        TicketStatus::Used
+    );
+
+    s.env.ledger().set_timestamp(start + 100);
+    assert_err(
+        s.contract
+            .try_mark_used(&closed_event_id, &s.str("t_closed"), &s.buyer, &s.organizer),
+        ContractError::CheckInClosed,
+    );
 }
 
 #[test]
@@ -716,7 +818,8 @@ fn test_mark_used_by_non_organizer_rejected() {
 
     // buyer2 is not the organizer
     assert_err(
-        s.contract.try_mark_used(&ticket_id, &s.buyer2),
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.buyer2),
         ContractError::OnlyOrganizerAllowed,
     );
     // Ticket must still be Active
@@ -734,12 +837,32 @@ fn test_mark_used_twice_rejected() {
 
     s.create_event(&event_id, 10);
     s.purchase(&event_id, &ticket_id);
-    s.contract.mark_used(&ticket_id, &s.organizer);
+    s.open_check_in(&event_id);
+    s.mark_used(&event_id, &ticket_id);
 
     // Scanning an already-scanned ticket must fail — prevents replay at the door
     assert_err(
-        s.contract.try_mark_used(&ticket_id, &s.organizer),
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.organizer),
         ContractError::TicketAlreadyUsed,
+    );
+}
+
+#[test]
+fn test_mark_used_rejects_refunded_ticket_distinctly() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_scan_refunded");
+    let ticket_id = s.str("t_scan_refunded");
+
+    s.create_event(&event_id, 10);
+    s.purchase(&event_id, &ticket_id);
+    s.contract.cancel_event(&event_id, &s.organizer);
+    s.contract.refund(&ticket_id, &s.buyer);
+
+    assert_err(
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.organizer),
+        ContractError::TicketRefunded,
     );
 }
 
@@ -752,7 +875,8 @@ fn test_restricted_transfer_rejects_used_ticket() {
 
     s.create_event(&event_id, 10);
     s.purchase(&event_id, &ticket_id);
-    s.contract.mark_used(&ticket_id, &s.organizer);
+    s.open_check_in(&event_id);
+    s.mark_used(&event_id, &ticket_id);
 
     // Marketplace cannot transfer a ticket that has already been scanned
     assert_err(
@@ -854,7 +978,8 @@ fn test_mark_used_rejects_cancelled_event() {
     s.contract.cancel_event(&event_id, &s.organizer);
 
     assert_err(
-        s.contract.try_mark_used(&ticket_id, &s.organizer),
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.organizer),
         ContractError::EventNotActive,
     );
     assert_eq!(
@@ -876,7 +1001,8 @@ fn test_mark_used_rejects_completed_event() {
     s.contract.release_funds(&event_id, &s.organizer);
 
     assert_err(
-        s.contract.try_mark_used(&ticket_id, &s.organizer),
+        s.contract
+            .try_mark_used(&event_id, &ticket_id, &s.buyer, &s.organizer),
         ContractError::EventNotActive,
     );
     assert_eq!(

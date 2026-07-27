@@ -83,8 +83,11 @@ callers (D-012). Persistent and instance TTLs are extended on every write path
   or validate a listing; `MarketplaceContract.buy_listing()` validates the
   listing, seller, current owner, ticket event, event status, and organizer
   before calling this entrypoint.
-- `mark_used(ticket_id, organizer)` marks an eligible ticket `Used` after QR
-  verification only while its event is `Active`.
+- `mark_used(event_id, ticket_id, expected_owner, organizer)` marks an eligible
+  ticket `Used` after QR verification only when the supplied event matches the
+  ticket, the current owner matches the QR owner, the event is `Active`, and the
+  ledger timestamp is in the fixed check-in window: start minus two hours
+  inclusive through event end exclusive.
 - Read-only functions: `get_ticket`, `get_event`, `get_marketplace`, and
   `get_xlm_token`, plus the existing-event keyed `get_escrow_balance`.
 
@@ -238,6 +241,15 @@ service stores the signed hash first, resolves only matching `ev_cancel` or
 mirror-sync states remain recoverable, and mirror-only retry never resubmits a
 terminal transaction.
 
+Venue check-in uses a separate private `check_in_operations` owner keyed by
+network, TicketContract, and ticket ID. It does not use the event-level terminal
+operation lock, so unrelated door scans are not serialized. The browser
+prepares and signs the generated `mark_used` transaction, but the signed hash is
+persisted before submission and a possibly submitted operation can only be
+resolved or synchronized. A trusted finalizer verifies the exact `tk_used`
+transaction source, ticket ID, expected event, expected owner, current `Used`
+ticket state, and event organizer before updating the ticket mirror.
+
 `discoverable_events` contains complete, verified, active future events.
 `published_events` intentionally has no upcoming/lifecycle filter so direct
 links, ticket views, organizer views, and calendar actions resolve sold-out,
@@ -259,8 +271,10 @@ signature as a QR payload. The organizer scanner:
 
 1. Validates the payload format and rejects `|now - timestamp| >= 45s`.
 2. Verifies the signature locally with the wallet address.
-3. Reads `get_ticket(ticket_id)` and requires matching owner and `Active` status.
-4. Submits organizer-signed `mark_used()` on-chain.
+3. Reads `get_ticket(ticket_id)` and requires matching event, owner, and
+   `Active` status.
+4. Submits organizer-signed `mark_used(event_id, ticket_id, owner, organizer)`
+   on-chain through the recoverable check-in operation.
 5. Mirrors `Used` only after the chain call succeeds, then displays entry as
    valid. A mirror failure produces a synchronization warning; it does not
    invalidate successful on-chain entry.
@@ -269,6 +283,9 @@ Local validation is necessary for responsive scanning, but only the
 authoritative on-chain owner/status check and successful `mark_used()` call
 authorize entry. See [`frontend/src/lib/qr.ts`](../frontend/src/lib/qr.ts) and
 [`frontend/src/pages/ScannerPage.tsx`](../frontend/src/pages/ScannerPage.tsx).
+Door statistics count only verified check-in operations in chain-success states;
+legacy mirror rows with `tickets.status = Used` and no check-in proof are not
+trusted attendance counts.
 
 ## Deployment sequence
 
@@ -287,6 +304,9 @@ Contract IDs, network values, generated bindings, and both contracts' stored
 peer addresses must remain synchronized. The deployment script is
 [`scripts/deploy.sh`](../scripts/deploy.sh) on Unix-like shells and
 [`scripts/deploy.ps1`](../scripts/deploy.ps1) on this Windows workspace.
+Because `mark_used` is part of the public TicketContract ABI, check-in changes
+require regenerated bindings and a coordinated Ticket/Marketplace deployment or
+upgrade so Marketplace stores the compatible Ticket address.
 
 ## Accepted MVP limitations
 

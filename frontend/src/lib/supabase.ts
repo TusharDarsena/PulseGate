@@ -522,6 +522,72 @@ export async function invokeOrganizerEventOperation(
   return payload;
 }
 
+export type CheckInOperationState =
+  | 'review'
+  | 'approval_required'
+  | 'pre_submission_failed'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'chain_failed'
+  | 'chain_confirmed'
+  | 'mirror_syncing'
+  | 'sync_warning'
+  | 'complete';
+
+export interface CheckInOperation {
+  operation_id: string;
+  event_id: string;
+  ticket_id: string;
+  expected_owner_address: string;
+  expected_organizer_address: string;
+  state: CheckInOperationState;
+  transaction_hash: string | null;
+  chain_confirmed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CheckInStats {
+  sold: number;
+  checkedIn: number;
+  remaining: number;
+  unresolved: number;
+}
+
+export async function invokeCheckInOperation(
+  action:
+    | 'allocate'
+    | 'get'
+    | 'list'
+    | 'stats'
+    | 'begin-attempt'
+    | 'record-signed-attempt'
+    | 'pre-submission-failed'
+    | 'resolve'
+    | 'retry-sync',
+  input: Record<string, unknown>,
+): Promise<{
+  operation?: CheckInOperation;
+  operations?: CheckInOperation[];
+  stats?: CheckInStats;
+}> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/check-in-operation`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Check-in service unavailable.');
+  return payload;
+}
+
 export async function fetchMyTicket(ticketId: string): Promise<TicketRow | null> {
   const { data, error } = await supabase.rpc('get_my_ticket', { requested_ticket_id: ticketId });
   if (error) throw new Error(error.message);

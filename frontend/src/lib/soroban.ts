@@ -89,6 +89,10 @@ const TICKET_ERRORS: Record<number, string> = {
   22: 'A ticket with this ID already exists.',
   23: 'Primary sales closed when this event started.',
   24: 'Event end time must be after its start time.',
+  25: 'This ticket was refunded.',
+  26: 'This ticket belongs to another event.',
+  27: 'Check-in is not open yet.',
+  28: 'Check-in is closed.',
 };
 
 const MARKETPLACE_ERRORS: Record<number, string> = {
@@ -328,18 +332,44 @@ export async function prepareCancelEvent(
  * Mark a ticket as used at the venue door. Only callable by the event organizer.
  * Called AFTER the QR signature has been verified locally. (D-005)
  */
-export async function markUsed(
+export async function prepareMarkUsed(
+  eventId: string,
   ticketId: string,
+  expectedOwnerPublicKey: string,
   organizerPublicKey: string,
-  signFn: SignFn
-): Promise<void> {
+): Promise<PreparedOrganizerTransaction> {
   const client = getTicketClient(organizerPublicKey);
   try {
-    const tx = await client.mark_used({ ticket_id: ticketId, organizer: organizerPublicKey });
-    await tx.signAndSend({ signTransaction: signFn });
+    const tx = await client.mark_used({
+      event_id: eventId,
+      ticket_id: ticketId,
+      expected_owner: expectedOwnerPublicKey,
+      organizer: organizerPublicKey,
+    });
+    return preparedOrganizerTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The check-in transaction confirmed without returning a hash.',
+    );
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
+}
+
+export async function markUsed(
+  eventId: string,
+  ticketId: string,
+  expectedOwnerPublicKey: string,
+  organizerPublicKey: string,
+  signFn: SignFn,
+): Promise<void> {
+  const transaction = await prepareMarkUsed(
+    eventId,
+    ticketId,
+    expectedOwnerPublicKey,
+    organizerPublicKey,
+  );
+  await transaction.submit(signFn, async () => undefined);
 }
 
 /**
@@ -453,6 +483,31 @@ export async function getTicket(ticketId: string): Promise<Ticket | null> {
     };
   } catch {
     return null;
+  }
+}
+
+export async function getAuthoritativeTicket(ticketId: string): Promise<
+  | { kind: 'found'; ticket: Ticket }
+  | { kind: 'not_found' }
+> {
+  const client = getTicketClient(READ_ONLY_KEY);
+  try {
+    const tx = await client.get_ticket({ ticket_id: ticketId });
+    const result = tx.result;
+    if (!result || result.isErr()) return { kind: 'not_found' };
+
+    const t = result.unwrap();
+    return {
+      kind: 'found',
+      ticket: {
+        ticketId,
+        eventId: t.event_id,
+        owner: t.owner,
+        status: t.status.tag as Ticket['status'],
+      },
+    };
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
 }
 

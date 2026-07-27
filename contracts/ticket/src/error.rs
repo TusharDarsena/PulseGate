@@ -26,6 +26,10 @@ pub enum ContractError {
     TicketAlreadyUsed = 10,
     TicketNotOwnedByCaller = 11,
     TicketAlreadyExists = 22,
+    TicketRefunded = 25,
+    TicketWrongEvent = 26,
+    CheckInNotOpen = 27,
+    CheckInClosed = 28,
 
     // Auth errors
     OnlyOrganizerAllowed = 12,

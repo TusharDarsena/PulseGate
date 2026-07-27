@@ -45,7 +45,7 @@ export function synchronizationWarning(result: ReadModelSyncResult): string {
   return `The blockchain transaction succeeded, but the app data did not synchronize. Do not retry the blockchain action. Refresh later or contact support. ${detail}`;
 }
 
-function mirrorTicketStatus(ticketId: string, status: 'Refunded' | 'Used', operation: string) {
+function mirrorTicketStatus(ticketId: string, status: 'Refunded', operation: string) {
   return synchronize(operation, async () => {
     await requireWrite(
       supabase.from('tickets').update({ status }).eq('ticket_id', ticketId).select('ticket_id'),
@@ -56,10 +56,6 @@ function mirrorTicketStatus(ticketId: string, status: 'Refunded' | 'Used', opera
 
 export function mirrorRefundedTicket(ticketId: string): Promise<ReadModelSyncResult> {
   return mirrorTicketStatus(ticketId, 'Refunded', 'mirror the refunded ticket');
-}
-
-export function mirrorUsedTicket(ticketId: string): Promise<ReadModelSyncResult> {
-  return mirrorTicketStatus(ticketId, 'Used', 'mirror the used ticket');
 }
 
 export function mirrorCreatedListing(input: {

@@ -35,6 +35,6 @@ export async function runIsolatedDfnsPurchaseProof(): Promise<DfnsProofResult> {
     address: wallet.address,
     ticketId,
     transactionHash,
-    qrVerified: verified?.walletAddress === wallet.address && verified.ticketId === ticketId,
+    qrVerified: verified.ok && verified.walletAddress === wallet.address && verified.ticketId === ticketId,
   };
 }

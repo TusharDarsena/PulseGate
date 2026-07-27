@@ -305,21 +305,45 @@ impl TicketContract {
     // Mark used (at venue door after QR verification — see architecture.md QR section)
     // -----------------------------------------------------------------------
 
-    pub fn mark_used(env: Env, ticket_id: String, organizer: Address) -> Result<(), ContractError> {
+    pub fn mark_used(
+        env: Env,
+        event_id: String,
+        ticket_id: String,
+        expected_owner: Address,
+        organizer: Address,
+    ) -> Result<(), ContractError> {
         organizer.require_auth();
 
-        let mut ticket = storage::read_ticket(&env, &ticket_id)?;
-
-        if ticket.status != TicketStatus::Active {
-            return Err(ContractError::TicketAlreadyUsed);
-        }
-
-        let event = storage::read_event(&env, &ticket.event_id)?;
+        let event = storage::read_event(&env, &event_id)?;
         if event.organizer != organizer {
             return Err(ContractError::OnlyOrganizerAllowed);
         }
+
+        let mut ticket = storage::read_ticket(&env, &ticket_id)?;
+        if ticket.event_id != event_id {
+            return Err(ContractError::TicketWrongEvent);
+        }
+        if ticket.owner != expected_owner {
+            return Err(ContractError::TicketNotOwnedByCaller);
+        }
+
+        match ticket.status {
+            TicketStatus::Active => {}
+            TicketStatus::Used => return Err(ContractError::TicketAlreadyUsed),
+            TicketStatus::Refunded => return Err(ContractError::TicketRefunded),
+        }
+
         if event.status != EventStatus::Active {
             return Err(ContractError::EventNotActive);
+        }
+
+        let now = env.ledger().timestamp();
+        let opens_at = event.date_unix.saturating_sub(7_200);
+        if now < opens_at {
+            return Err(ContractError::CheckInNotOpen);
+        }
+        if now >= event.end_unix {
+            return Err(ContractError::CheckInClosed);
         }
 
         // Mark ticket Used — distinct from Refunded. See D-018.
