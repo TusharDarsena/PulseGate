@@ -3,6 +3,7 @@ import { SCREENSHOT_CAPTURES } from './capture-manifest';
 import { installBrowseReadyMocks } from './helpers/install-browse-mocks';
 import { installEventDetailReadyMocks } from './helpers/install-event-detail-mocks';
 import { installPurchaseReviewReadyMocks } from './helpers/install-purchase-review-mocks';
+import { installPurchaseReceiptConfirmedMocks } from './helpers/install-purchase-receipt-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -24,6 +25,8 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installEventDetailReadyMocks(page);
     } else if (capture.id === 'purchase-review-ready-mobile') {
       await installPurchaseReviewReadyMocks(page);
+    } else if (capture.id === 'purchase-receipt-confirmed-mobile') {
+      await installPurchaseReceiptConfirmedMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
