@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { SCREENSHOT_CAPTURES } from './capture-manifest';
 import { installBrowseReadyMocks } from './helpers/install-browse-mocks';
 import { installEventDetailReadyMocks } from './helpers/install-event-detail-mocks';
+import { installPurchaseReviewReadyMocks } from './helpers/install-purchase-review-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -21,6 +22,8 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installBrowseReadyMocks(page);
     } else if (capture.id === 'event-detail-ready-mobile') {
       await installEventDetailReadyMocks(page);
+    } else if (capture.id === 'purchase-review-ready-mobile') {
+      await installPurchaseReviewReadyMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
@@ -38,6 +41,13 @@ for (const capture of SCREENSHOT_CAPTURES) {
     }
 
     await stabilizePage(page);
+
+    if (capture.scrollToText) {
+      const scrollTarget = page.getByText(capture.scrollToText, { exact: false }).first();
+      await scrollTarget.evaluate((element) => {
+        element.scrollIntoView({ block: 'center', inline: 'nearest' });
+      });
+    }
 
     const outputPath = await screenshotOutputPath(capture);
     await page.screenshot({

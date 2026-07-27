@@ -1,0 +1,3894 @@
+
+================================================
+FILE: frontend/package.json
+================================================
+{
+  "name": "temp-vite",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "screenshots:step1": "playwright test --config=playwright.screenshots.config.ts",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dfns/sdk": "0.8.25",
+    "@dfns/sdk-browser": "^0.8.25",
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^15.0.1",
+    "@supabase/supabase-js": "^2.105.1",
+    "@tailwindcss/vite": "^4.2.4",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "html5-qrcode": "^2.3.8",
+    "ics": "^3.12.0",
+    "marketplace": "file:src/contracts/marketplace",
+    "nanoid": "^5.1.9",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.18.1",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.0.0",
+    "ticket": "file:src/contracts/ticket",
+    "vite-plugin-node-polyfills": "^0.26.0",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.61.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "jsdom": "^29.1.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.10"
+  }
+}
+
+
+================================================
+FILE: frontend/playwright.screenshots.config.ts
+================================================
+import { defineConfig } from '@playwright/test';
+
+const port = Number(process.env.SCREENSHOT_PORT ?? 4173);
+const baseURL = process.env.SCREENSHOT_BASE_URL ?? `http://127.0.0.1:${port}`;
+
+export default defineConfig({
+  testDir: './e2e/screenshots',
+  outputDir: './test-results/screenshots',
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  timeout: 30_000,
+  expect: {
+    timeout: 5_000,
+  },
+  reporter: [['list']],
+  use: {
+    baseURL,
+    browserName: 'chromium',
+    colorScheme: 'dark',
+    deviceScaleFactor: 1,
+    locale: 'en-US',
+    timezoneId: 'Asia/Kolkata',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
+  webServer: process.env.SCREENSHOT_BASE_URL
+    ? undefined
+    : {
+        command: `npm run dev -- --host 127.0.0.1 --port ${port}`,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+        stdout: 'ignore',
+        stderr: 'pipe',
+      },
+});
+
+================================================
+FILE: frontend/vite.config.ts
+================================================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import path from 'path'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [
+    react(), 
+    tailwindcss(),
+    nodePolyfills({
+      include: ['buffer', 'crypto', 'stream', 'util'],
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+    }),
+  ],
+  resolve: {
+    alias: {
+      ticket: path.resolve(__dirname, 'src/contracts/ticket/src/index.ts'),
+      marketplace: path.resolve(__dirname, 'src/contracts/marketplace/src/index.ts'),
+    },
+  },
+})
+
+
+
+================================================
+FILE: frontend/src/App.tsx
+================================================
+import { useEffect } from 'react';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
+import { useAuth } from './auth/AuthProvider';
+import { AppHeader } from './components/layout/AppHeader';
+import { BottomNav } from './components/layout/BottomNav';
+import { TxOverlay } from './components/ui/TxOverlay';
+import { useListings } from './hooks/useListings';
+import { useTickets } from './hooks/useTickets';
+import { saveAuthIntent, type ProtectedAction } from './lib/authIntent';
+import { AccountPage } from './pages/AccountPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { AuthPage } from './pages/AuthPage';
+import { BrowsePage } from './pages/BrowsePage';
+import { EventDetailPage } from './pages/EventDetailPage';
+import { MarketplacePage } from './pages/MarketplacePage';
+import { MyTicketsPage } from './pages/MyTicketsPage';
+import { PurchasePage } from './pages/PurchasePage';
+import { PurchaseReceiptPage } from './pages/PurchaseReceiptPage';
+import { QRDisplayPage } from './pages/QRDisplayPage';
+import { ScannerPage } from './pages/ScannerPage';
+import { TicketDetailPage } from './pages/TicketDetailPage';
+import { CreateEventPage } from './pages/organizer/CreateEventPage';
+import { DashboardPage } from './pages/organizer/DashboardPage';
+import { EventDraftPage } from './pages/organizer/EventDraftPage';
+import { OrganizerEventPage } from './pages/organizer/OrganizerEventPage';
+import { useAppStore } from './store/useAppStore';
+
+function RequireAuth({
+  children,
+  action,
+  attendeeWallet = false,
+}: {
+  children: React.ReactNode;
+  action: ProtectedAction;
+  attendeeWallet?: boolean;
+}) {
+  const { user, loading, provisionWallet } = useAuth();
+  const wallet = useAppStore((state) => state.attendeeWallet);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      saveAuthIntent(`${location.pathname}${location.search}`, action);
+    }
+  }, [action, loading, location.pathname, location.search, user]);
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Restoring account…</div>;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!attendeeWallet) return children;
+  if (wallet.readiness === 'ready') return children;
+
+  return (
+    <main className="min-h-screen pt-28 px-4 flex justify-center">
+      <section className="max-w-lg h-fit rounded-xl border border-[#272C33] bg-[#15181C] p-8">
+        <h1 className="text-2xl font-bold mb-3">Ticket wallet required</h1>
+        {wallet.readiness === 'recovery_required' ? (
+          <p className="text-amber-300">
+            Your recorded wallet could not be restored. Recovery is required; StellarTickets will
+            not create a replacement wallet.
+          </p>
+        ) : (
+          <>
+            <p className="text-slate-400 mb-5">Prepare or restore your delegated Stellar Testnet wallet to continue.</p>
+            <button onClick={() => void provisionWallet()} className="bg-[#7C5CFF] px-4 py-2 rounded-lg">
+              Prepare wallet
+            </button>
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function EventRoute() {
+  const { eventId = '' } = useParams();
+  const navigate = useNavigate();
+  return <EventDetailPage eventId={eventId} onPurchase={() => navigate(`/events/${eventId}/checkout`)} />;
+}
+
+function CheckoutRoute() {
+  const { eventId = '' } = useParams();
+  const navigate = useNavigate();
+  return (
+    <PurchasePage
+      eventId={eventId}
+      onBack={() => navigate(`/events/${eventId}`)}
+      onOpenReceipt={(operationId) => navigate(`/purchases/${operationId}`)}
+    />
+  );
+}
+
+function TicketQrRoute() {
+  const { ticketId = '' } = useParams();
+  return <QRDisplayPage ticketId={ticketId} />;
+}
+
+function App() {
+  const { txState } = useAppStore();
+  const navigate = useNavigate();
+  const ticketsState = useTickets();
+  const listingsState = useListings();
+
+  return (
+    <>
+      <TxOverlay txState={txState} />
+      <AppHeader />
+      <Routes>
+        <Route path="/" element={<Navigate to="/events" replace />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/events" element={
+          <BrowsePage onEventClick={(id) => navigate(`/events/${id}`)} />
+        } />
+        <Route path="/events/:eventId" element={<EventRoute />} />
+        <Route path="/events/:eventId/checkout" element={
+          <RequireAuth action="open_checkout" attendeeWallet>
+            <CheckoutRoute />
+          </RequireAuth>
+        } />
+        <Route path="/purchases/:operationId" element={
+          <RequireAuth action="open_purchase">
+            <PurchaseReceiptPage />
+          </RequireAuth>
+        } />
+        <Route path="/marketplace" element={
+          <MarketplacePage
+            listings={listingsState.listings}
+            loading={listingsState.loading}
+            error={listingsState.error}
+            invalidateListings={listingsState.invalidate}
+            invalidateTickets={ticketsState.invalidate}
+          />
+        } />
+        <Route path="/tickets" element={
+          <RequireAuth action="open_tickets">
+            <MyTicketsPage
+              tickets={ticketsState.tickets}
+              loadingTickets={ticketsState.loading}
+              errorTickets={ticketsState.error}
+              onViewTicket={(id) => navigate(`/tickets/${id}`)}
+              onViewReceipt={(id) => navigate(`/purchases/${id}`)}
+              onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
+              onBrowseMore={() => navigate('/events')}
+              invalidateTickets={ticketsState.invalidate}
+              pendingSync={ticketsState.pendingSync}
+              retryPending={ticketsState.retryPending}
+            />
+          </RequireAuth>
+        } />
+        <Route path="/tickets/:ticketId" element={
+          <RequireAuth action="open_ticket"><TicketDetailPage /></RequireAuth>
+        } />
+        <Route path="/tickets/:ticketId/qr" element={
+          <RequireAuth action="open_ticket" attendeeWallet><TicketQrRoute /></RequireAuth>
+        } />
+        <Route path="/account" element={
+          <RequireAuth action="open_account"><AccountPage /></RequireAuth>
+        } />
+        <Route path="/organizer/events" element={
+          <RequireAuth action="open_organizer">
+            <DashboardPage
+              onCreateEvent={() => navigate('/organizer/events/new')}
+              onOpenDraft={(id) => navigate(`/organizer/drafts/${id}`)}
+              onOpenEvent={(id) => navigate(`/organizer/events/${id}`)}
+            />
+          </RequireAuth>
+        } />
+        <Route path="/organizer/events/new" element={
+          <RequireAuth action="open_organizer">
+            <CreateEventPage />
+          </RequireAuth>
+        } />
+        <Route path="/organizer/drafts/:draftId" element={
+          <RequireAuth action="open_organizer">
+            <EventDraftPage />
+          </RequireAuth>
+        } />
+        <Route path="/organizer/events/:eventId" element={
+          <RequireAuth action="open_organizer">
+            <OrganizerEventPage />
+          </RequireAuth>
+        } />
+        <Route path="/organizer/events/:eventId/check-in" element={
+          <RequireAuth action="open_organizer">
+            <ScannerPage invalidateTickets={ticketsState.invalidate} />
+          </RequireAuth>
+        } />
+        <Route path="*" element={
+          <main className="min-h-screen pt-28 px-6 text-center">
+            <h1 className="text-3xl font-bold">Page not found</h1>
+          </main>
+        } />
+      </Routes>
+      <BottomNav />
+      <div className="fixed bottom-16 md:bottom-0 inset-x-0 z-40 text-center text-[11px] bg-[#0E1113]/95 text-amber-200 py-1">
+        Stellar Testnet — balances and payments have no monetary value.
+      </div>
+    </>
+  );
+}
+
+export default App;
+
+
+================================================
+FILE: frontend/src/index.css
+================================================
+@import "tailwindcss";
+
+@theme {
+  --color-background: #14121b;
+  --color-on-background: #e6e0ee;
+
+  --color-surface: #14121b;
+  --color-surface-dim: #14121b;
+  --color-surface-bright: #3a3842;
+  --color-surface-container-lowest: #0f0d16;
+  --color-surface-container-low: #1c1a24;
+  --color-surface-container: #201e28;
+  --color-surface-container-high: #2b2933;
+  --color-surface-container-highest: #36333e;
+  --color-on-surface: #e6e0ee;
+  --color-on-surface-variant: #c9c4d8;
+
+  --color-outline: #938ea1;
+  --color-outline-variant: #484555;
+  --color-outline-dim: #272C33;
+
+  --color-primary: #7C5CFF;
+  --color-on-primary: #EAEFF4;
+  --color-primary-fixed: #cabeff;
+  --color-primary-container: #947dff;
+  --color-on-primary-container: #2a0088;
+
+  --color-secondary: #c2c7d0;
+  --color-on-secondary: #2c3138;
+  --color-secondary-container: #42474f;
+  --color-on-secondary-container: #b1b5be;
+
+  --color-tertiary: #ffb780;
+  --color-on-tertiary: #4e2600;
+  --color-tertiary-container: #d7791f;
+  --color-on-tertiary-container: #442000;
+
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "monospace";
+
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* ── Font-size tokens (flat values, used by Tailwind v4 as text-* utilities) ── */
+  --font-headline-xl: 48px;
+  --font-headline-lg: 32px;
+  --font-headline-md: 24px;
+  --font-body-lg: 18px;
+  --font-body-md: 16px;
+  --font-body-sm: 14px;
+  --font-label-md: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Base layer
+───────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    vertical-align: middle;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Custom utilities
+   These are plain CSS classes used in JSX. Defining them here means Tailwind
+   v4 won't purge them and they work exactly like any other utility class.
+───────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Hide scrollbar on the horizontal category chip row */
+  .no-scrollbar {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE / Edge legacy */
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    /* Chrome / Safari / Opera */
+  }
+
+  /* iOS safe-area bottom padding for the fixed bottom nav */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /*
+    Responsive font-size helpers for the two tokens that need to scale.
+
+    Tailwind v4 turns --font-headline-lg and --font-headline-md into the
+    utility classes `text-headline-lg` / `text-headline-md`, but these are
+    FLAT values — there is no built-in responsive variant. We create explicit
+    responsive classes here so JSX can use them with standard Tailwind
+    breakpoint prefixes: `text-page-title` and `text-card-title`.
+
+    text-page-title  : 22px (mobile) → 28px (sm) → 32px (md+)
+    text-card-title  : 16px (mobile) → 18px (sm) → 24px (md+)
+    text-price       : 18px (mobile) → 22px (sm) → 24px (md+)
+  */
+  .text-page-title {
+    font-size: 22px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .text-card-title {
+    font-size: 16px;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+
+  .text-price {
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 700;
+  }
+}
+
+@media (min-width: 640px) {
+  .text-page-title {
+    font-size: 28px;
+  }
+
+  .text-card-title {
+    font-size: 18px;
+  }
+
+  .text-price {
+    font-size: 20px;
+  }
+}
+
+@media (min-width: 768px) {
+  .text-page-title {
+    font-size: 32px;
+  }
+
+  .text-card-title {
+    font-size: 24px;
+  }
+
+  .text-price {
+    font-size: 24px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Global resets
+───────────────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background-color: #0e1113;
+  color: #e6e0ee;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+================================================
+FILE: frontend/src/auth/AuthProvider.tsx
+================================================
+import type { Session, User } from '@supabase/supabase-js';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { buildDelegatedSigners, provisionDelegatedWallet, recoverDelegatedWallet } from '../lib/dfns';
+import { supabase } from '../lib/supabase';
+import { EMPTY_ATTENDEE_WALLET, useAppStore } from '../store/useAppStore';
+
+interface AuthContextValue {
+  session: Session | null;
+  user: User | null;
+  loading: boolean;
+  authError: string | null;
+  sendEmailOtp: (email: string) => Promise<void>;
+  verifyEmailOtp: (email: string, token: string) => Promise<void>;
+  signInWithGoogle: (nonce: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  provisionWallet: () => Promise<string>;
+  recoverWallet: (recoveryCode: string) => Promise<string>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const { setAttendeeWallet } = useAppStore();
+
+  const refreshWallet = useCallback(async () => {
+    const { data: { session: current } } = await supabase.auth.getSession();
+    if (!current) {
+      setAttendeeWallet(EMPTY_ATTENDEE_WALLET);
+      return;
+    }
+    const { data, error } = await supabase.rpc('get_my_attendee_wallet');
+    if (error) throw error;
+    const wallet = data?.[0] as { address: string | null; network: string; readiness: string } | undefined;
+    if (!wallet) {
+      setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'not_provisioned' });
+      return;
+    }
+    const readiness = wallet.readiness as 'provisioning' | 'ready' | 'recovery_required' | 'error';
+    if (readiness !== 'ready' || !wallet.address) {
+      setAttendeeWallet({
+        ...EMPTY_ATTENDEE_WALLET,
+        address: wallet.address,
+        readiness,
+      });
+      return;
+    }
+    const signers = buildDelegatedSigners(wallet.address);
+    setAttendeeWallet({
+      address: wallet.address,
+      network: 'StellarTestnet',
+      readiness: 'ready',
+      ...signers,
+    });
+  }, [setAttendeeWallet]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      setLoading(false);
+      queueMicrotask(() => void refreshWallet().catch((error) => {
+        setAttendeeWallet({
+          ...EMPTY_ATTENDEE_WALLET,
+          readiness: 'error',
+          errorMessage: error instanceof Error ? error.message : 'Wallet readiness could not be loaded.',
+        });
+      }));
+    });
+    void supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+      return refreshWallet();
+    });
+    return () => subscription.unsubscribe();
+  }, [refreshWallet, setAttendeeWallet]);
+
+  const sendEmailOtp = async (email: string) => {
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true },
+    });
+    if (error) {
+      setAuthError(error.message);
+      throw error;
+    }
+  };
+
+  const verifyEmailOtp = async (email: string, token: string) => {
+    setAuthError(null);
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+    if (error) {
+      setAuthError(error.message);
+      throw error;
+    }
+  };
+
+  const signInWithGoogle = async (nonce: string) => {
+    setAuthError(null);
+    const callback = new URL('/auth/callback', window.location.origin);
+    callback.searchParams.set('state', nonce);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: callback.toString() },
+    });
+    if (error) {
+      setAuthError(error.message);
+      throw error;
+    }
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    setAttendeeWallet(EMPTY_ATTENDEE_WALLET);
+  };
+
+  const provisionWallet = async () => {
+    setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'provisioning' });
+    try {
+      const recoveryCode = await provisionDelegatedWallet();
+      await refreshWallet();
+      return recoveryCode;
+    } catch (error) {
+      await refreshWallet().catch(() => setAttendeeWallet({
+        ...EMPTY_ATTENDEE_WALLET,
+        readiness: 'error',
+        errorMessage: error instanceof Error ? error.message : 'Wallet setup could not be completed.',
+      }));
+      throw error;
+    }
+  };
+
+  const recoverWallet = async (recoveryCode: string) => {
+    setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'provisioning' });
+    try {
+      const nextRecoveryCode = await recoverDelegatedWallet(recoveryCode);
+      await refreshWallet();
+      return nextRecoveryCode;
+    } catch (error) {
+      setAttendeeWallet({
+        ...EMPTY_ATTENDEE_WALLET,
+        readiness: 'recovery_required',
+        errorMessage: error instanceof Error ? error.message : 'Wallet recovery failed.',
+      });
+      throw error;
+    }
+  };
+
+  const value: AuthContextValue = {
+    session,
+    user: session?.user ?? null,
+    loading,
+    authError,
+    sendEmailOtp,
+    verifyEmailOtp,
+    signInWithGoogle,
+    signOut,
+    provisionWallet,
+    recoverWallet,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider.');
+  return context;
+}
+
+
+================================================
+FILE: frontend/src/pages/EventDetailPage.tsx
+================================================
+import { useState } from 'react';
+import { EventActions } from '../components/events/EventActions';
+import { Button } from '../components/ui/Button';
+import { useEvent } from '../hooks/useEvent';
+import {
+  deriveEventSalesState,
+  EVENT_SALES_LABELS,
+  formatEventRange,
+  REFUND_POLICY,
+  remainingTickets,
+  RESALE_POLICY,
+} from '../lib/eventModel';
+import { stroopsToXlm, truncateKey } from '../types';
+
+interface EventDetailPageProps {
+  eventId: string;
+  onPurchase: (eventId: string) => void;
+}
+
+const DISABLED_REASON = {
+  sold_out: 'Primary tickets are sold out.',
+  sales_closed: 'Primary sales closed when the event started.',
+  cancelled: 'This event was cancelled.',
+  completed: 'This event has completed.',
+  unavailable: 'Current sale conditions could not be verified on Stellar.',
+  on_sale: '',
+} as const;
+
+export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
+  const { event, loading, error, reload } = useEvent(eventId);
+  const [checking, setChecking] = useState(false);
+
+  if (loading && !event) {
+    return <div className="p-20 text-center text-slate-400">Loading event…</div>;
+  }
+  if (error) return <div className="p-20 text-center text-red-400">{error}</div>;
+  if (!event) return <div className="p-20 text-center text-slate-400">Published event not found.</div>;
+
+  const salesState = deriveEventSalesState(event, undefined, true);
+  const ticketsLeft = remainingTickets(event);
+  const soldPercentage = Math.min(
+    100,
+    Math.round((event.currentSupply / event.capacity) * 100),
+  );
+
+  const openCheckout = async () => {
+    setChecking(true);
+    const refreshed = await reload();
+    setChecking(false);
+    if (refreshed && deriveEventSalesState(refreshed, undefined, true) === 'on_sale') {
+      onPurchase(refreshed.eventId);
+    }
+  };
+
+  return (
+    <div className="bg-[#0E1113] min-h-screen">
+      <main className="pt-24 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-8">
+        <div className="w-full aspect-video md:aspect-[21/9] overflow-hidden md:rounded-xl">
+          <img src={event.imageUrl} alt={event.name} className="w-full h-full object-cover" />
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          <div className="lg:col-span-8 space-y-10">
+            <section>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="rounded-full bg-[#7C5CFF]/15 px-3 py-1 text-xs font-semibold text-[#cabeff]">
+                  {event.category}
+                </span>
+                <span className="rounded-full bg-[#272C33] px-3 py-1 text-xs font-semibold">
+                  {EVENT_SALES_LABELS[salesState]}
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold text-[#e6e0ee] mb-4 tracking-tight">
+                {event.name}
+              </h1>
+              <p className="text-lg text-[#c9c4d8]">{event.summary}</p>
+            </section>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Info label="Date and time" icon="calendar_today">
+                {formatEventRange(event)}
+              </Info>
+              <Info label="Timezone" icon="schedule">{event.timezone}</Info>
+              <Info label="Venue" icon="location_on">
+                {event.venue}<br />
+                <span className="text-sm text-[#938ea1]">{event.address}, {event.city}</span>
+              </Info>
+              <Info label="Availability" icon="group">
+                <div className="flex justify-between text-sm">
+                  <span>{ticketsLeft} of {event.capacity} remaining</span>
+                  <span>{soldPercentage}% sold</span>
+                </div>
+                <div className="mt-2 w-full h-1.5 bg-[#36333e] rounded-full overflow-hidden">
+                  <div className="bg-[#cabeff] h-full" style={{ width: `${soldPercentage}%` }} />
+                </div>
+              </Info>
+            </div>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-3">About this event</h2>
+              <p className="text-[#c9c4d8] whitespace-pre-wrap">{event.description}</p>
+            </section>
+
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Policy title="Refunds" text={REFUND_POLICY[event.refundPolicyCode]} />
+              <Policy title="Resale" text={RESALE_POLICY[event.resalePolicyCode]} />
+              <Policy title="Entry" text={event.entryInstructions} />
+              <Policy title="Support" text={event.supportContact} />
+            </section>
+
+            <section>
+              <h2 className="text-xl font-semibold mb-3">Event actions</h2>
+              <EventActions event={event} />
+            </section>
+          </div>
+
+          <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-5">
+            <div className="bg-[#15181C] border border-[#272C33] p-6 rounded-xl shadow-2xl">
+              <p className="text-xs uppercase tracking-widest text-[#938ea1] mb-1">
+                1 General Admission ticket
+              </p>
+              <div className="flex items-baseline gap-2 mb-6">
+                <span className="text-4xl font-semibold">{stroopsToXlm(event.pricePerTicket)}</span>
+                <span className="text-xl text-[#cabeff]">XLM</span>
+              </div>
+
+              {salesState === 'on_sale' ? (
+                <Button onClick={() => void openCheckout()} disabled={checking} className="w-full py-4 text-lg">
+                  {checking ? 'Checking availability…' : 'Buy 1 ticket'}
+                </Button>
+              ) : (
+                <Button disabled className="w-full py-4 text-lg">
+                  {EVENT_SALES_LABELS[salesState]}
+                </Button>
+              )}
+
+              {salesState !== 'on_sale' && (
+                <p className="mt-3 text-sm text-[#c9c4d8]">
+                  {salesState === 'unavailable'
+                    ? event.authorityError ?? DISABLED_REASON.unavailable
+                    : DISABLED_REASON[salesState]}
+                </p>
+              )}
+              {salesState === 'unavailable' && (
+                <button
+                  type="button"
+                  onClick={() => void reload()}
+                  className="mt-3 text-sm font-semibold text-[#cabeff] hover:underline"
+                >
+                  Retry authoritative check
+                </button>
+              )}
+            </div>
+
+            <div className="p-5 rounded-xl bg-[#15181C] border border-[#272C33]">
+              <p className="text-xs uppercase tracking-widest text-[#938ea1]">Organizer</p>
+              <p className="mt-2 text-lg font-semibold">{event.organizerDisplayName}</p>
+              <p className="mt-1 font-mono text-xs text-[#938ea1]">{truncateKey(event.organizer)}</p>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Info({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-4 p-4 rounded-xl border border-[#272C33] bg-[#15181C]">
+      <span className="material-symbols-outlined text-[#cabeff]">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold tracking-wider uppercase text-[#938ea1]">{label}</p>
+        <div className="mt-1 text-[#e6e0ee]">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Policy({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-[#272C33] bg-[#15181C] p-5">
+      <h3 className="font-semibold">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-[#c9c4d8]">{text}</p>
+    </div>
+  );
+}
+
+
+================================================
+FILE: frontend/src/hooks/useEvent.ts
+================================================
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  authoritativeIdentityMismatch,
+  mergeAuthoritativeEvent,
+  normalizeEvent,
+  unavailableEvent,
+} from '../lib/eventModel';
+import { getEvent } from '../lib/soroban';
+import { fetchPublishedEventById } from '../lib/supabase';
+import type { Event } from '../types';
+
+async function loadPublishedEvent(eventId: string): Promise<Event | null> {
+  const row = await fetchPublishedEventById(eventId);
+  if (!row) return null;
+  const preview = normalizeEvent(row);
+  try {
+    const snapshot = await getEvent(eventId);
+    const mismatch = authoritativeIdentityMismatch(preview, snapshot);
+    return mismatch
+      ? unavailableEvent(preview, mismatch)
+      : mergeAuthoritativeEvent(preview, snapshot);
+  } catch (error) {
+    return unavailableEvent(
+      preview,
+      error instanceof Error ? error.message : 'Authoritative event state is unavailable.',
+    );
+  }
+}
+
+export function useEvent(eventId: string) {
+  const [event, setEvent] = useState<Event | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+
+  const reload = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await loadPublishedEvent(eventId);
+      if (requestId === requestRef.current) setEvent(next);
+      return next;
+    } catch (nextError) {
+      if (requestId === requestRef.current) {
+        setEvent(null);
+        setError(nextError instanceof Error ? nextError.message : 'Failed to load event.');
+      }
+      return null;
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      void reload();
+    }, 0);
+    return () => {
+      clearTimeout(timeout);
+      requestRef.current += 1;
+    };
+  }, [reload]);
+
+  return { event, loading, error, reload };
+}
+
+
+================================================
+FILE: frontend/src/hooks/useListings.ts
+================================================
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { fetchPublishedEventsByIds, supabase } from '../lib/supabase';
+
+
+export interface ListingWithEvent {
+  listingId: string;
+  seller: string;
+  ticketId: string;
+  eventId: string;
+  askPriceStroops: bigint;
+  status: 'Open' | 'Sold' | 'Cancelled';
+  eventName: string;
+  eventImageUrl: string;
+  eventDateUnix: number;
+}
+
+interface ListingRow {
+  listing_id: string;
+  seller_address: string;
+  ticket_id: string;
+  event_id: string;
+  ask_price_stroops: string | number;
+  status: string;
+}
+
+const POLL_INTERVAL_MS = 30_000;
+
+export function useListings(): {
+  listings: ListingWithEvent[];
+  loading: boolean;
+  error: string | null;
+  invalidate: () => Promise<void>;
+} {
+  const [listings, setListings] = useState<ListingWithEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fetchRef = useRef(0);
+
+  const fetchListings = useCallback(async () => {
+    const fetchId = ++fetchRef.current;
+    
+    // Move to next microtask to avoid cascading render warning in React 19
+    await Promise.resolve();
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: dbError } = await supabase
+        .from('listings')
+        .select(`
+          listing_id,
+          seller_address,
+          ticket_id,
+          event_id,
+          ask_price_stroops,
+          status
+        `)
+        .eq('status', 'Open')
+        .order('listed_at', { ascending: false });
+
+      if (dbError) throw dbError;
+
+      if (fetchId !== fetchRef.current) return;
+
+      const rows = (data as unknown as ListingRow[]) || [];
+      const eventRows = await fetchPublishedEventsByIds(rows.map((row) => row.event_id));
+      const eventsById = new Map(eventRows.map((event) => [event.event_id, event]));
+      const resolved: ListingWithEvent[] = rows.flatMap((row) => {
+        const event = eventsById.get(row.event_id);
+        if (!event) return [];
+        return [{
+        listingId: row.listing_id,
+        seller: row.seller_address,
+        ticketId: row.ticket_id,
+        eventId: row.event_id,
+        askPriceStroops: BigInt(row.ask_price_stroops),
+        status: row.status as 'Open' | 'Sold' | 'Cancelled',
+        eventName: event.name,
+        eventImageUrl: event.image_url,
+        eventDateUnix: event.date_unix,
+      }];
+      });
+
+      setListings(resolved);
+    } catch (err) {
+      if (fetchId !== fetchRef.current) return;
+      setError(err instanceof Error ? err.message : 'Failed to load listings.');
+    } finally {
+      if (fetchId === fetchRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setTimeout(() => { void fetchListings(); }, 0);
+    intervalRef.current = setInterval(fetchListings, POLL_INTERVAL_MS);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchListings]);
+
+  return { listings, loading, error, invalidate: fetchListings };
+}
+
+
+================================================
+FILE: frontend/src/lib/constants.ts
+================================================
+export const TICKET_CONTRACT_ID = import.meta.env.VITE_TICKET_CONTRACT_ID as string;
+export const MARKETPLACE_CONTRACT_ID = import.meta.env.VITE_MARKETPLACE_CONTRACT_ID as string;
+export const NETWORK_PASSPHRASE = import.meta.env.VITE_NETWORK_PASSPHRASE as string;
+export const RPC_URL = import.meta.env.VITE_RPC_URL as string;
+export const HORIZON_URL = import.meta.env.VITE_HORIZON_URL as string;
+export const STELLAR_EXPLORER_URL = import.meta.env.VITE_STELLAR_EXPLORER_URL as string;
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+
+if (
+  !TICKET_CONTRACT_ID ||
+  !MARKETPLACE_CONTRACT_ID ||
+  !NETWORK_PASSPHRASE ||
+  !RPC_URL ||
+  !HORIZON_URL ||
+  !STELLAR_EXPLORER_URL ||
+  !SUPABASE_URL ||
+  !SUPABASE_ANON_KEY
+) {
+  throw new Error(
+    '[constants] Missing required env vars. Run scripts/deploy.sh first, ' +
+    'or copy .env.example to .env.local and fill in the values.'
+  );
+}
+
+
+================================================
+FILE: frontend/src/lib/eventModel.ts
+================================================
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+import type {
+  AuthoritativeEventSnapshot,
+  Event,
+  EventSalesState,
+  RefundPolicyCode,
+  ResalePolicyCode,
+} from '../types';
+import type { EventMetadata } from './supabase';
+
+export const REFUND_POLICY: Record<RefundPolicyCode, string> = {
+  cancelled_event_original_price:
+    'If the organizer cancels the event, the current ticket owner can claim the original primary ticket price.',
+};
+
+export const RESALE_POLICY: Record<ResalePolicyCode, string> = {
+  stellar_marketplace_unlocked:
+    'Eligible tickets may be listed through the StellarTickets marketplace. Listings do not reserve or lock a ticket.',
+};
+
+export function normalizeEvent(row: EventMetadata): Event {
+  return {
+    eventId: row.event_id,
+    organizer: row.organizer_address,
+    organizerDisplayName: row.organizer_display_name,
+    name: row.name,
+    summary: row.summary,
+    description: row.description,
+    imageUrl: row.image_url,
+    category: row.category,
+    dateUnix: row.date_unix,
+    endUnix: row.end_unix,
+    timezone: row.timezone,
+    venue: row.venue,
+    address: row.address,
+    city: row.city,
+    supportContact: row.support_contact,
+    refundPolicyCode: row.refund_policy_code,
+    resalePolicyCode: row.resale_policy_code,
+    entryInstructions: row.entry_instructions,
+    capacity: row.capacity,
+    pricePerTicket: row.price_per_ticket,
+    currentSupply: row.current_supply,
+    status: row.status,
+    network: row.network,
+    ticketContractId: row.ticket_contract_id,
+    creationTxHash: row.creation_tx_hash,
+    chainVerifiedAt: row.chain_verified_at,
+    authority: 'preview',
+  };
+}
+
+export function mergeAuthoritativeEvent(
+  event: Event,
+  snapshot: AuthoritativeEventSnapshot,
+): Event {
+  return {
+    ...event,
+    organizer: snapshot.organizer,
+    name: snapshot.name,
+    dateUnix: snapshot.dateUnix,
+    capacity: snapshot.capacity,
+    pricePerTicket: snapshot.pricePerTicket,
+    currentSupply: snapshot.currentSupply,
+    endUnix: snapshot.endUnix,
+    escrowBalance: snapshot.escrowBalance,
+    status: snapshot.status,
+    authority: 'confirmed',
+    authorityError: undefined,
+  };
+}
+
+export function unavailableEvent(event: Event, message: string): Event {
+  return { ...event, authority: 'unavailable', authorityError: message };
+}
+
+export function authoritativeIdentityMismatch(
+  event: Event,
+  snapshot: AuthoritativeEventSnapshot,
+): string | null {
+  if (event.ticketContractId !== import.meta.env.VITE_TICKET_CONTRACT_ID) {
+    return 'This event belongs to a different TicketContract deployment.';
+  }
+  if (event.network !== 'StellarTestnet') {
+    return 'This event belongs to a different Stellar network.';
+  }
+  if (event.organizer !== snapshot.organizer) return 'Organizer does not match the chain record.';
+  if (event.name !== snapshot.name) return 'Event name does not match the chain record.';
+  if (event.dateUnix !== snapshot.dateUnix) return 'Event start does not match the chain record.';
+  if (event.endUnix !== snapshot.endUnix) return 'Event end does not match the chain record.';
+  if (event.capacity !== snapshot.capacity) return 'Capacity does not match the chain record.';
+  if (event.pricePerTicket !== snapshot.pricePerTicket) {
+    return 'Ticket price does not match the chain record.';
+  }
+  return null;
+}
+
+export function deriveEventSalesState(
+  event: Event,
+  nowUnix = Math.floor(Date.now() / 1000),
+  requireAuthority = false,
+): EventSalesState {
+  if (event.authority === 'unavailable' || (requireAuthority && event.authority !== 'confirmed')) {
+    return 'unavailable';
+  }
+  if (event.status === 'Cancelled') return 'cancelled';
+  if (event.status === 'Completed') return 'completed';
+  if (nowUnix >= event.dateUnix) return 'sales_closed';
+  if (event.currentSupply >= event.capacity) return 'sold_out';
+  return 'on_sale';
+}
+
+export const EVENT_SALES_LABELS: Record<EventSalesState, string> = {
+  on_sale: 'On sale',
+  sold_out: 'Sold out',
+  sales_closed: 'Sales closed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  unavailable: 'Unavailable',
+};
+
+export type OrganizerLifecycle =
+  | 'on_sale'
+  | 'sold_out'
+  | 'in_progress'
+  | 'awaiting_completion'
+  | 'completed'
+  | 'cancelled'
+  | 'unavailable';
+
+export const ORGANIZER_LIFECYCLE_LABELS: Record<OrganizerLifecycle, string> = {
+  on_sale: 'On sale',
+  sold_out: 'Sold out',
+  in_progress: 'In progress',
+  awaiting_completion: 'Awaiting completion',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  unavailable: 'Unavailable',
+};
+
+export function deriveOrganizerLifecycle(
+  event: Event,
+  nowUnix = Math.floor(Date.now() / 1000),
+): OrganizerLifecycle {
+  if (event.authority === 'unavailable') return 'unavailable';
+  if (event.status === 'Cancelled') return 'cancelled';
+  if (event.status === 'Completed') return 'completed';
+  if (nowUnix >= event.endUnix) return 'awaiting_completion';
+  if (nowUnix >= event.dateUnix) return 'in_progress';
+  if (event.currentSupply >= event.capacity) return 'sold_out';
+  return 'on_sale';
+}
+
+export function remainingTickets(event: Event): number {
+  return Math.max(0, event.capacity - event.currentSupply);
+}
+
+export function authoritativeFingerprint(event: Event): string {
+  return [
+    event.organizer,
+    event.dateUnix,
+    event.capacity,
+    event.currentSupply,
+    event.pricePerTicket,
+    event.status,
+  ].join(':');
+}
+
+export function formatEventStart(event: Event): string {
+  return formatInTimeZone(
+    new Date(event.dateUnix * 1000),
+    event.timezone,
+    "EEEE, MMMM d, yyyy 'at' h:mm a zzz",
+  );
+}
+
+export function formatEventRange(event: Event): string {
+  const start = formatInTimeZone(
+    new Date(event.dateUnix * 1000),
+    event.timezone,
+    "EEE, MMM d · h:mm a",
+  );
+  const end = formatInTimeZone(
+    new Date(event.endUnix * 1000),
+    event.timezone,
+    "EEE, MMM d · h:mm a zzz",
+  );
+  return `${start} – ${end}`;
+}
+
+export function zonedDateTimeToUnix(
+  date: string,
+  time: string,
+  timeZone: string,
+): number {
+  if (!date || !time || !timeZone) throw new Error('Date, time, and timezone are required.');
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format();
+  } catch {
+    throw new Error('Choose a valid IANA timezone.');
+  }
+  const instant = fromZonedTime(`${date}T${time}:00`, timeZone);
+  if (Number.isNaN(instant.getTime())) throw new Error('The selected local time is invalid.');
+
+  // Reject DST-normalized wall times rather than silently shifting the event.
+  const roundTrip = formatInTimeZone(instant, timeZone, 'yyyy-MM-dd HH:mm');
+  if (roundTrip !== `${date} ${time}`) {
+    throw new Error('The selected local time does not exist in this timezone.');
+  }
+  return Math.floor(instant.getTime() / 1000);
+}
+
+
+================================================
+FILE: frontend/src/lib/soroban.ts
+================================================
+// soroban.ts — the only file that imports from the generated contract bindings.
+// All components call these wrappers; nothing imports @stellar/stellar-sdk directly. (AGENTS.md)
+// Transaction pattern: AssembledTransaction.signAndSend() — D-007 revised.
+
+import { Client as TicketClient } from 'ticket';
+import { Client as MarketplaceClient } from 'marketplace';
+import { TransactionBuilder } from '@stellar/stellar-sdk';
+
+import {
+  TICKET_CONTRACT_ID,
+  MARKETPLACE_CONTRACT_ID,
+  NETWORK_PASSPHRASE,
+  RPC_URL,
+} from './constants';
+import type { AuthoritativeEventSnapshot, Ticket, SignFn } from '../types';
+
+export interface PreparedTransactionIdentity {
+  unsignedEnvelopeHash: string;
+  sourceSequence: string;
+  transactionMaxTime: number;
+}
+
+export interface SignedTransactionIdentity {
+  signedTransactionHash: string;
+}
+
+function parseTransactionIdentity(xdr: string): PreparedTransactionIdentity {
+  const transaction = TransactionBuilder.fromXDR(xdr, NETWORK_PASSPHRASE);
+  if (!('sequence' in transaction)) {
+    throw new Error('Fee-bump organizer transactions are not supported.');
+  }
+  const maxTime = transaction.timeBounds?.maxTime;
+  const transactionMaxTime = maxTime === undefined ? 0 : Number(maxTime);
+  if (!Number.isSafeInteger(transactionMaxTime) || transactionMaxTime <= 0) {
+    throw new Error('The organizer transaction must have a valid expiration time.');
+  }
+  return {
+    unsignedEnvelopeHash: transaction.hash().toString('hex'),
+    sourceSequence: transaction.sequence,
+    transactionMaxTime,
+  };
+}
+
+export function inspectPreparedTransaction(xdr: string): PreparedTransactionIdentity {
+  return parseTransactionIdentity(xdr);
+}
+
+/**
+ * Freighter returns signed XDR to this wrapper first. Persisting its hash must
+ * succeed before the generated SDK receives the XDR and can submit it.
+ */
+export function recordSignedTransactionBeforeSubmission(
+  signFn: SignFn,
+  record: (identity: SignedTransactionIdentity) => Promise<void>,
+): SignFn {
+  return async (xdr, options) => {
+    const signed = await signFn(xdr, options);
+    const identity = parseTransactionIdentity(signed.signedTxXdr);
+    await record({ signedTransactionHash: identity.unsignedEnvelopeHash });
+    return signed;
+  };
+}
+
+// ─── Contract error maps ──────────────────────────────────────────────────────
+// Maps on-chain error codes to user-readable messages.
+
+const TICKET_ERRORS: Record<number, string> = {
+  1:  'This contract is already initialized.',
+  2:  'Contract not initialized — contact support.',
+  3:  'Event not found.',
+  4:  'This event is no longer active.',
+  5:  'This event is sold out.',
+  6:  'Event has not been cancelled — refund not available.',
+  7:  'Funds cannot be released yet (event date not passed).',
+  8:  'Funds have already been released for this event.',
+  9:  'Ticket not found.',
+  10: 'This ticket has already been used.',
+  11: 'You do not own this ticket.',
+  12: 'Only the event organizer can perform this action.',
+  13: 'Only the marketplace contract can perform this action.',
+  14: 'Insufficient escrow balance.',
+  15: 'Arithmetic overflow — contact support.',
+  16: 'Arithmetic underflow — contact support.',
+  17: 'Division by zero — contact support.',
+  18: 'An event with this ID already exists.',
+  19: 'Event capacity must be greater than zero.',
+  20: 'Ticket price must be greater than zero.',
+  21: 'Event date must be in the future.',
+  22: 'A ticket with this ID already exists.',
+  23: 'Primary sales closed when this event started.',
+  24: 'Event end time must be after its start time.',
+  25: 'This ticket was refunded.',
+  26: 'This ticket belongs to another event.',
+  27: 'Check-in is not open yet.',
+  28: 'Check-in is closed.',
+};
+
+const MARKETPLACE_ERRORS: Record<number, string> = {
+  1:  'Marketplace already initialized.',
+  2:  'Marketplace not initialized.',
+  3:  'Listing not found.',
+  4:  'This listing is no longer open.',
+  5:  'A listing with this ID already exists.',
+  6:  'Ask price must be greater than zero.',
+  7:  'Only the original seller can perform this action.',
+  8:  'You cannot buy your own listing.',
+  9:  'Arithmetic overflow — contact support.',
+  10: 'Arithmetic underflow — contact support.',
+  11: 'Division by zero — contact support.',
+  12: 'Ticket ownership changed — listing is stale.',
+  14: 'Resale is available only while the event is active.',
+};
+
+// ─── Client factories ─────────────────────────────────────────────────────────
+
+function getTicketClient(publicKey: string, contractId = TICKET_CONTRACT_ID): TicketClient {
+  return new TicketClient({
+    contractId,
+    networkPassphrase: NETWORK_PASSPHRASE,
+    rpcUrl: RPC_URL,
+    publicKey,
+  });
+}
+
+export async function purchaseProofTicket(
+  contractId: string,
+  eventId: string,
+  buyerPublicKey: string,
+  ticketId: string,
+  signFn: SignFn,
+): Promise<string> {
+  if (!import.meta.env.DEV || import.meta.env.VITE_ENABLE_DFNS_PROOF !== 'true') {
+    throw new Error('The isolated Dfns proof is disabled.');
+  }
+  if (!contractId || contractId === TICKET_CONTRACT_ID) {
+    throw new Error('The proof must use a disposable TicketContract, not the application contract.');
+  }
+  const client = getTicketClient(buyerPublicKey, contractId);
+  const tx = await client.purchase({
+    event_id: eventId,
+    buyer: buyerPublicKey,
+    ticket_id: ticketId,
+  });
+  const sent = await tx.signAndSend({ signTransaction: signFn });
+  const hash = sent.sendTransactionResponse?.hash;
+  if (!hash) throw new Error('The isolated proof transaction did not return a hash.');
+  return hash;
+}
+
+function getMarketplaceClient(publicKey: string): MarketplaceClient {
+  return new MarketplaceClient({
+    contractId: MARKETPLACE_CONTRACT_ID,
+    networkPassphrase: NETWORK_PASSPHRASE,
+    rpcUrl: RPC_URL,
+    publicKey,
+  });
+}
+
+// ─── Error extraction ─────────────────────────────────────────────────────────
+
+function extractErrorMessage(err: unknown, errorMap: Record<number, string>): string {
+  if (err instanceof Error) {
+    // The SDK surfaces contract errors as messages containing the error code
+    const match = err.message.match(/Error\(Contract, #(\d+)\)/);
+    if (match) {
+      const code = parseInt(match[1], 10);
+      return errorMap[code] ?? `Contract error #${code}.`;
+    }
+    return err.message;
+  }
+  return 'An unexpected error occurred.';
+}
+
+// ─── Write functions (require signing) ───────────────────────────────────────
+
+export interface CreateEventParams {
+  eventId: string;
+  name: string;
+  dateUnix: number;
+  endUnix: number;
+  capacityXlm: number;     // raw capacity (ticket count)
+  priceStroops: bigint;    // price in stroops — use xlmToStroops() from types
+}
+
+export interface PreparedOrganizerTransaction {
+  identity: PreparedTransactionIdentity;
+  estimatedFeeStroops: bigint;
+  submit: (
+    signFn: SignFn,
+    recordSigned: (identity: SignedTransactionIdentity) => Promise<void>,
+  ) => Promise<{ transactionHash: string }>;
+}
+
+interface OrganizerAssembledTransaction {
+  built?: { fee: string | number };
+  toXDR(): string;
+  signAndSend(options: { signTransaction: SignFn }): Promise<{
+    sendTransactionResponse?: { hash?: string };
+  }>;
+}
+
+function preparedOrganizerTransaction(
+  transaction: OrganizerAssembledTransaction,
+  errorMap: Record<number, string>,
+  missingHashMessage: string,
+): PreparedOrganizerTransaction {
+  const identity = inspectPreparedTransaction(transaction.toXDR());
+  const estimatedFeeStroops = BigInt(transaction.built?.fee ?? 0);
+  return {
+    identity,
+    estimatedFeeStroops,
+    submit: async (signFn, recordSigned) => {
+      try {
+        const sent = await transaction.signAndSend({
+          signTransaction: recordSignedTransactionBeforeSubmission(signFn, recordSigned),
+        });
+        const hash = sent.sendTransactionResponse?.hash;
+        if (!hash) throw new Error(missingHashMessage);
+        return { transactionHash: hash };
+      } catch (error) {
+        throw new Error(extractErrorMessage(error, errorMap), { cause: error });
+      }
+    },
+  };
+}
+
+export interface PreparedTicketPurchase {
+  estimatedFeeStroops: bigint;
+  submit: (signFn: SignFn) => Promise<{ transactionHash: string }>;
+}
+
+/**
+ * Assemble and simulate one reserved ticket purchase. The returned controller
+ * remains purchase-specific and keeps generated binding types inside this file.
+ */
+export async function prepareTicketPurchase(
+  eventId: string,
+  buyerPublicKey: string,
+  ticketId: string,
+): Promise<PreparedTicketPurchase> {
+  const client = getTicketClient(buyerPublicKey);
+  try {
+    const tx = await client.purchase({ event_id: eventId, buyer: buyerPublicKey, ticket_id: ticketId });
+    const estimatedFeeStroops = BigInt(tx.built?.fee ?? 0);
+    return {
+      estimatedFeeStroops,
+      submit: async (signFn) => {
+        try {
+          const sent = await tx.signAndSend({ signTransaction: signFn });
+          const hash = sent.sendTransactionResponse?.hash;
+          if (!hash) {
+            throw new Error('The purchase transaction completed without exposing its hash.');
+          }
+          return { transactionHash: hash };
+        } catch (error) {
+          throw new Error(extractErrorMessage(error, TICKET_ERRORS), { cause: error });
+        }
+      },
+    };
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+/** Assemble and simulate a recoverable event publication transaction. */
+export async function prepareCreateEvent(
+  params: CreateEventParams,
+  organizerPublicKey: string,
+): Promise<PreparedOrganizerTransaction> {
+  const client = getTicketClient(organizerPublicKey);
+  try {
+    const tx = await client.create_event({
+      organizer: organizerPublicKey,
+      event_id: params.eventId,
+      name: params.name,
+      date_unix: BigInt(params.dateUnix),
+      end_unix: BigInt(params.endUnix),
+      capacity: BigInt(params.capacityXlm),
+      price_per_ticket: params.priceStroops,
+    });
+    return preparedOrganizerTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The event transaction confirmed without returning a hash.',
+    );
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Assemble and simulate an event completion and escrow release transaction.
+ */
+export async function prepareReleaseFunds(
+  eventId: string,
+  organizerPublicKey: string,
+): Promise<PreparedOrganizerTransaction> {
+  const client = getTicketClient(organizerPublicKey);
+  try {
+    const tx = await client.release_funds({ event_id: eventId, organizer: organizerPublicKey });
+    return preparedOrganizerTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The release transaction confirmed without returning a hash.',
+    );
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Cancel an event. Pull-based refunds — attendees call refundTicket() individually. (D-002)
+ */
+export async function prepareCancelEvent(
+  eventId: string,
+  organizerPublicKey: string,
+): Promise<PreparedOrganizerTransaction> {
+  const client = getTicketClient(organizerPublicKey);
+  try {
+    const tx = await client.cancel_event({ event_id: eventId, organizer: organizerPublicKey });
+    return preparedOrganizerTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The cancellation transaction confirmed without returning a hash.',
+    );
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Mark a ticket as used at the venue door. Only callable by the event organizer.
+ * Called AFTER the QR signature has been verified locally. (D-005)
+ */
+export async function prepareMarkUsed(
+  eventId: string,
+  ticketId: string,
+  expectedOwnerPublicKey: string,
+  organizerPublicKey: string,
+): Promise<PreparedOrganizerTransaction> {
+  const client = getTicketClient(organizerPublicKey);
+  try {
+    const tx = await client.mark_used({
+      event_id: eventId,
+      ticket_id: ticketId,
+      expected_owner: expectedOwnerPublicKey,
+      organizer: organizerPublicKey,
+    });
+    return preparedOrganizerTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The check-in transaction confirmed without returning a hash.',
+    );
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+export async function markUsed(
+  eventId: string,
+  ticketId: string,
+  expectedOwnerPublicKey: string,
+  organizerPublicKey: string,
+  signFn: SignFn,
+): Promise<void> {
+  const transaction = await prepareMarkUsed(
+    eventId,
+    ticketId,
+    expectedOwnerPublicKey,
+    organizerPublicKey,
+  );
+  await transaction.submit(signFn, async () => undefined);
+}
+
+/**
+ * Refund a ticket after an event cancellation. Pull-based — attendee calls this. (D-002)
+ */
+export async function refundTicket(
+  ticketId: string,
+  attendeePublicKey: string,
+  signFn: SignFn
+): Promise<void> {
+  const client = getTicketClient(attendeePublicKey);
+  try {
+    const tx = await client.refund({ ticket_id: ticketId, attendee: attendeePublicKey });
+    await tx.signAndSend({ signTransaction: signFn });
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+// ─── Marketplace write functions ──────────────────────────────────────────────
+
+/**
+ * Create a secondary-market listing for a ticket.
+ * listingId is generated by the caller (generateID()).
+ */
+export async function listTicket(
+  sellerPublicKey: string,
+  listingId: string,
+  ticketId: string,
+  eventId: string,
+  askPriceStroops: bigint,
+  signFn: SignFn
+): Promise<void> {
+  const client = getMarketplaceClient(sellerPublicKey);
+  try {
+    const tx = await client.list_ticket({
+      seller: sellerPublicKey,
+      listing_id: listingId,
+      ticket_id: ticketId,
+      event_id: eventId,
+      ask_price: askPriceStroops,
+    });
+    await tx.signAndSend({ signTransaction: signFn });
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Purchase a secondary-market listing.
+ */
+export async function buyListing(
+  sellerPublicKey: string,
+  listingId: string,
+  buyerPublicKey: string,
+  signFn: SignFn
+): Promise<void> {
+  const client = getMarketplaceClient(buyerPublicKey);
+  try {
+    const tx = await client.buy_listing({
+      seller: sellerPublicKey,
+      listing_id: listingId,
+      buyer: buyerPublicKey,
+    });
+    await tx.signAndSend({ signTransaction: signFn });
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Cancel a secondary-market listing. Only the original seller can cancel.
+ */
+export async function cancelListing(
+  sellerPublicKey: string,
+  listingId: string,
+  signFn: SignFn
+): Promise<void> {
+  const client = getMarketplaceClient(sellerPublicKey);
+  try {
+    const tx = await client.cancel_listing({ seller: sellerPublicKey, listing_id: listingId });
+    await tx.signAndSend({ signTransaction: signFn });
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
+  }
+}
+
+// ─── Read-only functions (no signing required) ────────────────────────────────
+
+// Uses a dummy public key for read-only calls — the SDK requires one for the
+// client constructor, but simulation-only calls don't submit a transaction.
+const READ_ONLY_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+
+/**
+ * Fetch a single ticket's current on-chain state by ID.
+ * Returns null if the ticket does not exist.
+ */
+export async function getTicket(ticketId: string): Promise<Ticket | null> {
+  const client = getTicketClient(READ_ONLY_KEY);
+  try {
+    const tx = await client.get_ticket({ ticket_id: ticketId });
+    const result = tx.result;
+    if (!result || result.isErr()) return null;
+
+    const t = result.unwrap();
+    return {
+      ticketId,
+      eventId: t.event_id,
+      owner: t.owner,
+      status: t.status.tag as Ticket['status'],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getAuthoritativeTicket(ticketId: string): Promise<
+  | { kind: 'found'; ticket: Ticket }
+  | { kind: 'not_found' }
+> {
+  const client = getTicketClient(READ_ONLY_KEY);
+  try {
+    const tx = await client.get_ticket({ ticket_id: ticketId });
+    const result = tx.result;
+    if (!result || result.isErr()) return { kind: 'not_found' };
+
+    const t = result.unwrap();
+    return {
+      kind: 'found',
+      ticket: {
+        ticketId,
+        eventId: t.event_id,
+        owner: t.owner,
+        status: t.status.tag as Ticket['status'],
+      },
+    };
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+/**
+ * Fetch a single event's current authoritative on-chain state.
+ * Transport failures are deliberately surfaced so callers can distinguish
+ * Unavailable from Event not found.
+ */
+export async function getEvent(eventId: string): Promise<AuthoritativeEventSnapshot> {
+  const client = getTicketClient(READ_ONLY_KEY);
+  try {
+    const [eventTx, escrowTx] = await Promise.all([
+      client.get_event({ event_id: eventId }),
+      client.get_escrow_balance({ event_id: eventId }),
+    ]);
+    const result = eventTx.result;
+    const escrowResult = escrowTx.result;
+    if (!result || result.isErr() || !escrowResult || escrowResult.isErr()) {
+      throw new Error('The event does not exist on the configured TicketContract.');
+    }
+    const event = result.unwrap();
+    const escrow = escrowResult.unwrap();
+    const dateUnix = Number(event.date_unix);
+    const endUnix = Number(event.end_unix);
+    const capacity = Number(event.capacity);
+    const pricePerTicket = Number(event.price_per_ticket);
+    const currentSupply = Number(event.current_supply);
+    const escrowBalance = Number(escrow);
+    for (const [field, value] of Object.entries({
+      dateUnix,
+      endUnix,
+      capacity,
+      pricePerTicket,
+      currentSupply,
+      escrowBalance,
+    })) {
+      if (!Number.isSafeInteger(value)) {
+        throw new Error(`On-chain ${field} exceeds the supported testnet range.`);
+      }
+    }
+    return {
+      eventId,
+      organizer: event.organizer,
+      name: event.name,
+      dateUnix,
+      endUnix,
+      capacity,
+      pricePerTicket,
+      currentSupply,
+      escrowBalance,
+      status: event.status.tag,
+    };
+  } catch (err) {
+    throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
+  }
+}
+
+
+================================================
+FILE: frontend/src/lib/supabase.ts
+================================================
+import { createClient } from '@supabase/supabase-js';
+import {
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+} from './constants';
+import type {
+  EventStatus,
+  RefundPolicyCode,
+  ResalePolicyCode,
+} from '../types';
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    flowType: 'pkce',
+    detectSessionInUrl: false,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+// Types matching our Supabase schema
+export interface EventMetadata {
+  event_id: string;
+  organizer_address: string;
+  name: string;
+  summary: string;
+  description: string;
+  image_url: string;
+  category: string;
+  date_unix: number;
+  end_unix: number;
+  timezone: string;
+  venue: string;
+  address: string;
+  city: string;
+  organizer_display_name: string;
+  support_contact: string;
+  refund_policy_code: RefundPolicyCode;
+  resale_policy_code: ResalePolicyCode;
+  entry_instructions: string;
+  accessibility_notes?: string;
+  age_restriction?: string;
+  prohibited_items?: string;
+  map_url?: string;
+  public_links?: string[];
+  metadata_revision?: number;
+  metadata_updated_at?: string | null;
+  metadata_updated_by?: string | null;
+  status: EventStatus;
+  current_supply: number;
+  capacity: number;
+  price_per_ticket: number;
+  network: 'StellarTestnet';
+  ticket_contract_id: string;
+  creation_tx_hash: string;
+  chain_verified_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EventPublicationState =
+  | 'prepared'
+  | 'approval_required'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'chain_confirmed'
+  | 'sync_warning'
+  | 'creation_submitting'
+  | 'chain_created'
+  | 'publication_failed'
+  | 'published';
+
+export interface EventPublicationDraft {
+  draft_id: string;
+  user_id: string;
+  event_id: string;
+  intended_organizer_address: string | null;
+  expected_name: string | null;
+  expected_date_unix: number | null;
+  expected_capacity: number | null;
+  expected_price_per_ticket: number | null;
+  network: 'StellarTestnet';
+  ticket_contract_id: string;
+  summary: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  timezone: string | null;
+  end_unix: number | null;
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  organizer_display_name: string | null;
+  support_contact: string | null;
+  refund_policy_code: RefundPolicyCode;
+  resale_policy_code: ResalePolicyCode;
+  entry_instructions: string | null;
+  accessibility_notes: string | null;
+  age_restriction: string | null;
+  prohibited_items: string | null;
+  map_url: string | null;
+  public_links: string[];
+  revision: number;
+  state: EventPublicationState;
+  creation_tx_hash: string | null;
+  chain_verified_at?: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveryFilters {
+  search?: string;
+  category?: string;
+  city?: string;
+  startUnix?: number;
+  endUnix?: number;
+}
+
+export interface TicketRow {
+  ticket_id: string;
+  event_id: string;
+  owner_address: string;
+  status: string; // 'Active' | 'Used' | 'Refunded'
+  purchased_at: string;
+  event_name?: string;
+  event_summary?: string;
+  event_description?: string;
+  event_image_url?: string;
+  event_category?: string;
+  event_date_unix?: number;
+  event_end_unix?: number;
+  event_timezone?: string;
+  event_venue?: string;
+  event_address?: string;
+  event_city?: string;
+  event_status?: string;
+  event_capacity?: number;
+  event_price_per_ticket?: number;
+  receipt_operation_id?: string | null;
+}
+
+export interface ListingRow {
+  listing_id: string;
+  seller_address: string;
+  ticket_id: string;
+  event_id: string;
+  ask_price_stroops: string; // Using string or numeric string due to bigint in Postgres
+  status: string; // 'Open' | 'Sold' | 'Cancelled'
+  listed_at: string;
+}
+
+export interface UserProfileRow {
+  wallet_address: string;
+  display_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+/**
+ * Public discovery is intentionally narrower than direct event access.
+ * It returns only trusted, published, upcoming Active events.
+ */
+export async function fetchDiscoverableEvents(
+  filters: DiscoveryFilters = {},
+): Promise<EventMetadata[]> {
+  let query = supabase
+    .from('discoverable_events')
+    .select('*')
+    .order('date_unix', { ascending: true });
+
+  if (filters.category && filters.category !== 'All') {
+    query = query.eq('category', filters.category);
+  }
+  if (filters.city && filters.city !== 'All') {
+    const city = filters.city.trim().replaceAll('%', '').replaceAll('_', '');
+    if (city) query = query.ilike('city', `%${city}%`);
+  }
+  if (filters.startUnix) query = query.gte('date_unix', filters.startUnix);
+  if (filters.endUnix) query = query.lte('date_unix', filters.endUnix);
+  if (filters.search?.trim()) {
+    const escaped = filters.search.trim().replaceAll(',', ' ');
+    query = query.or(
+      `name.ilike.%${escaped}%,venue.ilike.%${escaped}%,city.ilike.%${escaped}%`,
+    );
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[supabase] fetchDiscoverableEvents failed:', error.message);
+    throw new Error('Service Unavailable / Database unreachable');
+  }
+
+  return (data ?? []) as EventMetadata[];
+}
+
+/**
+ * Direct public access resolves every trusted published event, regardless of
+ * lifecycle or whether it still belongs in discovery.
+ */
+export async function fetchPublishedEventById(eventId: string): Promise<EventMetadata | null> {
+  const { data, error } = await supabase
+    .from('published_events')
+    .select('*')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as EventMetadata | null;
+}
+
+export async function fetchPublishedEventsByIds(eventIds: string[]): Promise<EventMetadata[]> {
+  const unique = [...new Set(eventIds.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const { data, error } = await supabase
+    .from('published_events')
+    .select('*')
+    .in('event_id', unique);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as EventMetadata[];
+}
+
+/**
+ * Fetch tickets for the attendee wallet derived server-side from auth.uid().
+ */
+export async function fetchMyTickets(): Promise<TicketRow[]> {
+  const { data, error } = await supabase.rpc('get_my_tickets');
+
+  if (error) {
+    console.error('[supabase] fetchMyTickets failed:', error.message);
+    throw new Error('Service Unavailable / Database unreachable');
+  }
+
+  return (data ?? []) as TicketRow[];
+}
+
+export interface EventDraftPatch {
+  intended_organizer_address: string | null;
+  expected_name: string | null;
+  expected_date_unix: number | null;
+  expected_capacity: number | null;
+  expected_price_per_ticket: number | null;
+  summary: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  timezone: string | null;
+  end_unix: number | null;
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  organizer_display_name: string | null;
+  support_contact: string | null;
+  entry_instructions: string | null;
+  accessibility_notes: string | null;
+  age_restriction: string | null;
+  prohibited_items: string | null;
+  map_url: string | null;
+  public_links: string[];
+}
+
+export class DraftConflictError extends Error {
+  constructor() {
+    super('This draft changed in another tab or device. Your unsaved edits were preserved.');
+    this.name = 'DraftConflictError';
+  }
+}
+
+async function callEventPublication<T>(
+  action: string,
+  input: Record<string, unknown> = {},
+): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/event-publication`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (
+      response.status === 409 ||
+      /revision|conflict|stale/i.test(String(payload.error ?? ''))
+    ) {
+      throw new DraftConflictError();
+    }
+    throw new Error(payload.error || 'Event publication service unavailable.');
+  }
+  return payload as T;
+}
+
+export async function createEventDraft(): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>('create-draft');
+  return payload.draft;
+}
+
+export async function listMyEventDrafts(): Promise<EventPublicationDraft[]> {
+  const payload = await callEventPublication<{ drafts: EventPublicationDraft[] }>('list-drafts');
+  return payload.drafts;
+}
+
+export async function getMyEventDraft(draftId: string): Promise<EventPublicationDraft | null> {
+  try {
+    const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+      'get-draft',
+      { draftId },
+    );
+    return payload.draft;
+  } catch (error) {
+    if (error instanceof Error && /not found/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
+export async function saveEventDraft(
+  draftId: string,
+  expectedRevision: number,
+  patch: EventDraftPatch,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>('save-draft', {
+    draftId,
+    expectedRevision,
+    patch,
+  });
+  return payload.draft;
+}
+
+export async function deleteEventDraft(draftId: string): Promise<void> {
+  await callEventPublication('delete-draft', { draftId });
+}
+
+export interface PublicationPreflight {
+  eventId: string;
+  organizerAddress: string;
+  network: 'StellarTestnet';
+  ticketContractId: string;
+}
+
+export async function preflightEventPublication(draftId: string): Promise<{
+  draft: EventPublicationDraft;
+  preflight: PublicationPreflight;
+}> {
+  return callEventPublication('preflight-publication', { draftId });
+}
+
+export async function beginEventPublication(
+  draftId: string,
+  prepared: {
+    unsignedEnvelopeHash: string;
+    sourceSequence: string;
+    transactionMaxTime: number;
+  },
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'begin-publication',
+    { draftId, ...prepared },
+  );
+  return payload.draft;
+}
+
+export async function recordSignedEventPublication(
+  draftId: string,
+  signedTransactionHash: string,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'record-signed-publication',
+    { draftId, signedTransactionHash },
+  );
+  return payload.draft;
+}
+
+export async function recordPublicationPreSubmissionFailure(
+  draftId: string,
+  category:
+    | 'approval_rejected'
+    | 'approval_expired'
+    | 'preparation_failed'
+    | 'signing_provider_failed',
+  detail?: string,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'pre-submission-failed',
+    { draftId, category, detail },
+  );
+  return payload.draft;
+}
+
+export async function resolveEventPublication(draftId: string): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'resolve-publication',
+    { draftId },
+  );
+  return payload.draft;
+}
+
+export async function retryEventPublicationSync(draftId: string): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'retry-publication-sync',
+    { draftId },
+  );
+  return payload.draft;
+}
+
+export interface OwnedOrganizerEvent extends EventMetadata {
+  draft_id: string;
+  publication_state: EventPublicationState;
+  publication_updated_at: string;
+}
+
+export async function getMyOrganizerEvents(): Promise<OwnedOrganizerEvent[]> {
+  const payload = await callEventPublication<{ events: OwnedOrganizerEvent[] }>(
+    'list-owned-events',
+  );
+  return payload.events;
+}
+
+export async function getMyOrganizerEvent(eventId: string): Promise<OwnedOrganizerEvent | null> {
+  try {
+    const payload = await callEventPublication<{ event: OwnedOrganizerEvent }>(
+      'get-owned-event',
+      { eventId },
+    );
+    return payload.event;
+  } catch (error) {
+    if (error instanceof Error && /not found/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
+export interface EventMetadataPatch {
+  summary?: string;
+  description?: string;
+  image_url?: string;
+  organizer_display_name?: string;
+  support_contact?: string;
+  entry_instructions?: string;
+  accessibility_notes?: string;
+  age_restriction?: string;
+  prohibited_items?: string;
+  map_url?: string;
+  public_links?: string[];
+  venue?: string;
+  address?: string;
+  city?: string;
+}
+
+export async function updateOrganizerEventMetadata(
+  eventId: string,
+  expectedMetadataRevision: number,
+  patch: EventMetadataPatch,
+): Promise<OwnedOrganizerEvent> {
+  const payload = await callEventPublication<{ event: OwnedOrganizerEvent }>('update-metadata', {
+    eventId,
+    expectedMetadataRevision,
+    patch,
+  });
+  return payload.event;
+}
+
+export type OrganizerEventOperationType = 'cancel_event' | 'complete_event';
+export type OrganizerEventOperationState =
+  | 'review'
+  | 'approval_required'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'pre_submission_failed'
+  | 'chain_failed'
+  | 'chain_confirmed'
+  | 'mirror_syncing'
+  | 'sync_warning'
+  | 'complete';
+
+export interface OrganizerEventOperation {
+  operation_id: string;
+  event_id: string;
+  operation_type: OrganizerEventOperationType;
+  expected_organizer_address: string;
+  cancellation_reason: string | null;
+  state: OrganizerEventOperationState;
+  transaction_hash: string | null;
+  released_amount: string | null;
+  chain_confirmed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function invokeOrganizerEventOperation(
+  action:
+    | 'allocate'
+    | 'get'
+    | 'list'
+    | 'begin-attempt'
+    | 'record-signed-attempt'
+    | 'pre-submission-failed'
+    | 'resolve'
+    | 'retry-sync',
+  input: Record<string, unknown>,
+): Promise<{
+  operation?: OrganizerEventOperation;
+  operations?: OrganizerEventOperation[];
+}> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/organizer-event-operation`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Organizer operation service unavailable.');
+  return payload;
+}
+
+export type CheckInOperationState =
+  | 'review'
+  | 'approval_required'
+  | 'pre_submission_failed'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'chain_failed'
+  | 'chain_confirmed'
+  | 'mirror_syncing'
+  | 'sync_warning'
+  | 'complete';
+
+export interface CheckInOperation {
+  operation_id: string;
+  event_id: string;
+  ticket_id: string;
+  expected_owner_address: string;
+  expected_organizer_address: string;
+  state: CheckInOperationState;
+  transaction_hash: string | null;
+  chain_confirmed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CheckInStats {
+  sold: number;
+  checkedIn: number;
+  remaining: number;
+  unresolved: number;
+}
+
+export async function invokeCheckInOperation(
+  action:
+    | 'allocate'
+    | 'get'
+    | 'list'
+    | 'stats'
+    | 'begin-attempt'
+    | 'record-signed-attempt'
+    | 'pre-submission-failed'
+    | 'resolve'
+    | 'retry-sync',
+  input: Record<string, unknown>,
+): Promise<{
+  operation?: CheckInOperation;
+  operations?: CheckInOperation[];
+  stats?: CheckInStats;
+}> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/check-in-operation`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Check-in service unavailable.');
+  return payload;
+}
+
+export async function fetchMyTicket(ticketId: string): Promise<TicketRow | null> {
+  const { data, error } = await supabase.rpc('get_my_ticket', { requested_ticket_id: ticketId });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as TicketRow[])[0] ?? null;
+}
+
+/**
+ * Fetch open listing for a specific ticket to determine "Cancel Listing" UI state.
+ */
+export async function fetchOpenListingByTicket(ticketId: string): Promise<ListingRow | null> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .eq('status', 'Open')
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[supabase] fetchOpenListingByTicket failed:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+export async function fetchUserProfile(walletAddress: string): Promise<UserProfileRow | null> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('wallet_address', walletAddress)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[supabase] fetchUserProfile failed:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
+
+================================================
+FILE: frontend/src/types/index.ts
+================================================
+export type TicketStatus = 'Active' | 'Used' | 'Refunded';
+export type EventStatus = 'Active' | 'Cancelled' | 'Completed';
+export type EventSalesState =
+  | 'on_sale'
+  | 'sold_out'
+  | 'sales_closed'
+  | 'cancelled'
+  | 'completed'
+  | 'unavailable';
+export type EventAuthority = 'preview' | 'confirmed' | 'unavailable';
+export type RefundPolicyCode = 'cancelled_event_original_price';
+export type ResalePolicyCode = 'stellar_marketplace_unlocked';
+export type TxStatus = 'idle' | 'building' | 'signing' | 'submitting' | 'success' | 'error';
+
+export type SignFn = (
+  xdr: string,
+  opts?: { networkPassphrase?: string; address?: string; externalId?: string },
+) => Promise<{ signedTxXdr: string; signerAddress?: string }>;
+
+export type MessageSignFn = (message: Uint8Array, externalId?: string) => Promise<Uint8Array>;
+export type WalletReadiness =
+  | 'signed_out'
+  | 'not_provisioned'
+  | 'provisioning'
+  | 'ready'
+  | 'recovery_required'
+  | 'error';
+
+export interface Event {
+  eventId: string;
+  organizer: string;
+  organizerDisplayName: string;
+  name: string;
+  summary: string;
+  description: string;
+  imageUrl: string;
+  category: string;
+  dateUnix: number;
+  endUnix: number;
+  timezone: string;
+  venue: string;
+  address: string;
+  city: string;
+  supportContact: string;
+  refundPolicyCode: RefundPolicyCode;
+  resalePolicyCode: ResalePolicyCode;
+  entryInstructions: string;
+  capacity: number;
+  pricePerTicket: number;
+  currentSupply: number;
+  escrowBalance?: number;
+  status: EventStatus;
+  network: 'StellarTestnet';
+  ticketContractId: string;
+  creationTxHash: string;
+  chainVerifiedAt: string;
+  authority: EventAuthority;
+  authorityError?: string;
+}
+
+export interface AuthoritativeEventSnapshot {
+  eventId: string;
+  organizer: string;
+  name: string;
+  dateUnix: number;
+  capacity: number;
+  pricePerTicket: number;
+  currentSupply: number;
+  endUnix: number;
+  escrowBalance: number;
+  status: EventStatus;
+}
+
+export interface Ticket {
+  ticketId: string;
+  eventId: string;
+  owner: string;
+  status: TicketStatus;
+  purchasedAt?: string;
+  receiptOperationId?: string;
+}
+
+export interface AttendeeWalletState {
+  address: string | null;
+  network: 'StellarTestnet';
+  readiness: WalletReadiness;
+  signFn: SignFn | null;
+  signMessage: MessageSignFn | null;
+  errorMessage?: string;
+}
+
+export interface OrganizerWalletState {
+  isConnected: boolean;
+  publicKey: string | null;
+  xlmBalance: string | null;
+  signFn: SignFn | null;
+  errorMessage?: string;
+}
+
+export interface TxState {
+  status: TxStatus;
+  hash?: string;
+  errorMessage?: string;
+  message?: string;
+}
+
+export const xlmToStroops = (xlm: number): bigint => BigInt(Math.floor(xlm * 10_000_000));
+export const stroopsToXlm = (s: number) => (s / 10_000_000).toFixed(2);
+export const formatEventDate = (unix: number, timeZone = 'UTC') =>
+  new Date(unix * 1000).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone,
+  });
+export const formatDateTime = (iso?: string) =>
+  iso
+    ? new Date(iso).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : '—';
+export const truncateKey = (key: string) => `${key.slice(0, 4)}...${key.slice(-4)}`;
+
+
+================================================
+FILE: frontend/src/components/events/EventActions.tsx
+================================================
+import { useState } from 'react';
+import {
+  downloadIcs,
+  googleCalendarUrl,
+  mapsUrl,
+  outlookCalendarUrl,
+  shareEvent,
+} from '../../lib/eventActions';
+import type { Event } from '../../types';
+
+export function EventActions({ event, compact = false }: { event: Event; compact?: boolean }) {
+  const [message, setMessage] = useState<string | null>(null);
+
+  const share = async () => {
+    try {
+      const result = await shareEvent(event);
+      setMessage(result === 'copied' ? 'Event link copied.' : 'Event shared.');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setMessage(error instanceof Error ? error.message : 'Could not share event.');
+    }
+  };
+
+  const linkClass =
+    'rounded-lg border border-[#36333e] px-3 py-2 text-sm text-[#c9c4d8] hover:border-[#7C5CFF] hover:text-white transition-colors';
+
+  if (compact) {
+    return (
+      <div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void share()} className={linkClass}>Share</button>
+          <button type="button" onClick={() => downloadIcs(event)} className={linkClass}>Add to calendar</button>
+          <a href={mapsUrl(event)} target="_blank" rel="noreferrer" className={linkClass}>Map</a>
+        </div>
+        {message && <p className="mt-2 text-xs text-[#938ea1]">{message}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => void share()} className={linkClass}>
+          Share event
+        </button>
+        <a href={googleCalendarUrl(event)} target="_blank" rel="noreferrer" className={linkClass}>
+          Google Calendar
+        </a>
+        <a href={outlookCalendarUrl(event)} target="_blank" rel="noreferrer" className={linkClass}>
+          Outlook
+        </a>
+        <button type="button" onClick={() => downloadIcs(event)} className={linkClass}>
+          Download .ics
+        </button>
+        <a href={mapsUrl(event)} target="_blank" rel="noreferrer" className={linkClass}>
+          Open in maps
+        </a>
+      </div>
+      {message && <p className="text-xs text-[#938ea1]">{message}</p>}
+    </div>
+  );
+}
+
+
+================================================
+FILE: frontend/src/components/layout/AppHeader.tsx
+================================================
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider';
+
+const navClass = ({ isActive }: { isActive: boolean }) =>
+  `h-full flex items-center px-2 border-b-2 text-sm transition-colors ${
+    isActive ? 'text-[#7C5CFF] border-[#7C5CFF]' : 'text-slate-400 border-transparent hover:text-white'
+  }`;
+
+export function AppHeader() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isDetail = /^\/(events\/[^/]+|tickets\/[^/]+|organizer\/(?:events|drafts)\/[^/]+)/.test(location.pathname);
+
+  return (
+    <header className="fixed top-0 w-full z-50 border-b border-[#272C33] bg-[#15181C]/95 backdrop-blur-md">
+      <div className="flex justify-between items-center h-16 px-4 md:px-8 max-w-7xl mx-auto">
+        <div className="flex items-center gap-6 h-full">
+          {isDetail && (
+            <button onClick={() => navigate(-1)} aria-label="Go back" className="p-2 text-white">
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+          )}
+          <NavLink to="/events" className="text-xl font-bold text-white">StellarTickets</NavLink>
+          <nav className="hidden md:flex items-center gap-4 h-full">
+            <NavLink to="/events" className={navClass}>Discover</NavLink>
+            <NavLink to="/marketplace" className={navClass}>Marketplace</NavLink>
+            <NavLink to="/tickets" className={navClass}>My Tickets</NavLink>
+            <NavLink to="/account" className={navClass}>Account</NavLink>
+          </nav>
+        </div>
+        <button
+          onClick={() => navigate(user ? '/account' : '/auth')}
+          className="bg-[#7C5CFF] text-white px-4 py-2 rounded-lg text-sm"
+        >
+          {user ? 'Account' : 'Sign in'}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+
+================================================
+FILE: frontend/src/components/layout/BottomNav.tsx
+================================================
+import { NavLink, useLocation } from 'react-router-dom';
+
+const items = [
+  ['/events', 'explore', 'Discover'],
+  ['/marketplace', 'storefront', 'Market'],
+  ['/tickets', 'confirmation_number', 'Tickets'],
+  ['/account', 'person', 'Account'],
+] as const;
+
+export function BottomNav() {
+  const { pathname } = useLocation();
+  if (/^\/(auth|events\/[^/]+|tickets\/[^/]+|organizer)/.test(pathname)) return null;
+  return (
+    <nav className="md:hidden fixed bottom-0 w-full z-50 border-t border-[#272C33] bg-[#15181C]">
+      <div className="flex justify-around items-center h-16">
+        {items.map(([to, icon, label]) => (
+          <NavLink key={to} to={to} className={({ isActive }) =>
+            `flex flex-col items-center justify-center w-20 text-xs ${isActive ? 'text-[#7C5CFF]' : 'text-slate-400'}`
+          }>
+            <span className="material-symbols-outlined">{icon}</span>
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+
+================================================
+FILE: frontend/src/contracts/ticket/src/index.ts
+================================================
+import { Buffer } from "buffer";
+import { Address } from "@stellar/stellar-sdk";
+import {
+  AssembledTransaction,
+  Client as ContractClient,
+  ClientOptions as ContractClientOptions,
+  MethodOptions,
+  Result,
+  Spec as ContractSpec,
+} from "@stellar/stellar-sdk/contract";
+import type {
+  u32,
+  i32,
+  u64,
+  i64,
+  u128,
+  i128,
+  u256,
+  i256,
+  Option,
+  Timepoint,
+  Duration,
+} from "@stellar/stellar-sdk/contract";
+export * from "@stellar/stellar-sdk";
+export * as contract from "@stellar/stellar-sdk/contract";
+export * as rpc from "@stellar/stellar-sdk/rpc";
+
+if (typeof window !== "undefined") {
+  //@ts-ignore Buffer exists
+  window.Buffer = window.Buffer || Buffer;
+}
+
+
+
+
+export const ContractError = {
+  1: {message:"AlreadyInitialized"},
+  2: {message:"NotInitialized"},
+  3: {message:"EventNotFound"},
+  4: {message:"EventNotActive"},
+  5: {message:"EventCapacityExceeded"},
+  6: {message:"EventNotCancelled"},
+  7: {message:"EventNotEligibleForRelease"},
+  8: {message:"EventAlreadyCompleted"},
+  18: {message:"EventAlreadyExists"},
+  19: {message:"InvalidCapacity"},
+  20: {message:"InvalidPrice"},
+  21: {message:"EventDateInPast"},
+  23: {message:"EventSalesClosed"},
+  24: {message:"InvalidEventEndTime"},
+  9: {message:"TicketNotFound"},
+  10: {message:"TicketAlreadyUsed"},
+  11: {message:"TicketNotOwnedByCaller"},
+  22: {message:"TicketAlreadyExists"},
+  25: {message:"TicketRefunded"},
+  26: {message:"TicketWrongEvent"},
+  27: {message:"CheckInNotOpen"},
+  28: {message:"CheckInClosed"},
+  12: {message:"OnlyOrganizerAllowed"},
+  13: {message:"OnlyMarketplaceAllowed"},
+  14: {message:"InsufficientEscrowBalance"},
+  15: {message:"Overflow"},
+  16: {message:"Underflow"},
+  17: {message:"DivisionByZero"}
+}
+
+
+/**
+ * Full event record stored on-chain.
+ */
+export interface Event {
+  /**
+ * Maximum number of tickets that can be sold
+ */
+capacity: i128;
+  /**
+ * How many tickets have been sold so far
+ */
+current_supply: i128;
+  /**
+ * Unix timestamp when primary sales close and the event starts
+ */
+date_unix: u64;
+  /**
+ * Unix timestamp when the event ends and completion becomes eligible
+ */
+end_unix: u64;
+  /**
+ * Short display name (stored as String to handle spaces and length > 32)
+ */
+name: string;
+  /**
+ * Address that created the event and will receive funds after release
+ */
+organizer: string;
+  /**
+ * Price per ticket in stroops (1 XLM = 10_000_000 stroops)
+ */
+price_per_ticket: i128;
+  status: EventStatus;
+}
+
+
+/**
+ * Individual ticket record stored on-chain.
+ */
+export interface Ticket {
+  /**
+ * Which event this ticket belongs to
+ */
+event_id: string;
+  /**
+ * Current owner of this ticket
+ */
+owner: string;
+  /**
+ * Lifecycle state: Active → Used (scanned) or Refunded (event cancelled).
+ * Never use a bool here — on-chain data is permanent and analytics must
+ * distinguish the two terminal states. See D-018.
+ */
+status: TicketStatus;
+}
+
+/**
+ * Storage keys for all persistent data in TicketContract.
+ * Keyed by event_id or ticket_id (both Strings).
+ */
+export type DataKey = {tag: "Event", values: readonly [string]} | {tag: "Ticket", values: readonly [string]} | {tag: "Escrow", values: readonly [string]} | {tag: "MarketplaceAddress", values: void} | {tag: "XlmToken", values: void} | {tag: "Admin", values: void};
+
+/**
+ * Event status lifecycle.
+ */
+export type EventStatus = {tag: "Active", values: void} | {tag: "Cancelled", values: void} | {tag: "Completed", values: void};
+
+/**
+ * Ticket status lifecycle.
+ * Kept as a three-variant enum rather than a bool so on-chain history can
+ * distinguish a scanned ticket (Used) from a refunded one (Refunded).
+ * Changing this after data lands on-chain requires a storage migration — do it now.
+ */
+export type TicketStatus = {tag: "Active", values: void} | {tag: "Used", values: void} | {tag: "Refunded", values: void};
+
+export interface Client {
+  /**
+   * Construct and simulate a refund transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  refund: ({ticket_id, attendee}: {ticket_id: string, attendee: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a purchase transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Purchase a ticket. Pulls price_per_ticket XLM from buyer into escrow.
+   * Token address is read from contract storage — never trusted from caller (S-001).
+   */
+  purchase: ({event_id, buyer, ticket_id}: {event_id: string, buyer: string, ticket_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a get_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_event: ({event_id}: {event_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Event>>>
+
+  /**
+   * Construct and simulate a mark_used transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  mark_used: ({event_id, ticket_id, expected_owner, organizer}: {event_id: string, ticket_id: string, expected_owner: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a get_ticket transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_ticket: ({ticket_id}: {ticket_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Ticket>>>
+
+  /**
+   * Construct and simulate a initialize transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Set the one marketplace address allowed to call restricted_transfer,
+   * and the trusted XLM SAC token address.
+   * Can only be called once. Admin is authenticated to prevent front-running.
+   */
+  initialize: ({admin, marketplace_address, xlm_token}: {admin: string, marketplace_address: string, xlm_token: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a cancel_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Cancel event. Only organizer. Does not auto-refund — pull-based per D-002.
+   */
+  cancel_event: ({event_id, organizer}: {event_id: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a create_event transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Create a new event. Does NOT mint tickets — lazy minting at purchase time.
+   */
+  create_event: ({organizer, event_id, name, date_unix, end_unix, capacity, price_per_ticket}: {organizer: string, event_id: string, name: string, date_unix: u64, end_unix: u64, capacity: i128, price_per_ticket: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a get_xlm_token transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Return the trusted XLM SAC token address stored at initialize.
+   * Useful for frontend transparency and test assertions.
+   */
+  get_xlm_token: (options?: MethodOptions) => Promise<AssembledTransaction<Result<string>>>
+
+  /**
+   * Construct and simulate a release_funds transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Complete the event and release escrowed funds to organizer.
+   * Only callable at or after the authoritative event end time.
+   * Token address is read from contract storage — never trusted from caller (S-001).
+   */
+  release_funds: ({event_id, organizer}: {event_id: string, organizer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+  /**
+   * Construct and simulate a get_marketplace transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  get_marketplace: (options?: MethodOptions) => Promise<AssembledTransaction<Result<string>>>
+
+  /**
+   * Construct and simulate a get_escrow_balance transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Return the actual XLM escrow held for an existing event.
+   */
+  get_escrow_balance: ({event_id}: {event_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<i128>>>
+
+  /**
+   * Construct and simulate a restricted_transfer transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Transfer ticket ownership. ONLY the stored marketplace address can call this.
+   */
+  restricted_transfer: ({ticket_id, new_owner}: {ticket_id: string, new_owner: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
+
+}
+export class Client extends ContractClient {
+  static async deploy<T = Client>(
+    /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
+    options: MethodOptions &
+      Omit<ContractClientOptions, "contractId"> & {
+        /** The hash of the Wasm blob, which must already be installed on-chain. */
+        wasmHash: Buffer | string;
+        /** Salt used to generate the contract's ID. Passed through to {@link Operation.createCustomContract}. Default: random. */
+        salt?: Buffer | Uint8Array;
+        /** The format used to decode `wasmHash`, if it's provided as a string. */
+        format?: "hex" | "base64";
+      }
+  ): Promise<AssembledTransaction<T>> {
+    return ContractClient.deploy(null, options)
+  }
+  constructor(public readonly options: ContractClientOptions) {
+    super(
+      new ContractSpec([ "AAAAAAAAAAAAAAAGcmVmdW5kAAAAAAACAAAAAAAAAAl0aWNrZXRfaWQAAAAAAAAQAAAAAAAAAAhhdHRlbmRlZQAAABMAAAABAAAD6QAAAAIAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
+        "AAAAAAAAAJhQdXJjaGFzZSBhIHRpY2tldC4gUHVsbHMgcHJpY2VfcGVyX3RpY2tldCBYTE0gZnJvbSBidXllciBpbnRvIGVzY3Jvdy4KVG9rZW4gYWRkcmVzcyBpcyByZWFkIGZyb20gY29udHJhY3Qgc3RvcmFnZSDigJQgbmV2ZXIgdHJ1c3RlZCBmcm9tIGNhbGxlciAoUy0wMDEpLgAAAAhwdXJjaGFzZQAAAAMAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAAAAAAFYnV5ZXIAAAAAAAATAAAAAAAAAAl0aWNrZXRfaWQAAAAAAAAQAAAAAQAAA+kAAAACAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
+        "AAAAAAAAAAAAAAAJZ2V0X2V2ZW50AAAAAAAAAQAAAAAAAAAIZXZlbnRfaWQAAAAQAAAAAQAAA+kAAAfQAAAABUV2ZW50AAAAAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
+        "AAAAAAAAAAAAAAAJbWFya191c2VkAAAAAAAABAAAAAAAAAAIZXZlbnRfaWQAAAAQAAAAAAAAAAl0aWNrZXRfaWQAAAAAAAAQAAAAAAAAAA5leHBlY3RlZF9vd25lcgAAAAAAEwAAAAAAAAAJb3JnYW5pemVyAAAAAAAAEwAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAAAAAAAKZ2V0X3RpY2tldAAAAAAAAQAAAAAAAAAJdGlja2V0X2lkAAAAAAAAEAAAAAEAAAPpAAAH0AAAAAZUaWNrZXQAAAAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAALVTZXQgdGhlIG9uZSBtYXJrZXRwbGFjZSBhZGRyZXNzIGFsbG93ZWQgdG8gY2FsbCByZXN0cmljdGVkX3RyYW5zZmVyLAphbmQgdGhlIHRydXN0ZWQgWExNIFNBQyB0b2tlbiBhZGRyZXNzLgpDYW4gb25seSBiZSBjYWxsZWQgb25jZS4gQWRtaW4gaXMgYXV0aGVudGljYXRlZCB0byBwcmV2ZW50IGZyb250LXJ1bm5pbmcuAAAAAAAACmluaXRpYWxpemUAAAAAAAMAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAATbWFya2V0cGxhY2VfYWRkcmVzcwAAAAATAAAAAAAAAAl4bG1fdG9rZW4AAAAAAAATAAAAAQAAA+kAAAACAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
+        "AAAAAAAAAExDYW5jZWwgZXZlbnQuIE9ubHkgb3JnYW5pemVyLiBEb2VzIG5vdCBhdXRvLXJlZnVuZCDigJQgcHVsbC1iYXNlZCBwZXIgRC0wMDIuAAAADGNhbmNlbF9ldmVudAAAAAIAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAAAAAAJb3JnYW5pemVyAAAAAAAAEwAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAExDcmVhdGUgYSBuZXcgZXZlbnQuIERvZXMgTk9UIG1pbnQgdGlja2V0cyDigJQgbGF6eSBtaW50aW5nIGF0IHB1cmNoYXNlIHRpbWUuAAAADGNyZWF0ZV9ldmVudAAAAAcAAAAAAAAACW9yZ2FuaXplcgAAAAAAABMAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAAAAAAEbmFtZQAAABAAAAAAAAAACWRhdGVfdW5peAAAAAAAAAYAAAAAAAAACGVuZF91bml4AAAABgAAAAAAAAAIY2FwYWNpdHkAAAALAAAAAAAAABBwcmljZV9wZXJfdGlja2V0AAAACwAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAHRSZXR1cm4gdGhlIHRydXN0ZWQgWExNIFNBQyB0b2tlbiBhZGRyZXNzIHN0b3JlZCBhdCBpbml0aWFsaXplLgpVc2VmdWwgZm9yIGZyb250ZW5kIHRyYW5zcGFyZW5jeSBhbmQgdGVzdCBhc3NlcnRpb25zLgAAAA1nZXRfeGxtX3Rva2VuAAAAAAAAAAAAAAEAAAPpAAAAEwAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAMpDb21wbGV0ZSB0aGUgZXZlbnQgYW5kIHJlbGVhc2UgZXNjcm93ZWQgZnVuZHMgdG8gb3JnYW5pemVyLgpPbmx5IGNhbGxhYmxlIGF0IG9yIGFmdGVyIHRoZSBhdXRob3JpdGF0aXZlIGV2ZW50IGVuZCB0aW1lLgpUb2tlbiBhZGRyZXNzIGlzIHJlYWQgZnJvbSBjb250cmFjdCBzdG9yYWdlIOKAlCBuZXZlciB0cnVzdGVkIGZyb20gY2FsbGVyIChTLTAwMSkuAAAAAAANcmVsZWFzZV9mdW5kcwAAAAAAAAIAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAAAAAAJb3JnYW5pemVyAAAAAAAAEwAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAAAAAAAPZ2V0X21hcmtldHBsYWNlAAAAAAAAAAABAAAD6QAAABMAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
+        "AAAAAAAAADhSZXR1cm4gdGhlIGFjdHVhbCBYTE0gZXNjcm93IGhlbGQgZm9yIGFuIGV4aXN0aW5nIGV2ZW50LgAAABJnZXRfZXNjcm93X2JhbGFuY2UAAAAAAAEAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAEAAAPpAAAACwAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAE1UcmFuc2ZlciB0aWNrZXQgb3duZXJzaGlwLiBPTkxZIHRoZSBzdG9yZWQgbWFya2V0cGxhY2UgYWRkcmVzcyBjYW4gY2FsbCB0aGlzLgAAAAAAABNyZXN0cmljdGVkX3RyYW5zZmVyAAAAAAIAAAAAAAAACXRpY2tldF9pZAAAAAAAABAAAAAAAAAACW5ld19vd25lcgAAAAAAABMAAAABAAAD6QAAAAIAAAfQAAAADUNvbnRyYWN0RXJyb3IAAAA=",
+        "AAAABAAAAAAAAAAAAAAADUNvbnRyYWN0RXJyb3IAAAAAAAAcAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAA1FdmVudE5vdEZvdW5kAAAAAAAAAwAAAAAAAAAORXZlbnROb3RBY3RpdmUAAAAAAAQAAAAAAAAAFUV2ZW50Q2FwYWNpdHlFeGNlZWRlZAAAAAAAAAUAAAAAAAAAEUV2ZW50Tm90Q2FuY2VsbGVkAAAAAAAABgAAAAAAAAAaRXZlbnROb3RFbGlnaWJsZUZvclJlbGVhc2UAAAAAAAcAAAAAAAAAFUV2ZW50QWxyZWFkeUNvbXBsZXRlZAAAAAAAAAgAAAAAAAAAEkV2ZW50QWxyZWFkeUV4aXN0cwAAAAAAEgAAAAAAAAAPSW52YWxpZENhcGFjaXR5AAAAABMAAAAAAAAADEludmFsaWRQcmljZQAAABQAAAAAAAAAD0V2ZW50RGF0ZUluUGFzdAAAAAAVAAAAAAAAABBFdmVudFNhbGVzQ2xvc2VkAAAAFwAAAAAAAAATSW52YWxpZEV2ZW50RW5kVGltZQAAAAAYAAAAAAAAAA5UaWNrZXROb3RGb3VuZAAAAAAACQAAAAAAAAARVGlja2V0QWxyZWFkeVVzZWQAAAAAAAAKAAAAAAAAABZUaWNrZXROb3RPd25lZEJ5Q2FsbGVyAAAAAAALAAAAAAAAABNUaWNrZXRBbHJlYWR5RXhpc3RzAAAAABYAAAAAAAAADlRpY2tldFJlZnVuZGVkAAAAAAAZAAAAAAAAABBUaWNrZXRXcm9uZ0V2ZW50AAAAGgAAAAAAAAAOQ2hlY2tJbk5vdE9wZW4AAAAAABsAAAAAAAAADUNoZWNrSW5DbG9zZWQAAAAAAAAcAAAAAAAAABRPbmx5T3JnYW5pemVyQWxsb3dlZAAAAAwAAAAAAAAAFk9ubHlNYXJrZXRwbGFjZUFsbG93ZWQAAAAAAA0AAAAAAAAAGUluc3VmZmljaWVudEVzY3Jvd0JhbGFuY2UAAAAAAAAOAAAAAAAAAAhPdmVyZmxvdwAAAA8AAAAAAAAACVVuZGVyZmxvdwAAAAAAABAAAAAAAAAADkRpdmlzaW9uQnlaZXJvAAAAAAAR",
+        "AAAAAQAAACJGdWxsIGV2ZW50IHJlY29yZCBzdG9yZWQgb24tY2hhaW4uAAAAAAAAAAAABUV2ZW50AAAAAAAACAAAACpNYXhpbXVtIG51bWJlciBvZiB0aWNrZXRzIHRoYXQgY2FuIGJlIHNvbGQAAAAAAAhjYXBhY2l0eQAAAAsAAAAmSG93IG1hbnkgdGlja2V0cyBoYXZlIGJlZW4gc29sZCBzbyBmYXIAAAAAAA5jdXJyZW50X3N1cHBseQAAAAAACwAAADxVbml4IHRpbWVzdGFtcCB3aGVuIHByaW1hcnkgc2FsZXMgY2xvc2UgYW5kIHRoZSBldmVudCBzdGFydHMAAAAJZGF0ZV91bml4AAAAAAAABgAAAEJVbml4IHRpbWVzdGFtcCB3aGVuIHRoZSBldmVudCBlbmRzIGFuZCBjb21wbGV0aW9uIGJlY29tZXMgZWxpZ2libGUAAAAAAAhlbmRfdW5peAAAAAYAAABGU2hvcnQgZGlzcGxheSBuYW1lIChzdG9yZWQgYXMgU3RyaW5nIHRvIGhhbmRsZSBzcGFjZXMgYW5kIGxlbmd0aCA+IDMyKQAAAAAABG5hbWUAAAAQAAAAQ0FkZHJlc3MgdGhhdCBjcmVhdGVkIHRoZSBldmVudCBhbmQgd2lsbCByZWNlaXZlIGZ1bmRzIGFmdGVyIHJlbGVhc2UAAAAACW9yZ2FuaXplcgAAAAAAABMAAAA4UHJpY2UgcGVyIHRpY2tldCBpbiBzdHJvb3BzICgxIFhMTSA9IDEwXzAwMF8wMDAgc3Ryb29wcykAAAAQcHJpY2VfcGVyX3RpY2tldAAAAAsAAAAAAAAABnN0YXR1cwAAAAAH0AAAAAtFdmVudFN0YXR1cwA=",
+        "AAAAAQAAAClJbmRpdmlkdWFsIHRpY2tldCByZWNvcmQgc3RvcmVkIG9uLWNoYWluLgAAAAAAAAAAAAAGVGlja2V0AAAAAAADAAAAIldoaWNoIGV2ZW50IHRoaXMgdGlja2V0IGJlbG9uZ3MgdG8AAAAAAAhldmVudF9pZAAAABAAAAAcQ3VycmVudCBvd25lciBvZiB0aGlzIHRpY2tldAAAAAVvd25lcgAAAAAAABMAAADBTGlmZWN5Y2xlIHN0YXRlOiBBY3RpdmUg4oaSIFVzZWQgKHNjYW5uZWQpIG9yIFJlZnVuZGVkIChldmVudCBjYW5jZWxsZWQpLgpOZXZlciB1c2UgYSBib29sIGhlcmUg4oCUIG9uLWNoYWluIGRhdGEgaXMgcGVybWFuZW50IGFuZCBhbmFseXRpY3MgbXVzdApkaXN0aW5ndWlzaCB0aGUgdHdvIHRlcm1pbmFsIHN0YXRlcy4gU2VlIEQtMDE4LgAAAAAAAAZzdGF0dXMAAAAAB9AAAAAMVGlja2V0U3RhdHVz",
+        "AAAAAgAAAGZTdG9yYWdlIGtleXMgZm9yIGFsbCBwZXJzaXN0ZW50IGRhdGEgaW4gVGlja2V0Q29udHJhY3QuCktleWVkIGJ5IGV2ZW50X2lkIG9yIHRpY2tldF9pZCAoYm90aCBTdHJpbmdzKS4AAAAAAAAAAAAHRGF0YUtleQAAAAAGAAAAAQAAAClTdG9yZXMgYW4gRXZlbnQgcmVjb3JkLCBrZXllZCBieSBldmVudF9pZAAAAAAAAAVFdmVudAAAAAAAAAEAAAAQAAAAAQAAACpTdG9yZXMgYSBUaWNrZXQgcmVjb3JkLCBrZXllZCBieSB0aWNrZXRfaWQAAAAAAAZUaWNrZXQAAAAAAAEAAAAQAAAAAQAAAEJTdG9yZXMgZXNjcm93IGJhbGFuY2UgKGluIHN0cm9vcHMpIGZvciBhbiBldmVudCwga2V5ZWQgYnkgZXZlbnRfaWQAAAAAAAZFc2Nyb3cAAAAAAAEAAAAQAAAAAAAAAOFUaGUgb25lIGFkZHJlc3MgYWxsb3dlZCB0byBjYWxsIHJlc3RyaWN0ZWRfdHJhbnNmZXIuClNldCBvbmNlIGF0IGluaXRpYWxpemUoKSwgbmV2ZXIgY2hhbmdlcy4KTk9URTogU3RvcmVkIGluIGluc3RhbmNlKCkgc3RvcmFnZSDigJQgbm90IHBlcnNpc3RlbnQoKSDigJQgYmVjYXVzZSB0aGlzIElTCmNvbnRyYWN0LWxpZmV0aW1lIGRhdGEuIFNlZSBkb2NzL2FyY2hpdGVjdHVyZS5tZCBELTAxMi4AAAAAAAASTWFya2V0cGxhY2VBZGRyZXNzAAAAAAAAAAAAflRoZSB0cnVzdGVkIFhMTSBTQUMgYWRkcmVzcy4gU2V0IG9uY2UgYXQgaW5pdGlhbGl6ZSgpLgpOZXZlciBzdXBwbGllZCBieSBjYWxsZXJzIOKAlCBwcmV2ZW50cyBmYWtlLXRva2VuIGVzY3JvdyBkcmFpbiAoUy0wMDEpLgAAAAAACFhsbVRva2VuAAAAAAAAAIRBZG1pbiBhZGRyZXNzIOKAlCBzZXQgb25jZSBhdCBpbml0aWFsaXplLCBjYW4gcmUtaW5pdGlhbGl6ZSBhZnRlciBjb250cmFjdCB1cGdyYWRlLgpTdG9yZWQgaW4gaW5zdGFuY2UoKSDigJQgY29udHJhY3QtbGlmZXRpbWUgZGF0YS4AAAAFQWRtaW4AAAA=",
+        "AAAAAgAAABdFdmVudCBzdGF0dXMgbGlmZWN5Y2xlLgAAAAAAAAAAC0V2ZW50U3RhdHVzAAAAAAMAAAAAAAAAAAAAAAZBY3RpdmUAAAAAAAAAAAAAAAAACUNhbmNlbGxlZAAAAAAAAAAAAAAAAAAACUNvbXBsZXRlZAAAAA==",
+        "AAAAAgAAAPhUaWNrZXQgc3RhdHVzIGxpZmVjeWNsZS4KS2VwdCBhcyBhIHRocmVlLXZhcmlhbnQgZW51bSByYXRoZXIgdGhhbiBhIGJvb2wgc28gb24tY2hhaW4gaGlzdG9yeSBjYW4KZGlzdGluZ3Vpc2ggYSBzY2FubmVkIHRpY2tldCAoVXNlZCkgZnJvbSBhIHJlZnVuZGVkIG9uZSAoUmVmdW5kZWQpLgpDaGFuZ2luZyB0aGlzIGFmdGVyIGRhdGEgbGFuZHMgb24tY2hhaW4gcmVxdWlyZXMgYSBzdG9yYWdlIG1pZ3JhdGlvbiDigJQgZG8gaXQgbm93LgAAAAAAAAAMVGlja2V0U3RhdHVzAAAAAwAAAAAAAAAyVGlja2V0IGlzIHZhbGlkIGFuZCBoYXMgbm90IGJlZW4gdXNlZCBvciByZWZ1bmRlZC4AAAAAAAZBY3RpdmUAAAAAAAAAAAAzVGlja2V0IHdhcyBzY2FubmVkIGF0IHRoZSB2ZW51ZSBkb29yIHZpYSBtYXJrX3VzZWQuAAAAAARVc2VkAAAAAAAAADRUaWNrZXQgd2FzIHJlZnVuZGVkIGJlY2F1c2UgdGhlIGV2ZW50IHdhcyBjYW5jZWxsZWQuAAAACFJlZnVuZGVk" ]),
+      options
+    )
+  }
+  public readonly fromJSON = {
+    refund: this.txFromJSON<Result<void>>,
+        purchase: this.txFromJSON<Result<void>>,
+        get_event: this.txFromJSON<Result<Event>>,
+        mark_used: this.txFromJSON<Result<void>>,
+        get_ticket: this.txFromJSON<Result<Ticket>>,
+        initialize: this.txFromJSON<Result<void>>,
+        cancel_event: this.txFromJSON<Result<void>>,
+        create_event: this.txFromJSON<Result<void>>,
+        get_xlm_token: this.txFromJSON<Result<string>>,
+        release_funds: this.txFromJSON<Result<void>>,
+        get_marketplace: this.txFromJSON<Result<string>>,
+        get_escrow_balance: this.txFromJSON<Result<i128>>,
+        restricted_transfer: this.txFromJSON<Result<void>>
+  }
+}
+
+================================================
+FILE: screenshots/ui-refinement/2026-07-27/CAPTURE-CATALOG.md
+================================================
+# UI Refinement Screenshot Catalog
+
+Generated from `frontend/e2e/screenshots/capture-manifest.ts`.
+
+| Screenshot | Route | What it represents | What to review |
+|---|---|---|---|
+| `01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v01.png` | `/events` | Represents the public discovery surface with a populated event grid. | Review page hierarchy, event-card consistency, navigation, filter density, and desktop spacing. |
+| `01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v01.png` | `/events/event-seed-a-01` | Represents the public mobile event-detail surface when an event is available for purchase. | Review event-information hierarchy; date, venue, price and availability readability; purchase CTA placement and visibility; mobile header and back navigation; clipping, overflow, and hidden content. |
+
+
+================================================
+FILE: .\frontend\e2e\screenshots\capture.spec.ts
+================================================
+import { test, expect } from '@playwright/test';
+import { SCREENSHOT_CAPTURES } from './capture-manifest';
+import { installBrowseReadyMocks } from './helpers/install-browse-mocks';
+import { installEventDetailReadyMocks } from './helpers/install-event-detail-mocks';
+import { screenshotOutputPath } from './helpers/output-path';
+import { stabilizePage } from './helpers/stabilize-page';
+import { writeCaptureCatalog } from './helpers/write-catalog';
+
+test.describe.configure({ mode: 'serial' });
+
+test.afterAll(async () => {
+  await writeCaptureCatalog(SCREENSHOT_CAPTURES);
+});
+
+for (const capture of SCREENSHOT_CAPTURES) {
+  test(`${capture.id}: ${capture.purpose}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(capture.viewport);
+    await page.clock.setFixedTime('2026-07-27T12:00:00+05:30');
+
+    if (capture.id === 'browse-ready-desktop') {
+      await installBrowseReadyMocks(page);
+    } else if (capture.id === 'event-detail-ready-mobile') {
+      await installEventDetailReadyMocks(page);
+    } else {
+      throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
+    }
+
+    await page.goto(capture.route, { waitUntil: 'domcontentloaded' });
+
+    await expect(
+      page.getByRole('heading', { name: capture.readyText }),
+    ).toBeVisible();
+    for (const text of capture.visibleTexts) {
+      await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
+    }
+    for (const label of capture.visibleLabels ?? []) {
+      await expect(page.getByLabel(label)).toBeVisible();
+    }
+
+    await stabilizePage(page);
+
+    const outputPath = await screenshotOutputPath(capture);
+    await page.screenshot({
+      path: outputPath,
+      fullPage: false,
+      animations: 'disabled',
+    });
+
+    await testInfo.attach('approved-candidate', {
+      path: outputPath,
+      contentType: 'image/png',
+    });
+  });
+}
+
+
+================================================
+FILE: .\frontend\e2e\screenshots\capture-manifest.ts
+================================================
+export const CAPTURE_DATE = '2026-07-27';
+
+export type ScreenshotRole = 'guest' | 'attendee' | 'organizer';
+export type ScreenshotViewportName = 'mobile-390x844' | 'desktop-1440x900';
+
+export interface ScreenshotCapture {
+  readonly id: string;
+  readonly tier: 1 | 2 | 3;
+  readonly page: string;
+  readonly state: string;
+  readonly route: string;
+  readonly role: ScreenshotRole;
+  readonly data: string;
+  readonly version: `v${number}`;
+  readonly viewportName: ScreenshotViewportName;
+  readonly viewport: Readonly<{ width: number; height: number }>;
+  readonly folder: readonly string[];
+  readonly readyText: string;
+  readonly visibleTexts: readonly string[];
+  readonly visibleLabels?: readonly string[];
+  readonly purpose: string;
+  readonly reviewFocus: string;
+}
+
+/**
+ * Captures are added one at a time after the previous state is proven stable.
+ */
+export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
+  {
+    id: 'browse-ready-desktop',
+    tier: 1,
+    page: 'browse',
+    state: 'ready',
+    route: '/events',
+    role: 'guest',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'desktop-1440x900',
+    viewport: { width: 1440, height: 900 },
+    folder: ['01-tier-1-core-flow', 'browse'],
+    readyText: 'Explore Experiences',
+    visibleTexts: ['Midnight Frequency', 'Builders on Stellar'],
+    purpose: 'Represents the public discovery surface with a populated event grid.',
+    reviewFocus: 'Review page hierarchy, event-card consistency, navigation, filter density, and desktop spacing.',
+  },
+  {
+    id: 'event-detail-ready-mobile',
+    tier: 1,
+    page: 'event-detail',
+    state: 'ready',
+    route: '/events/event-seed-a-01',
+    role: 'guest',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'mobile-390x844',
+    viewport: { width: 390, height: 844 },
+    folder: ['01-tier-1-core-flow', 'event-detail'],
+    readyText: 'Midnight Frequency',
+    visibleTexts: ['On sale', 'The Foundry', '18.00', 'Buy 1 ticket'],
+    visibleLabels: ['Go back'],
+    purpose: 'Represents the public mobile event-detail surface when an event is available for purchase.',
+    reviewFocus: 'Review event-information hierarchy; date, venue, price and availability readability; purchase CTA placement and visibility; mobile header and back navigation; clipping, overflow, and hidden content.',
+  },
+];
+
+
+================================================
+FILE: .\frontend\e2e\screenshots\fixtures\browse-ready.ts
+================================================
+const poster = (title: string, accent: string): string => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#15181C"/>
+          <stop offset="1" stop-color="${accent}"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="675" fill="url(#g)"/>
+      <circle cx="980" cy="120" r="180" fill="#ffffff" fill-opacity="0.08"/>
+      <circle cx="160" cy="590" r="260" fill="#ffffff" fill-opacity="0.05"/>
+      <text x="72" y="540" fill="#ffffff" font-family="Arial, sans-serif" font-size="64" font-weight="700">${title}</text>
+    </svg>`;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
+const ticketContractId = `C${'A'.repeat(55)}`;
+const organizerAddress = `G${'B'.repeat(55)}`;
+const creationTxHash = '7'.repeat(64);
+
+export interface DiscoverableEventFixture {
+  event_id: string;
+  organizer_address: string;
+  organizer_display_name: string;
+  name: string;
+  summary: string;
+  description: string;
+  image_url: string;
+  category: string;
+  date_unix: number;
+  end_unix: number;
+  timezone: string;
+  venue: string;
+  address: string;
+  city: string;
+  support_contact: string;
+  refund_policy_code: 'cancelled_event_original_price';
+  resale_policy_code: 'stellar_marketplace_unlocked';
+  entry_instructions: string;
+  capacity: number;
+  price_per_ticket: number;
+  current_supply: number;
+  status: 'Active';
+  network: 'StellarTestnet';
+  ticket_contract_id: string;
+  creation_tx_hash: string;
+  chain_verified_at: string;
+}
+
+const event = (
+  input: Pick<
+    DiscoverableEventFixture,
+    | 'event_id'
+    | 'name'
+    | 'summary'
+    | 'category'
+    | 'date_unix'
+    | 'end_unix'
+    | 'venue'
+    | 'address'
+    | 'city'
+    | 'capacity'
+    | 'price_per_ticket'
+    | 'current_supply'
+  > & { accent: string },
+): DiscoverableEventFixture => {
+  const { accent, ...fields } = input;
+
+  return {
+    ...fields,
+    organizer_address: organizerAddress,
+    organizer_display_name: 'Stellar City Collective',
+    description: `${fields.summary} This seeded event is used only for deterministic visual capture.`,
+    image_url: poster(fields.name, accent),
+    timezone: 'Asia/Kolkata',
+    support_contact: 'support@example.test',
+    refund_policy_code: 'cancelled_event_original_price',
+    resale_policy_code: 'stellar_marketplace_unlocked',
+    entry_instructions: 'Present the rotating ticket QR at the entrance.',
+    status: 'Active',
+    network: 'StellarTestnet',
+    ticket_contract_id: ticketContractId,
+    creation_tx_hash: creationTxHash,
+    chain_verified_at: '2026-07-27T06:30:00.000Z',
+  };
+};
+
+export const BROWSE_READY_EVENTS: readonly DiscoverableEventFixture[] = [
+  event({
+    event_id: 'event-seed-a-01',
+    name: 'Midnight Frequency',
+    summary: 'An electronic music showcase with live visual performances.',
+    category: 'Music',
+    date_unix: Date.parse('2026-09-12T19:30:00+05:30') / 1000,
+    end_unix: Date.parse('2026-09-12T23:00:00+05:30') / 1000,
+    venue: 'The Foundry',
+    address: '12 Residency Road',
+    city: 'Bengaluru',
+    capacity: 500,
+    price_per_ticket: 180_000_000,
+    current_supply: 214,
+    accent: '#5B3FD8',
+  }),
+  event({
+    event_id: 'event-seed-a-02',
+    name: 'Builders on Stellar',
+    summary: 'A practical conference for teams shipping real products on Stellar.',
+    category: 'Tech',
+    date_unix: Date.parse('2026-09-20T10:00:00+05:30') / 1000,
+    end_unix: Date.parse('2026-09-20T17:30:00+05:30') / 1000,
+    venue: 'Bangalore International Centre',
+    address: '7 Domlur II Stage',
+    city: 'Bengaluru',
+    capacity: 320,
+    price_per_ticket: 90_000_000,
+    current_supply: 58,
+    accent: '#176B87',
+  }),
+  event({
+    event_id: 'event-seed-a-03',
+    name: 'Indie After Dark',
+    summary: 'Three independent bands, one intimate stage, and no filler.',
+    category: 'Music',
+    date_unix: Date.parse('2026-10-03T18:00:00+05:30') / 1000,
+    end_unix: Date.parse('2026-10-03T22:30:00+05:30') / 1000,
+    venue: 'AntiSocial',
+    address: 'Mathuradas Mill Compound',
+    city: 'Mumbai',
+    capacity: 240,
+    price_per_ticket: 125_000_000,
+    current_supply: 119,
+    accent: '#8A3FFC',
+  }),
+  event({
+    event_id: 'event-seed-a-04',
+    name: 'Night Run 10K',
+    summary: 'A timed city run designed for first-time and experienced runners.',
+    category: 'Sports',
+    date_unix: Date.parse('2026-10-10T20:00:00+05:30') / 1000,
+    end_unix: Date.parse('2026-10-10T23:00:00+05:30') / 1000,
+    venue: 'Jawaharlal Nehru Stadium',
+    address: 'Lodhi Road',
+    city: 'New Delhi',
+    capacity: 1200,
+    price_per_ticket: 60_000_000,
+    current_supply: 846,
+    accent: '#0C7C59',
+  }),
+  event({
+    event_id: 'event-seed-a-05',
+    name: 'The Last Rehearsal',
+    summary: 'A contemporary stage production about ambition, doubt, and friendship.',
+    category: 'Theater',
+    date_unix: Date.parse('2026-10-18T18:30:00+05:30') / 1000,
+    end_unix: Date.parse('2026-10-18T21:00:00+05:30') / 1000,
+    venue: 'Prithvi Theatre',
+    address: '20 Janki Kutir',
+    city: 'Mumbai',
+    capacity: 180,
+    price_per_ticket: 75_000_000,
+    current_supply: 151,
+    accent: '#A33D3D',
+  }),
+  event({
+    event_id: 'event-seed-a-06',
+    name: 'Weekend Laughs',
+    summary: 'A compact comedy lineup featuring four emerging performers.',
+    category: 'Comedy',
+    date_unix: Date.parse('2026-10-24T19:00:00+05:30') / 1000,
+    end_unix: Date.parse('2026-10-24T21:30:00+05:30') / 1000,
+    venue: 'The Habitat',
+    address: 'Road Number 3, Khar West',
+    city: 'Mumbai',
+    capacity: 150,
+    price_per_ticket: 45_000_000,
+    current_supply: 36,
+    accent: '#B36B00',
+  }),
+];
+
+================================================
+FILE: .\frontend\e2e\screenshots\helpers\install-browse-mocks.ts
+================================================
+import type { Page, Route } from '@playwright/test';
+import { BROWSE_READY_EVENTS } from '../fixtures/browse-ready';
+
+const jsonHeaders = {
+  'access-control-allow-origin': '*',
+  'content-profile': 'public',
+  'content-type': 'application/json; charset=utf-8',
+};
+
+async function fulfillJson(route: Route, body: unknown): Promise<void> {
+  await route.fulfill({
+    status: 200,
+    headers: jsonHeaders,
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Keeps the public Browse capture offline and deterministic.
+ * The app currently mounts listing reads globally, even while /events is open,
+ * so listings must be answered as well as the discovery view.
+ */
+export async function installBrowseReadyMocks(page: Page): Promise<void> {
+  await page.route('**/rest/v1/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+
+    if (
+      pathname.endsWith('/rest/v1/discoverable_events') ||
+      pathname.endsWith('/rest/v1/published_events')
+    ) {
+      await fulfillJson(route, BROWSE_READY_EVENTS);
+      return;
+    }
+
+    if (pathname.endsWith('/rest/v1/listings')) {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    await fulfillJson(route, []);
+  });
+}
+
+================================================
+FILE: .\frontend\e2e\screenshots\helpers\install-event-detail-mocks.ts
+================================================
+import { Buffer } from 'node:buffer';
+import type { Page, Request, Route } from '@playwright/test';
+import { loadEnv } from 'vite';
+import {
+  Client as TicketClient,
+  Keypair,
+  SorobanDataBuilder,
+  TransactionBuilder,
+  xdr,
+} from 'ticket';
+import { BROWSE_READY_EVENTS, type DiscoverableEventFixture } from '../fixtures/browse-ready';
+
+const EVENT_ID = 'event-seed-a-01';
+const READ_ONLY_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
+const LATEST_LEDGER = 900_000;
+
+const jsonHeaders = {
+  'access-control-allow-headers': 'authorization, apikey, content-profile, content-type, x-client-info',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-origin': '*',
+  'content-profile': 'public',
+  'content-type': 'application/json; charset=utf-8',
+};
+
+interface JsonRpcRequest {
+  readonly jsonrpc: '2.0';
+  readonly id: string | number;
+  readonly method: string;
+  readonly params?: Record<string, unknown>;
+}
+
+function screenshotEnvironment(): Record<string, string> {
+  return loadEnv('development', process.cwd(), '');
+}
+
+function eventDetailFixture(): DiscoverableEventFixture {
+  const environment = screenshotEnvironment();
+  const ticketContractId = environment.VITE_TICKET_CONTRACT_ID;
+  if (!ticketContractId) {
+    throw new Error('VITE_TICKET_CONTRACT_ID is required for the event-detail screenshot fixture.');
+  }
+
+  const browseSeed = BROWSE_READY_EVENTS.find((event) => event.event_id === EVENT_ID);
+  if (!browseSeed) throw new Error(`Browse seed event not found: ${EVENT_ID}`);
+
+  return {
+    ...browseSeed,
+    // The authoritative Event value must contain a checksum-valid Stellar address
+    // so the generated binding can encode it as XDR. All visible event content is
+    // still reused from the Browse seed.
+    organizer_address: READ_ONLY_KEY,
+    ticket_contract_id: ticketContractId,
+  };
+}
+
+async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+  await route.fulfill({
+    status,
+    headers: jsonHeaders,
+    body: status === 204 ? '' : JSON.stringify(body),
+  });
+}
+
+function parseJsonRpcRequest(request: Request): JsonRpcRequest {
+  const postData = request.postData();
+  if (!postData) throw new Error('Soroban RPC request did not contain a JSON body.');
+  const parsed = JSON.parse(postData) as Partial<JsonRpcRequest>;
+  if (parsed.jsonrpc !== '2.0' || parsed.id === undefined || !parsed.method) {
+    throw new Error(`Unexpected Soroban RPC request: ${postData}`);
+  }
+  return parsed as JsonRpcRequest;
+}
+
+function accountLedgerEntryData(): string {
+  const account = new xdr.AccountEntry({
+    accountId: Keypair.fromPublicKey(READ_ONLY_KEY).xdrAccountId(),
+    balance: xdr.Int64.fromString('1000000000'),
+    seqNum: xdr.SequenceNumber.fromString('1'),
+    numSubEntries: 0,
+    inflationDest: null,
+    flags: 0,
+    homeDomain: Buffer.alloc(0),
+    thresholds: Buffer.from([1, 0, 0, 0]),
+    signers: [],
+    ext: new xdr.AccountEntryExt(0),
+  });
+  return xdr.LedgerEntryData.account(account).toXDR('base64');
+}
+
+function invokedMethod(transactionXdr: unknown): string {
+  if (typeof transactionXdr !== 'string') {
+    throw new Error('Soroban simulation request is missing transaction XDR.');
+  }
+  const transaction = TransactionBuilder.fromXDR(transactionXdr, NETWORK_PASSPHRASE);
+  const operation = transaction.operations[0] as unknown as {
+    func?: { value?: () => xdr.InvokeContractArgs };
+  };
+  const invokeArgs = operation.func?.value?.();
+  if (!invokeArgs) throw new Error('Expected an invoke-contract operation in screenshot RPC fixture.');
+  return invokeArgs.functionName().toString();
+}
+
+function successfulReturnValue(
+  ticketClient: TicketClient,
+  method: 'get_event' | 'get_escrow_balance',
+  event: DiscoverableEventFixture,
+): string {
+  const output = ticketClient.spec.getFunc(method).outputs()[0];
+  const okType = output.result().okType();
+  const native = method === 'get_event'
+    ? {
+        capacity: BigInt(event.capacity),
+        current_supply: BigInt(event.current_supply),
+        date_unix: BigInt(event.date_unix),
+        end_unix: BigInt(event.end_unix),
+        name: event.name,
+        organizer: event.organizer_address,
+        price_per_ticket: BigInt(event.price_per_ticket),
+        status: { tag: event.status },
+      }
+    : BigInt(event.current_supply) * BigInt(event.price_per_ticket);
+
+  return ticketClient.spec.nativeToScVal(native, okType).toXDR('base64');
+}
+
+function rpcResult(
+  rpcRequest: JsonRpcRequest,
+  event: DiscoverableEventFixture,
+  ticketClient: TicketClient,
+): unknown {
+  if (rpcRequest.method === 'getLedgerEntries') {
+    const keys = rpcRequest.params?.keys;
+    if (!Array.isArray(keys) || keys.length !== 1 || typeof keys[0] !== 'string') {
+      throw new Error('getLedgerEntries screenshot fixture expected one account key.');
+    }
+    return {
+      latestLedger: LATEST_LEDGER,
+      entries: [{
+        key: keys[0],
+        xdr: accountLedgerEntryData(),
+        lastModifiedLedgerSeq: LATEST_LEDGER - 1,
+      }],
+    };
+  }
+
+  if (rpcRequest.method === 'simulateTransaction') {
+    const method = invokedMethod(rpcRequest.params?.transaction);
+    if (method !== 'get_event' && method !== 'get_escrow_balance') {
+      throw new Error(`Unexpected simulated contract method: ${method}`);
+    }
+    return {
+      latestLedger: LATEST_LEDGER,
+      minResourceFee: '0',
+      transactionData: new SorobanDataBuilder().build().toXDR('base64'),
+      results: [{
+        auth: [],
+        xdr: successfulReturnValue(ticketClient, method, event),
+      }],
+      events: [],
+    };
+  }
+
+  throw new Error(`Unexpected Soroban RPC method: ${rpcRequest.method}`);
+}
+
+/**
+ * Keeps the public Event detail capture deterministic while preserving the real
+ * published-event -> authoritative Soroban read path used by the application.
+ */
+export async function installEventDetailReadyMocks(page: Page): Promise<void> {
+  const environment = screenshotEnvironment();
+  const rpcUrl = environment.VITE_RPC_URL;
+  const ticketContractId = environment.VITE_TICKET_CONTRACT_ID;
+  if (!rpcUrl || !ticketContractId) {
+    throw new Error('VITE_RPC_URL and VITE_TICKET_CONTRACT_ID are required for screenshot capture.');
+  }
+
+  const event = eventDetailFixture();
+  const ticketClient = new TicketClient({
+    contractId: ticketContractId,
+    networkPassphrase: NETWORK_PASSPHRASE,
+    publicKey: READ_ONLY_KEY,
+    rpcUrl,
+  });
+
+  await page.route('**/rest/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === 'OPTIONS') {
+      await fulfillJson(route, null, 204);
+      return;
+    }
+    if (url.pathname.endsWith('/rest/v1/published_events')) {
+      const requestedEvent = url.searchParams.get('event_id');
+      if (requestedEvent !== `eq.${EVENT_ID}`) {
+        throw new Error(`Unexpected published event lookup: ${requestedEvent ?? 'missing event_id'}`);
+      }
+      await fulfillJson(route, event);
+      return;
+    }
+    if (url.pathname.endsWith('/rest/v1/listings')) {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    throw new Error(`Unexpected Supabase REST request: ${request.method()} ${url.pathname}`);
+  });
+
+  await page.route(
+    (url) => url.toString().startsWith(rpcUrl),
+    async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await fulfillJson(route, null, 204);
+        return;
+      }
+      const rpcRequest = parseJsonRpcRequest(route.request());
+      await fulfillJson(route, {
+        jsonrpc: '2.0',
+        id: rpcRequest.id,
+        result: rpcResult(rpcRequest, event, ticketClient),
+      });
+    },
+  );
+}
+
+
+================================================
+FILE: .\frontend\e2e\screenshots\helpers\output-path.ts
+================================================
+import { mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { CAPTURE_DATE, type ScreenshotCapture } from '../capture-manifest';
+
+function requireFrontendWorkingDirectory(): string {
+  const cwd = process.cwd();
+  if (path.basename(cwd) !== 'frontend') {
+    throw new Error(
+      `Run the screenshot command from the frontend directory. Current directory: ${cwd}`,
+    );
+  }
+  return cwd;
+}
+
+export function screenshotFilename(capture: ScreenshotCapture): string {
+  return [
+    `T${capture.tier}`,
+    capture.page,
+    capture.state,
+    capture.viewportName,
+    capture.role,
+    capture.data,
+    capture.version,
+  ].join('_') + '.png';
+}
+
+export async function screenshotOutputPath(
+  capture: ScreenshotCapture,
+): Promise<string> {
+  const frontendDirectory = requireFrontendWorkingDirectory();
+  const directory = path.resolve(
+    frontendDirectory,
+    '..',
+    'screenshots',
+    'ui-refinement',
+    CAPTURE_DATE,
+    ...capture.folder,
+  );
+
+  await mkdir(directory, { recursive: true });
+  return path.join(directory, screenshotFilename(capture));
+}
+
+export function captureRootPath(): string {
+  const frontendDirectory = requireFrontendWorkingDirectory();
+  return path.resolve(
+    frontendDirectory,
+    '..',
+    'screenshots',
+    'ui-refinement',
+    CAPTURE_DATE,
+  );
+}
+
+================================================
+FILE: .\frontend\e2e\screenshots\helpers\stabilize-page.ts
+================================================
+import type { Page } from '@playwright/test';
+
+export async function stabilizePage(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-delay: 0s !important;
+        animation-duration: 0s !important;
+        caret-color: transparent !important;
+        scroll-behavior: auto !important;
+        transition-delay: 0s !important;
+        transition-duration: 0s !important;
+      }
+    `,
+  });
+
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    const images = Array.from(document.images);
+    await Promise.all(
+      images.map(async (image) => {
+        if (image.complete) return;
+        await new Promise<void>((resolve) => {
+          image.addEventListener('load', () => resolve(), { once: true });
+          image.addEventListener('error', () => resolve(), { once: true });
+        });
+      }),
+    );
+    window.scrollTo(0, 0);
+  });
+}
+
+================================================
+FILE: .\frontend\e2e\screenshots\helpers\write-catalog.ts
+================================================
+import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import type { ScreenshotCapture } from '../capture-manifest';
+import { captureRootPath, screenshotFilename } from './output-path';
+
+function escapeCell(value: string): string {
+  return value.replaceAll('|', '\\|').replaceAll('\n', ' ');
+}
+
+export async function writeCaptureCatalog(
+  captures: readonly ScreenshotCapture[],
+): Promise<void> {
+  const rows = captures.map((capture) => {
+    const relativePath = [...capture.folder, screenshotFilename(capture)].join('/');
+    return `| \`${escapeCell(relativePath)}\` | \`${escapeCell(capture.route)}\` | ${escapeCell(capture.purpose)} | ${escapeCell(capture.reviewFocus)} |`;
+  });
+
+  const content = [
+    '# UI Refinement Screenshot Catalog',
+    '',
+    'Generated from `frontend/e2e/screenshots/capture-manifest.ts`.',
+    '',
+    '| Screenshot | Route | What it represents | What to review |',
+    '|---|---|---|---|',
+    ...rows,
+    '',
+  ].join('\n');
+
+  await writeFile(path.join(captureRootPath(), 'CAPTURE-CATALOG.md'), content, 'utf8');
+}
+
+================================================
+FILE: .\frontend\e2e\screenshots\README.md
+================================================
+# Programmable Screenshot Capture — Step 1
+
+This first slice proves one deterministic capture only:
+
+- `Browse / loaded grid / desktop-1440x900 / guest / seedA`
+
+It does not yet add authenticated state, scanner state, purchase recovery, mobile capture, or visual-regression assertions.
+
+## Install once
+
+From `frontend/`:
+
+```bash
+npm install --save-dev @playwright/test@1.61.1
+npx playwright install chromium
+```
+
+Add this script to the existing `frontend/package.json` scripts object:
+
+```json
+"screenshots:step1": "playwright test --config=playwright.screenshots.config.ts"
+```
+
+## Run
+
+From `frontend/`:
+
+```bash
+npm run screenshots:step1
+```
+
+The capture is written to:
+
+```text
+../screenshots/ui-refinement/2026-07-27/01-tier-1-core-flow/browse/
+```
+
+The run also generates:
+
+```text
+../screenshots/ui-refinement/2026-07-27/CAPTURE-CATALOG.md
+```
+
+## Why the command must run from `frontend/`
+
+The output-path helper deliberately verifies the working directory. This prevents a successful run from silently writing screenshots into the wrong folder when the command is launched from a different directory.
+
+## What this slice verifies
+
+- Playwright can start or reuse the Vite development server.
+- The browser uses a fixed viewport, locale, timezone, color scheme, scale factor, and time.
+- Supabase list requests are mocked before navigation.
+- Event poster assets are inline and deterministic.
+- The runner waits for visible page content, fonts, and images rather than using a blind delay.
+- The filename follows the existing screenshot naming rule.
+- The screenshot purpose is generated into a readable catalog.

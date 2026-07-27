@@ -43,6 +43,65 @@ const RECOVERY_STATES = new Set([
   'status_unknown',
 ]);
 
+/** Playwright-only state seeding; production builds cannot enable this path. */
+const SCREENSHOT_REVIEW_STORAGE_KEY = 'stellar-tickets:screenshot-purchase-review';
+const SCREENSHOT_ESTIMATED_FEE_STROOPS = 100_000n;
+const SCREENSHOT_BALANCE_STROOPS = 500_000_000n;
+const SCREENSHOT_ATTENDEE_ADDRESS = 'GBBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEFZSP';
+
+function isScreenshotReviewMode(): boolean {
+  return import.meta.env.DEV &&
+    sessionStorage.getItem(SCREENSHOT_REVIEW_STORAGE_KEY) === 'ready';
+}
+
+function screenshotPurchaseOperation(
+  eventId: string,
+  attendeeWalletAddress: string,
+): PurchaseOperationResponse {
+  const timestamp = '2026-07-27T06:30:00.000Z';
+  return {
+    operation: {
+      operation_id: '00000000-0000-4000-8000-000000000301',
+      user_id: '00000000-0000-4000-8000-000000000302',
+      request_idempotency_key: '00000000-0000-4000-8000-000000000303',
+      ticket_id: 'ticket-seed-a-review-01',
+      event_id: eventId,
+      attendee_wallet_address: attendeeWalletAddress,
+      expected_price_stroops: '180000000',
+      estimated_fee_stroops: SCREENSHOT_ESTIMATED_FEE_STROOPS.toString(),
+      confirmed_fee_stroops: null,
+      network: 'StellarTestnet',
+      ticket_contract_id: import.meta.env.VITE_TICKET_CONTRACT_ID as string,
+      state: 'review',
+      failure_category: null,
+      failure_detail: null,
+      current_attempt_number: 0,
+      transaction_hash: null,
+      ledger_sequence: null,
+      ledger_closed_at: null,
+      receipt_event_name: null,
+      receipt_event_start_unix: null,
+      receipt_event_timezone: null,
+      receipt_venue: null,
+      receipt_owner_address: null,
+      receipt_amount_stroops: null,
+      created_at: timestamp,
+      updated_at: timestamp,
+      confirmed_at: null,
+    },
+    attempt: null,
+  };
+}
+
+function screenshotPreparedPurchase(): PreparedTicketPurchase {
+  return {
+    estimatedFeeStroops: SCREENSHOT_ESTIMATED_FEE_STROOPS,
+    submit: async () => {
+      throw new Error('Screenshot review mode cannot submit a transaction.');
+    },
+  };
+}
+
 export function PurchasePage({
   eventId,
   onBack,
@@ -51,13 +110,27 @@ export function PurchasePage({
   const { event, loading, error, reload } = useEvent(eventId);
   const wallet = useAppStore((state) => state.attendeeWallet);
   const { usdPerXlm } = useXlmPrice();
+  const screenshotReview = isScreenshotReviewMode();
   const reviewedFingerprint = useRef<string | null>(null);
   const allocationKey = useRef(crypto.randomUUID());
   const preparingRef = useRef(false);
   const [operationResponse, setOperationResponse] =
-    useState<PurchaseOperationResponse | null>(null);
-  const [prepared, setPrepared] = useState<PreparedTicketPurchase | null>(null);
-  const [account, setAccount] = useState<StellarAccountBalance | null>(null);
+    useState<PurchaseOperationResponse | null>(() =>
+      screenshotReview
+        ? screenshotPurchaseOperation(
+            eventId,
+            wallet.address ?? SCREENSHOT_ATTENDEE_ADDRESS,
+          )
+        : null,
+    );
+  const [prepared, setPrepared] = useState<PreparedTicketPurchase | null>(() =>
+    screenshotReview ? screenshotPreparedPurchase() : null,
+  );
+  const [account, setAccount] = useState<StellarAccountBalance | null>(() =>
+    screenshotReview
+      ? { exists: true, balanceStroops: SCREENSHOT_BALANCE_STROOPS }
+      : null,
+  );
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [fundingLoading, setFundingLoading] = useState(false);
   const [working, setWorking] = useState(false);
@@ -66,7 +139,7 @@ export function PurchasePage({
   const operation = operationResponse?.operation ?? null;
 
   const refreshBalance = useCallback(async () => {
-    if (!wallet.address) return;
+    if (screenshotReview || !wallet.address) return;
     setBalanceLoading(true);
     try {
       setAccount(await fetchXlmBalance(wallet.address));
@@ -75,7 +148,7 @@ export function PurchasePage({
     } finally {
       setBalanceLoading(false);
     }
-  }, [wallet.address]);
+  }, [screenshotReview, wallet.address]);
 
   useEffect(() => {
     const timeout = setTimeout(() => void refreshBalance(), 0);
@@ -84,6 +157,7 @@ export function PurchasePage({
 
   useEffect(() => {
     if (
+      screenshotReview ||
       !event ||
       deriveEventSalesState(event, undefined, true) !== 'on_sale' ||
       wallet.readiness !== 'ready' ||
@@ -113,7 +187,14 @@ export function PurchasePage({
     return () => {
       cancelled = true;
     };
-  }, [account?.exists, event, operationResponse, wallet.address, wallet.readiness]);
+  }, [
+    account?.exists,
+    event,
+    operationResponse,
+    screenshotReview,
+    wallet.address,
+    wallet.readiness,
+  ]);
 
   const prepareOperation = useCallback(async () => {
     if (
@@ -156,10 +237,10 @@ export function PurchasePage({
   }, [event, operation, wallet.address]);
 
   useEffect(() => {
-    if (operation?.state !== 'review' || prepared) return;
+    if (screenshotReview || operation?.state !== 'review' || prepared) return;
     const timeout = setTimeout(() => void prepareOperation(), 0);
     return () => clearTimeout(timeout);
-  }, [operation?.state, prepareOperation, prepared]);
+  }, [operation?.state, prepareOperation, prepared, screenshotReview]);
 
   useEffect(() => {
     if (!operation || !RECOVERY_STATES.has(operation.state)) return;

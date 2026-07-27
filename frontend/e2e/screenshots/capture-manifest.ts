@@ -18,6 +18,7 @@ export interface ScreenshotCapture {
   readonly readyText: string;
   readonly visibleTexts: readonly string[];
   readonly visibleLabels?: readonly string[];
+  readonly scrollToText?: string;
   readonly purpose: string;
   readonly reviewFocus: string;
 }
@@ -60,5 +61,32 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     visibleLabels: ['Go back'],
     purpose: 'Represents the public mobile event-detail surface when an event is available for purchase.',
     reviewFocus: 'Review event-information hierarchy; date, venue, price and availability readability; purchase CTA placement and visibility; mobile header and back navigation; clipping, overflow, and hidden content.',
+  },
+  {
+    id: 'purchase-review-ready-mobile',
+    tier: 1,
+    page: 'purchase',
+    state: 'review-ready',
+    route: '/events/event-seed-a-01/checkout',
+    role: 'attendee',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'mobile-390x844',
+    viewport: { width: 390, height: 844 },
+    folder: ['01-tier-1-core-flow', 'purchase'],
+    readyText: 'Buy 1 ticket',
+    visibleTexts: [
+      'Midnight Frequency',
+      '1 × General Admission ticket',
+      'Estimated network fee',
+      'Total required',
+      'Available balance',
+      'Estimated remaining',
+      'Confirm and pay 18.01 XLM',
+    ],
+    visibleLabels: ['Go back'],
+    scrollToText: 'Confirm and pay 18.01 XLM',
+    purpose: 'Represents the authenticated mobile checkout review after the ticket price, simulated fee, balance, and policies are ready for confirmation.',
+    reviewFocus: 'Review purchase-summary hierarchy, fee and total clarity, balance and remaining-funds readability, policy comprehension, confirmation CTA prominence, mobile spacing, and clipping or overflow.',
   },
 ];
