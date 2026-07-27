@@ -17,6 +17,7 @@ export interface ScreenshotCapture {
   readonly fixedTime?: string;
   readonly folder: readonly string[];
   readonly readyText: string;
+  readonly readyRole?: 'heading' | 'alert';
   readonly visibleTexts: readonly string[];
   readonly visibleLabels?: readonly string[];
   readonly scrollToText?: string;
@@ -402,4 +403,25 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     reviewFocus: 'Review 404 hierarchy, recovery through persistent navigation, empty-space balance, testnet disclosure, desktop alignment, clipping, and whether the page gives sufficient next direction.',
   },
 
+  {
+    id: 'auth-callback-error-mobile',
+    tier: 3,
+    page: 'auth-callback',
+    state: 'error',
+    route: '/auth/callback?error_description=The%20sign-in%20link%20is%20invalid%20or%20has%20expired.',
+    role: 'guest',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'mobile-390x844',
+    viewport: { width: 390, height: 844 },
+    folder: ['03-tier-3-edge-flow', 'auth-callback'],
+    readyText: 'The sign-in link is invalid or has expired.',
+    readyRole: 'alert',
+    visibleTexts: [
+      'The sign-in link is invalid or has expired.',
+      'Stellar Testnet',
+    ],
+    purpose: 'Represents the public mobile authentication callback when the provider returns a visible, recoverable sign-in error.',
+    reviewFocus: 'Review callback-error prominence, message clarity, safe unauthenticated shell behavior, mobile centering, Testnet disclosure, clipping, and overflow.',
+  },
 ];

@@ -16,6 +16,7 @@ import {
   installNotFoundMocks,
   installOrganizerDashboardPopulatedMocks,
 } from './helpers/install-tier2-tier3-mocks';
+import { installAuthCallbackErrorMocks } from './helpers/install-auth-callback-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -61,15 +62,21 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installCreateEventPreparingMocks(page);
     } else if (capture.id === 'not-found-default-desktop') {
       await installNotFoundMocks(page);
+    } else if (capture.id === 'auth-callback-error-mobile') {
+      await installAuthCallbackErrorMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
 
     await page.goto(capture.route, { waitUntil: 'domcontentloaded' });
 
-    await expect(
-      page.getByRole('heading', { name: capture.readyText }),
-    ).toBeVisible();
+    const readyState = capture.readyRole === 'alert'
+
+      ? page.getByRole('alert').filter({ hasText: capture.readyText })
+
+      : page.getByRole('heading', { name: capture.readyText });
+
+    await expect(readyState).toBeVisible();
     for (const text of capture.visibleTexts) {
       await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
     }
