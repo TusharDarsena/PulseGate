@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { SCREENSHOT_CAPTURES } from './capture-manifest';
 import { installBrowseReadyMocks } from './helpers/install-browse-mocks';
+import { installEventDetailReadyMocks } from './helpers/install-event-detail-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -18,6 +19,8 @@ for (const capture of SCREENSHOT_CAPTURES) {
 
     if (capture.id === 'browse-ready-desktop') {
       await installBrowseReadyMocks(page);
+    } else if (capture.id === 'event-detail-ready-mobile') {
+      await installEventDetailReadyMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
@@ -27,8 +30,12 @@ for (const capture of SCREENSHOT_CAPTURES) {
     await expect(
       page.getByRole('heading', { name: capture.readyText }),
     ).toBeVisible();
-    await expect(page.getByText('Midnight Frequency')).toBeVisible();
-    await expect(page.getByText('Builders on Stellar')).toBeVisible();
+    for (const text of capture.visibleTexts) {
+      await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
+    }
+    for (const label of capture.visibleLabels ?? []) {
+      await expect(page.getByLabel(label)).toBeVisible();
+    }
 
     await stabilizePage(page);
 
