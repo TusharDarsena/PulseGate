@@ -62,6 +62,8 @@ export function mergeAuthoritativeEvent(
     capacity: snapshot.capacity,
     pricePerTicket: snapshot.pricePerTicket,
     currentSupply: snapshot.currentSupply,
+    endUnix: snapshot.endUnix,
+    escrowBalance: snapshot.escrowBalance,
     status: snapshot.status,
     authority: 'confirmed',
     authorityError: undefined,
@@ -85,6 +87,7 @@ export function authoritativeIdentityMismatch(
   if (event.organizer !== snapshot.organizer) return 'Organizer does not match the chain record.';
   if (event.name !== snapshot.name) return 'Event name does not match the chain record.';
   if (event.dateUnix !== snapshot.dateUnix) return 'Event start does not match the chain record.';
+  if (event.endUnix !== snapshot.endUnix) return 'Event end does not match the chain record.';
   if (event.capacity !== snapshot.capacity) return 'Capacity does not match the chain record.';
   if (event.pricePerTicket !== snapshot.pricePerTicket) {
     return 'Ticket price does not match the chain record.';
@@ -115,6 +118,38 @@ export const EVENT_SALES_LABELS: Record<EventSalesState, string> = {
   completed: 'Completed',
   unavailable: 'Unavailable',
 };
+
+export type OrganizerLifecycle =
+  | 'on_sale'
+  | 'sold_out'
+  | 'in_progress'
+  | 'awaiting_completion'
+  | 'completed'
+  | 'cancelled'
+  | 'unavailable';
+
+export const ORGANIZER_LIFECYCLE_LABELS: Record<OrganizerLifecycle, string> = {
+  on_sale: 'On sale',
+  sold_out: 'Sold out',
+  in_progress: 'In progress',
+  awaiting_completion: 'Awaiting completion',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+  unavailable: 'Unavailable',
+};
+
+export function deriveOrganizerLifecycle(
+  event: Event,
+  nowUnix = Math.floor(Date.now() / 1000),
+): OrganizerLifecycle {
+  if (event.authority === 'unavailable') return 'unavailable';
+  if (event.status === 'Cancelled') return 'cancelled';
+  if (event.status === 'Completed') return 'completed';
+  if (nowUnix >= event.endUnix) return 'awaiting_completion';
+  if (nowUnix >= event.dateUnix) return 'in_progress';
+  if (event.currentSupply >= event.capacity) return 'sold_out';
+  return 'on_sale';
+}
 
 export function remainingTickets(event: Event): number {
   return Math.max(0, event.capacity - event.currentSupply);

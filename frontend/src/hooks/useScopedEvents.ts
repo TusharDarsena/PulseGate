@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { normalizeEvent } from '../lib/eventModel';
 import {
   fetchPublishedEventsByIds,
-  fetchPublishedEventsByOrganizer,
+  getMyOrganizerEvents,
+  listMyEventDrafts,
+  type EventPublicationDraft,
 } from '../lib/supabase';
 import type { Event } from '../types';
 
@@ -51,11 +53,42 @@ export function usePublishedEventsByIds(eventIds: string[]) {
   });
 }
 
-export function useOrganizerEvents(organizerAddress: string | null) {
-  const key = organizerAddress ?? '';
-  return useScopedLoader(key, async () => {
-    if (!organizerAddress) return [];
-    const rows = await fetchPublishedEventsByOrganizer(organizerAddress);
+export function useOrganizerEvents() {
+  return useScopedLoader('authenticated-owner', async () => {
+    const rows = await getMyOrganizerEvents();
     return rows.map(normalizeEvent);
   });
+}
+
+export function useOrganizerDrafts() {
+  const [drafts, setDrafts] = useState<EventPublicationDraft[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
+
+  const reload = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await listMyEventDrafts();
+      if (requestId === requestRef.current) setDrafts(next);
+    } catch (nextError) {
+      if (requestId === requestRef.current) {
+        setError(nextError instanceof Error ? nextError.message : 'Failed to load event drafts.');
+      }
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => void reload(), 0);
+    return () => {
+      clearTimeout(timeout);
+      requestRef.current += 1;
+    };
+  }, [reload]);
+
+  return { drafts, loading, error, reload };
 }

@@ -131,9 +131,10 @@ impl MarketplaceContract {
         let event = ticket_client.get_event(&true_event_id);
         let organizer = event.organizer;
 
-        // Block purchase of tickets for cancelled events (prevents arbitrage/refund drain).
-        if event.status == EventStatus::Cancelled {
-            return Err(ContractError::EventCancelled);
+        // Secondary sales are valid only while the authoritative event is Active.
+        // This prevents resale after cancellation or completion.
+        if event.status != EventStatus::Active {
+            return Err(ContractError::EventNotActive);
         }
 
         // XLM token address from the trusted ticket contract storage (S-001).

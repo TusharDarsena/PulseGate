@@ -85,6 +85,7 @@ impl<'a> TestSetup<'a> {
             event_id,
             &String::from_str(&self.env, "TestEvent"),
             &(self.env.ledger().timestamp() + 86_400),
+            &(self.env.ledger().timestamp() + 90_000),
             &100,
             &Self::PRICE,
         );
@@ -204,6 +205,7 @@ fn test_ceiling_royalty_micro_transaction() {
         &event_id,
         &String::from_str(&s.env, "Micro"),
         &(s.env.ledger().timestamp() + 86_400),
+        &(s.env.ledger().timestamp() + 90_000),
         &100,
         &9, // 9 stroops
     );
@@ -317,6 +319,7 @@ fn test_event_id_forgery_blocked() {
         &fake_event_id,
         &String::from_str(&s.env, "FakeEv"),
         &(s.env.ledger().timestamp() + 86_400),
+        &(s.env.ledger().timestamp() + 90_000),
         &100,
         &TestSetup::PRICE,
     );
@@ -378,7 +381,8 @@ fn test_auth_correctly_required() {
 fn test_double_initialize_rejected() {
     let s = TestSetup::new();
     assert_err(
-        s.marketplace.try_initialize(&s.admin, &s.ticket.address, &10),
+        s.marketplace
+            .try_initialize(&s.admin, &s.ticket.address, &10),
         ContractError::AlreadyInitialized,
     );
 }
@@ -482,6 +486,60 @@ fn test_buy_cancelled_listing_rejected() {
             .try_buy_listing(&s.seller, &listing_id, &s.buyer),
         ContractError::ListingNotOpen,
     );
+}
+
+#[test]
+fn test_buy_listing_rejects_cancelled_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_event_cancelled");
+    let ticket_id = s.str("t_event_cancelled");
+    let listing_id = s.str("l_event_cancelled");
+
+    s.create_event(&event_id);
+    s.purchase(&event_id, &ticket_id, &s.seller);
+    s.list(&listing_id, &ticket_id, &event_id, TestSetup::PRICE);
+    s.ticket.cancel_event(&event_id, &s.organizer);
+
+    let buyer_balance_before = s.xlm.balance(&s.buyer);
+    assert_err(
+        s.marketplace
+            .try_buy_listing(&s.seller, &listing_id, &s.buyer),
+        ContractError::EventNotActive,
+    );
+    assert_eq!(s.xlm.balance(&s.buyer), buyer_balance_before);
+    assert_eq!(
+        s.marketplace.get_listing(&s.seller, &listing_id).status,
+        ListingStatus::Open
+    );
+    assert_eq!(s.ticket.get_ticket(&ticket_id).owner, s.seller);
+}
+
+#[test]
+fn test_buy_listing_rejects_completed_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_event_completed");
+    let ticket_id = s.str("t_event_completed");
+    let listing_id = s.str("l_event_completed");
+
+    s.create_event(&event_id);
+    s.purchase(&event_id, &ticket_id, &s.seller);
+    s.list(&listing_id, &ticket_id, &event_id, TestSetup::PRICE);
+    let event = s.ticket.get_event(&event_id);
+    s.env.ledger().set_timestamp(event.end_unix);
+    s.ticket.release_funds(&event_id, &s.organizer);
+
+    let buyer_balance_before = s.xlm.balance(&s.buyer);
+    assert_err(
+        s.marketplace
+            .try_buy_listing(&s.seller, &listing_id, &s.buyer),
+        ContractError::EventNotActive,
+    );
+    assert_eq!(s.xlm.balance(&s.buyer), buyer_balance_before);
+    assert_eq!(
+        s.marketplace.get_listing(&s.seller, &listing_id).status,
+        ListingStatus::Open
+    );
+    assert_eq!(s.ticket.get_ticket(&ticket_id).owner, s.seller);
 }
 
 #[test]

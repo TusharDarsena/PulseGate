@@ -25,4 +25,5 @@ pub enum ContractError {
 
     // Event status
     EventCancelled = 13,
+    EventNotActive = 14,
 }

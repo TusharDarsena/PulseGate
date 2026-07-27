@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js';
 import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
-  TICKET_CONTRACT_ID,
 } from './constants';
 import type {
   EventStatus,
@@ -39,6 +38,14 @@ export interface EventMetadata {
   refund_policy_code: RefundPolicyCode;
   resale_policy_code: ResalePolicyCode;
   entry_instructions: string;
+  accessibility_notes?: string;
+  age_restriction?: string;
+  prohibited_items?: string;
+  map_url?: string;
+  public_links?: string[];
+  metadata_revision?: number;
+  metadata_updated_at?: string | null;
+  metadata_updated_by?: string | null;
   status: EventStatus;
   current_supply: number;
   capacity: number;
@@ -53,6 +60,12 @@ export interface EventMetadata {
 
 export type EventPublicationState =
   | 'prepared'
+  | 'approval_required'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'chain_confirmed'
+  | 'sync_warning'
   | 'creation_submitting'
   | 'chain_created'
   | 'publication_failed'
@@ -62,29 +75,36 @@ export interface EventPublicationDraft {
   draft_id: string;
   user_id: string;
   event_id: string;
-  intended_organizer_address: string;
-  expected_name: string;
-  expected_date_unix: number;
-  expected_capacity: number;
-  expected_price_per_ticket: number;
+  intended_organizer_address: string | null;
+  expected_name: string | null;
+  expected_date_unix: number | null;
+  expected_capacity: number | null;
+  expected_price_per_ticket: number | null;
   network: 'StellarTestnet';
   ticket_contract_id: string;
-  summary: string;
-  description: string;
-  image_url: string;
-  category: string;
-  timezone: string;
-  end_unix: number;
-  venue: string;
-  address: string;
-  city: string;
-  organizer_display_name: string;
-  support_contact: string;
+  summary: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  timezone: string | null;
+  end_unix: number | null;
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  organizer_display_name: string | null;
+  support_contact: string | null;
   refund_policy_code: RefundPolicyCode;
   resale_policy_code: ResalePolicyCode;
-  entry_instructions: string;
+  entry_instructions: string | null;
+  accessibility_notes: string | null;
+  age_restriction: string | null;
+  prohibited_items: string | null;
+  map_url: string | null;
+  public_links: string[];
+  revision: number;
   state: EventPublicationState;
   creation_tx_hash: string | null;
+  chain_verified_at?: string | null;
   last_error: string | null;
   created_at: string;
   updated_at: string;
@@ -202,161 +222,6 @@ export async function fetchPublishedEventsByIds(eventIds: string[]): Promise<Eve
   return (data ?? []) as EventMetadata[];
 }
 
-export async function fetchPublishedEventsByOrganizer(
-  organizerAddress: string,
-): Promise<EventMetadata[]> {
-  if (!organizerAddress) return [];
-  const { data, error } = await supabase
-    .from('published_events')
-    .select('*')
-    .eq('organizer_address', organizerAddress)
-    .order('date_unix', { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as EventMetadata[];
-}
-
-export interface CreateEventPublicationDraftInput {
-  userId: string;
-  eventId: string;
-  organizerAddress: string;
-  name: string;
-  dateUnix: number;
-  endUnix: number;
-  timezone: string;
-  capacity: number;
-  pricePerTicket: number;
-  summary: string;
-  description: string;
-  imageUrl: string;
-  category: string;
-  venue: string;
-  address: string;
-  city: string;
-  organizerDisplayName: string;
-  supportContact: string;
-  entryInstructions: string;
-}
-
-export async function createEventPublicationDraft(
-  input: CreateEventPublicationDraftInput,
-): Promise<EventPublicationDraft> {
-  const { data, error } = await supabase
-    .from('event_publication_drafts')
-    .insert({
-      user_id: input.userId,
-      event_id: input.eventId,
-      intended_organizer_address: input.organizerAddress,
-      expected_name: input.name,
-      expected_date_unix: input.dateUnix,
-      expected_capacity: input.capacity,
-      expected_price_per_ticket: input.pricePerTicket,
-      network: 'StellarTestnet',
-      ticket_contract_id: TICKET_CONTRACT_ID,
-      summary: input.summary,
-      description: input.description,
-      image_url: input.imageUrl,
-      category: input.category,
-      timezone: input.timezone,
-      end_unix: input.endUnix,
-      venue: input.venue,
-      address: input.address,
-      city: input.city,
-      organizer_display_name: input.organizerDisplayName,
-      support_contact: input.supportContact,
-      refund_policy_code: 'cancelled_event_original_price',
-      resale_policy_code: 'stellar_marketplace_unlocked',
-      entry_instructions: input.entryInstructions,
-      state: 'prepared',
-    })
-    .select('*')
-    .single();
-  if (error || !data) throw new Error(error?.message || 'Could not reserve the event draft.');
-  return data as EventPublicationDraft;
-}
-
-export async function updatePreparedEventPublicationDraft(
-  draftId: string,
-  input: Omit<CreateEventPublicationDraftInput, 'userId' | 'eventId' | 'organizerAddress'>,
-): Promise<EventPublicationDraft> {
-  const { data, error } = await supabase
-    .from('event_publication_drafts')
-    .update({
-      expected_name: input.name,
-      expected_date_unix: input.dateUnix,
-      expected_capacity: input.capacity,
-      expected_price_per_ticket: input.pricePerTicket,
-      summary: input.summary,
-      description: input.description,
-      image_url: input.imageUrl,
-      category: input.category,
-      timezone: input.timezone,
-      end_unix: input.endUnix,
-      venue: input.venue,
-      address: input.address,
-      city: input.city,
-      organizer_display_name: input.organizerDisplayName,
-      support_contact: input.supportContact,
-      entry_instructions: input.entryInstructions,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('draft_id', draftId)
-    .eq('state', 'prepared')
-    .select('*')
-    .single();
-  if (error || !data) throw new Error(error?.message || 'Could not update the reserved draft.');
-  return data as EventPublicationDraft;
-}
-
-export async function fetchOpenEventPublicationDraft(): Promise<EventPublicationDraft | null> {
-  const { data, error } = await supabase
-    .from('event_publication_drafts')
-    .select('*')
-    .neq('state', 'published')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as EventPublicationDraft | null;
-}
-
-export async function invokeEventPublication(
-  action: 'begin-creation' | 'publish' | 'retry-publication' | 'recover-submission',
-  draftId: string,
-  transactionHash?: string,
-): Promise<{ state: EventPublicationState; eventId?: string; transactionHash?: string }> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Sign in is required.');
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/event-publication`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action, draftId, transactionHash }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Event publication service unavailable.');
-  return payload;
-}
-
-export async function refreshPublishedEventFromChain(
-  eventId: string,
-  transactionHash: string,
-): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Sign in is required.');
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/event-publication`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action: 'refresh-event', eventId, transactionHash }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || 'Event state refresh failed.');
-}
-
 /**
  * Fetch tickets for the attendee wallet derived server-side from auth.uid().
  */
@@ -369,6 +234,292 @@ export async function fetchMyTickets(): Promise<TicketRow[]> {
   }
 
   return (data ?? []) as TicketRow[];
+}
+
+export interface EventDraftPatch {
+  intended_organizer_address: string | null;
+  expected_name: string | null;
+  expected_date_unix: number | null;
+  expected_capacity: number | null;
+  expected_price_per_ticket: number | null;
+  summary: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  timezone: string | null;
+  end_unix: number | null;
+  venue: string | null;
+  address: string | null;
+  city: string | null;
+  organizer_display_name: string | null;
+  support_contact: string | null;
+  entry_instructions: string | null;
+  accessibility_notes: string | null;
+  age_restriction: string | null;
+  prohibited_items: string | null;
+  map_url: string | null;
+  public_links: string[];
+}
+
+export class DraftConflictError extends Error {
+  constructor() {
+    super('This draft changed in another tab or device. Your unsaved edits were preserved.');
+    this.name = 'DraftConflictError';
+  }
+}
+
+async function callEventPublication<T>(
+  action: string,
+  input: Record<string, unknown> = {},
+): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/event-publication`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (
+      response.status === 409 ||
+      /revision|conflict|stale/i.test(String(payload.error ?? ''))
+    ) {
+      throw new DraftConflictError();
+    }
+    throw new Error(payload.error || 'Event publication service unavailable.');
+  }
+  return payload as T;
+}
+
+export async function createEventDraft(): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>('create-draft');
+  return payload.draft;
+}
+
+export async function listMyEventDrafts(): Promise<EventPublicationDraft[]> {
+  const payload = await callEventPublication<{ drafts: EventPublicationDraft[] }>('list-drafts');
+  return payload.drafts;
+}
+
+export async function getMyEventDraft(draftId: string): Promise<EventPublicationDraft | null> {
+  try {
+    const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+      'get-draft',
+      { draftId },
+    );
+    return payload.draft;
+  } catch (error) {
+    if (error instanceof Error && /not found/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
+export async function saveEventDraft(
+  draftId: string,
+  expectedRevision: number,
+  patch: EventDraftPatch,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>('save-draft', {
+    draftId,
+    expectedRevision,
+    patch,
+  });
+  return payload.draft;
+}
+
+export async function deleteEventDraft(draftId: string): Promise<void> {
+  await callEventPublication('delete-draft', { draftId });
+}
+
+export interface PublicationPreflight {
+  eventId: string;
+  organizerAddress: string;
+  network: 'StellarTestnet';
+  ticketContractId: string;
+}
+
+export async function preflightEventPublication(draftId: string): Promise<{
+  draft: EventPublicationDraft;
+  preflight: PublicationPreflight;
+}> {
+  return callEventPublication('preflight-publication', { draftId });
+}
+
+export async function beginEventPublication(
+  draftId: string,
+  prepared: {
+    unsignedEnvelopeHash: string;
+    sourceSequence: string;
+    transactionMaxTime: number;
+  },
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'begin-publication',
+    { draftId, ...prepared },
+  );
+  return payload.draft;
+}
+
+export async function recordSignedEventPublication(
+  draftId: string,
+  signedTransactionHash: string,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'record-signed-publication',
+    { draftId, signedTransactionHash },
+  );
+  return payload.draft;
+}
+
+export async function recordPublicationPreSubmissionFailure(
+  draftId: string,
+  category:
+    | 'approval_rejected'
+    | 'approval_expired'
+    | 'preparation_failed'
+    | 'signing_provider_failed',
+  detail?: string,
+): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'pre-submission-failed',
+    { draftId, category, detail },
+  );
+  return payload.draft;
+}
+
+export async function resolveEventPublication(draftId: string): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'resolve-publication',
+    { draftId },
+  );
+  return payload.draft;
+}
+
+export async function retryEventPublicationSync(draftId: string): Promise<EventPublicationDraft> {
+  const payload = await callEventPublication<{ draft: EventPublicationDraft }>(
+    'retry-publication-sync',
+    { draftId },
+  );
+  return payload.draft;
+}
+
+export interface OwnedOrganizerEvent extends EventMetadata {
+  draft_id: string;
+  publication_state: EventPublicationState;
+  publication_updated_at: string;
+}
+
+export async function getMyOrganizerEvents(): Promise<OwnedOrganizerEvent[]> {
+  const payload = await callEventPublication<{ events: OwnedOrganizerEvent[] }>(
+    'list-owned-events',
+  );
+  return payload.events;
+}
+
+export async function getMyOrganizerEvent(eventId: string): Promise<OwnedOrganizerEvent | null> {
+  try {
+    const payload = await callEventPublication<{ event: OwnedOrganizerEvent }>(
+      'get-owned-event',
+      { eventId },
+    );
+    return payload.event;
+  } catch (error) {
+    if (error instanceof Error && /not found/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
+export interface EventMetadataPatch {
+  summary?: string;
+  description?: string;
+  image_url?: string;
+  organizer_display_name?: string;
+  support_contact?: string;
+  entry_instructions?: string;
+  accessibility_notes?: string;
+  age_restriction?: string;
+  prohibited_items?: string;
+  map_url?: string;
+  public_links?: string[];
+  venue?: string;
+  address?: string;
+  city?: string;
+}
+
+export async function updateOrganizerEventMetadata(
+  eventId: string,
+  expectedMetadataRevision: number,
+  patch: EventMetadataPatch,
+): Promise<OwnedOrganizerEvent> {
+  const payload = await callEventPublication<{ event: OwnedOrganizerEvent }>('update-metadata', {
+    eventId,
+    expectedMetadataRevision,
+    patch,
+  });
+  return payload.event;
+}
+
+export type OrganizerEventOperationType = 'cancel_event' | 'complete_event';
+export type OrganizerEventOperationState =
+  | 'review'
+  | 'approval_required'
+  | 'signed_submission_pending'
+  | 'confirmation_pending'
+  | 'status_unknown'
+  | 'pre_submission_failed'
+  | 'chain_failed'
+  | 'chain_confirmed'
+  | 'mirror_syncing'
+  | 'sync_warning'
+  | 'complete';
+
+export interface OrganizerEventOperation {
+  operation_id: string;
+  event_id: string;
+  operation_type: OrganizerEventOperationType;
+  expected_organizer_address: string;
+  cancellation_reason: string | null;
+  state: OrganizerEventOperationState;
+  transaction_hash: string | null;
+  released_amount: string | null;
+  chain_confirmed_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function invokeOrganizerEventOperation(
+  action:
+    | 'allocate'
+    | 'get'
+    | 'list'
+    | 'begin-attempt'
+    | 'record-signed-attempt'
+    | 'pre-submission-failed'
+    | 'resolve'
+    | 'retry-sync',
+  input: Record<string, unknown>,
+): Promise<{
+  operation?: OrganizerEventOperation;
+  operations?: OrganizerEventOperation[];
+}> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Sign in is required.');
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/organizer-event-operation`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...input }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Organizer operation service unavailable.');
+  return payload;
 }
 
 export async function fetchMyTicket(ticketId: string): Promise<TicketRow | null> {

@@ -24,7 +24,8 @@ const ACTION_PATHS: Record<ProtectedAction, RegExp> = {
   open_ticket: /^\/tickets\/[^/?#]+(?:\/qr)?(?:\?.*)?$/,
   open_account: /^\/account(?:\?.*)?$/,
   buy_listing: /^\/marketplace\?listing=[^&#]+$/,
-  open_organizer: /^\/organizer\/events(?:\/new|\/[^/?#]+(?:\/check-in)?)?(?:\?.*)?$/,
+  open_organizer:
+    /^\/organizer\/(?:events(?:\/new|\/[^/?#]+(?:\/check-in)?)?|drafts\/[^/?#]+)(?:\?.*)?$/,
 };
 
 export function isValidReturnPath(path: string): boolean {

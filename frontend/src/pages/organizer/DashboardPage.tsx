@@ -1,205 +1,138 @@
-import { useEffect, useState } from 'react';
 import { OrganizerEventRow } from '../../components/organizer/OrganizerEventRow';
-import { useOrganizerEvents } from '../../hooks/useScopedEvents';
+import { useOrganizerDrafts, useOrganizerEvents } from '../../hooks/useScopedEvents';
 
 interface DashboardPageProps {
   readonly onCreateEvent: () => void;
+  readonly onOpenDraft: (draftId: string) => void;
   readonly onOpenEvent: (eventId: string) => void;
 }
 
-import { useAppStore } from '../../store/useAppStore';
-import { useWallet } from '../../hooks/useWallet';
-import { releaseFunds, cancelEvent } from '../../lib/soroban';
-import {
-  mirrorCancelledEvent,
-  mirrorCompletedEvent,
-  synchronizationWarning,
-} from '../../lib/readModelSync';
-
-export function DashboardPage({ onCreateEvent, onOpenEvent }: DashboardPageProps) {
-  const { organizerWallet: wallet, setTxState } = useAppStore();
-  const { connectOrganizer } = useWallet();
-  const [now, setNow] = useState(0);
-  const eventState = useOrganizerEvents(wallet.publicKey);
-  const organizerEvents = eventState.events;
-
-  useEffect(() => {
-    setTimeout(() => setNow(Date.now()), 0);
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const activeEvents = organizerEvents.filter(e => e.status === 'Active');
-
-  const totalEvents = organizerEvents.length;
-  const totalTicketsSold = organizerEvents.reduce((s, event) => s + (event.currentSupply ?? 0), 0);
-  const totalEscrow = activeEvents.reduce((s, event) => s + ((event.currentSupply ?? 0) * ((event.pricePerTicket ?? 0) / 10_000_000)), 0);
-
-  const handleRelease = async (eventId: string) => {
-    if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) return;
-    setTxState({ status: 'signing' });
-    try {
-      const transactionHash = await releaseFunds(eventId, wallet.publicKey, wallet.signFn);
-      
-      const syncResult = await mirrorCompletedEvent(eventId, transactionHash);
-      if (syncResult.ok) await eventState.reload();
-
-      setTxState({
-        status: 'success',
-        message: syncResult.ok ? 'Funds released successfully!' : synchronizationWarning(syncResult),
-      });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
-    } catch (e: unknown) {
-      console.error('Release funds failed', e);
-      const msg = e instanceof Error ? e.message : 'Failed to release funds';
-      setTxState({ status: 'error', errorMessage: msg });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
-    }
-  };
-
-  const handleCancel = async (eventId: string) => {
-    if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) return;
-    setTxState({ status: 'signing' });
-    try {
-      const transactionHash = await cancelEvent(eventId, wallet.publicKey, wallet.signFn);
-      
-      const syncResult = await mirrorCancelledEvent(eventId, transactionHash);
-      if (syncResult.ok) await eventState.reload();
-
-      setTxState({
-        status: 'success',
-        message: syncResult.ok ? 'Event cancelled successfully.' : synchronizationWarning(syncResult),
-      });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
-    } catch (e: unknown) {
-      console.error('Cancel event failed', e);
-      const msg = e instanceof Error ? e.message : 'Failed to cancel event';
-      setTxState({ status: 'error', errorMessage: msg });
-      setTimeout(() => setTxState({ status: 'idle' }), 3000);
-    }
-  };
-
-  if (!wallet.isConnected) {
-    return (
-      <div className="bg-[#14121b] text-[#e6e0ee] min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 w-full overflow-x-hidden text-center">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 tracking-tighter text-center w-full max-w-4xl">Organizer Hub</h1>
-        <p className="text-[#c9c4d8] mb-8 sm:mb-10 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-3xl text-center mx-auto leading-relaxed text-sm sm:text-base">
-          Connect your Freighter wallet to manage events, scan tickets, and withdraw funds.
-        </p>
-        <button
-          onClick={connectOrganizer}
-          className="bg-[#7C5CFF] hover:bg-[#8d72ff] text-[#EAEFF4] font-semibold text-lg py-3 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(124,92,255,0.3)] active:scale-[0.98]"
-        >
-          Connect Freighter
-        </button>
-      </div>
-    );
-  }
+export function DashboardPage({
+  onCreateEvent,
+  onOpenDraft,
+  onOpenEvent,
+}: DashboardPageProps) {
+  const eventState = useOrganizerEvents();
+  const draftState = useOrganizerDrafts();
+  const openDrafts = draftState.drafts.filter((draft) => draft.state !== 'published');
+  const hasWorkspace = openDrafts.length > 0 || eventState.events.length > 0;
 
   return (
-    <div className="bg-[#14121b] text-[#e6e0ee] min-h-screen pt-16">
-      <main className="max-w-7xl mx-auto px-4 md:px-8 py-10 sm:py-12 pb-24 sm:pb-32">
-        {/* Header Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16">
+    <div className="min-h-screen bg-[#14121b] pt-16 text-[#e6e0ee]">
+      <main className="mx-auto max-w-7xl px-4 py-10 pb-28 md:px-8">
+        <header className="mb-12 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#e6e0ee] tracking-tight">Organizer Hub</h1>
-            <p className="text-base text-[#c9c4d8] mt-1">
-              Manage your stellar event inventory and settlements.
+            <h1 className="text-4xl font-bold tracking-tight">Organizer Hub</h1>
+            <p className="mt-2 max-w-2xl text-[#c9c4d8]">
+              Draft ownership comes from your signed-in account. Connect Freighter only when an
+              on-chain action needs the organizer signature.
             </p>
           </div>
-          <div className="flex items-center gap-4 w-full md:w-auto">
-            <button
-              onClick={onCreateEvent}
-              className="flex-1 md:flex-none bg-[#7C5CFF] text-[#EAEFF4] px-6 py-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-[0_0_20px_rgba(124,92,255,0.2)]"
-            >
-              <span className="material-symbols-outlined">add_circle</span>
-              Create Event
+          <button
+            type="button"
+            onClick={onCreateEvent}
+            className="rounded-lg bg-[#7C5CFF] px-6 py-3 text-sm font-bold text-white"
+          >
+            Create event
+          </button>
+        </header>
+
+        {(eventState.error || draftState.error) && (
+          <div className="mb-8 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">
+            {draftState.error ?? eventState.error}
+          </div>
+        )}
+
+        {!hasWorkspace && !eventState.loading && !draftState.loading ? (
+          <section className="rounded-2xl border border-[#272C33] bg-[#15181C] p-10 text-center">
+            <span className="material-symbols-outlined text-5xl text-[#9f8cff]">event_note</span>
+            <h2 className="mt-4 text-2xl font-semibold">Prepare your first event</h2>
+            <p className="mx-auto mt-3 max-w-xl text-[#c9c4d8]">
+              Start a private, recoverable draft. Nothing reaches Stellar or public discovery
+              until you complete the review and approve publication.
+            </p>
+            <button type="button" onClick={onCreateEvent} className="mt-6 rounded-lg bg-[#7C5CFF] px-5 py-3 font-semibold">
+              Create a private draft
             </button>
-          </div>
-        </div>
+          </section>
+        ) : (
+          <>
+            <section className="mb-12 grid gap-5 sm:grid-cols-2">
+              <Metric label="Private drafts" value={openDrafts.length} icon="draft" />
+              <Metric label="Published events" value={eventState.events.length} icon="event_available" />
+            </section>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {/* Total Events */}
-          <div className="bg-[#15181C]/70 backdrop-blur-md border border-[#272C33] p-6 rounded-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <span className="material-symbols-outlined text-6xl">event</span>
-            </div>
-            <p className="text-[#c9c4d8] text-[10px] font-semibold uppercase tracking-widest mb-2">
-              Total Events
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold text-[#e6e0ee]">{totalEvents}</span>
-            </div>
-          </div>
+            <section className="mb-14">
+              <div className="mb-5 flex items-center justify-between">
+                <h2 className="text-2xl font-semibold">Private drafts</h2>
+                {draftState.loading && <span className="text-sm text-slate-400">Refreshing…</span>}
+              </div>
+              {openDrafts.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[#343941] p-6 text-slate-400">
+                  No open drafts.
+                </p>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {openDrafts.map((draft) => (
+                    <button
+                      type="button"
+                      key={draft.draft_id}
+                      onClick={() => onOpenDraft(draft.draft_id)}
+                      className="rounded-xl border border-[#272C33] bg-[#15181C] p-5 text-left transition-colors hover:border-[#7C5CFF]/60"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-xl font-semibold">{draft.expected_name || 'Untitled event'}</h3>
+                          <p className="mt-2 text-sm text-slate-400">
+                            Updated {new Date(draft.updated_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-[#272C33] px-3 py-1 text-xs">
+                          {draft.state.replaceAll('_', ' ')}
+                        </span>
+                      </div>
+                      <p className="mt-4 truncate font-mono text-xs text-slate-500">
+                        Event ID {draft.event_id}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
 
-          {/* Tickets Sold */}
-          <div className="bg-[#15181C]/70 backdrop-blur-md border border-[#272C33] p-6 rounded-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <span className="material-symbols-outlined text-6xl">confirmation_number</span>
-            </div>
-            <p className="text-[#c9c4d8] text-[10px] font-semibold uppercase tracking-widest mb-2">
-              Tickets Sold
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold text-[#e6e0ee]">
-                {totalTicketsSold.toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          {/* Escrow */}
-          <div className="bg-[#15181C]/70 backdrop-blur-md border border-[#272C33] p-6 rounded-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <span className="material-symbols-outlined text-6xl">account_balance_wallet</span>
-            </div>
-            <p className="text-[#c9c4d8] text-[10px] font-semibold uppercase tracking-widest mb-2">
-              In Escrow (XLM)
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold text-[#7C5CFF]">
-                {totalEscrow.toLocaleString()}.00
-              </span>
-              <span className="text-[#c9c4d8] font-mono text-sm">XLM</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Published Events */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-[#e6e0ee]">Published Events</h2>
-            <div className="flex gap-2">
-              <span className="text-xs font-semibold text-[#c9c4d8]">Sorted by:</span>
-              <span className="text-xs font-semibold text-[#7C5CFF]">
-                Newest start time
-              </span>
-            </div>
-          </div>
-
-          {organizerEvents.map((event) => {
-            const ticketsSold = event.currentSupply;
-            const escrowXlm = event.status === 'Active' ? ticketsSold * (event.pricePerTicket / 10_000_000) : 0;
-            const canRelease = event.status === 'Active' && event.dateUnix * 1000 < now;
-            const lockedUntilLabel = canRelease || event.status === 'Completed' || event.status === 'Cancelled' ? undefined : `Locked Until ${new Date(event.dateUnix * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-
-            return (
-              <OrganizerEventRow
-                key={event.eventId}
-                event={event}
-                ticketsSold={ticketsSold}
-                escrowXlm={escrowXlm}
-                canRelease={canRelease}
-                lockedUntilLabel={lockedUntilLabel}
-                onRelease={handleRelease}
-                onCancel={handleCancel}
-                onOpen={onOpenEvent}
-              />
-            );
-          })}
-        </section>
-
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-semibold">Published events</h2>
+                {eventState.loading && <span className="text-sm text-slate-400">Refreshing…</span>}
+              </div>
+              {eventState.events.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-[#343941] p-6 text-slate-400">
+                  No published events yet.
+                </p>
+              ) : (
+                eventState.events.map((event) => (
+                  <OrganizerEventRow
+                    key={event.eventId}
+                    event={event}
+                    ticketsSold={event.currentSupply}
+                    onOpen={onOpenEvent}
+                  />
+                ))
+              )}
+            </section>
+          </>
+        )}
       </main>
+    </div>
+  );
+}
+
+function Metric({ label, value, icon }: { label: string; value: number; icon: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#272C33] bg-[#15181C] p-6">
+      <span className="material-symbols-outlined absolute right-4 top-4 text-5xl text-[#7C5CFF]/20">{icon}</span>
+      <p className="text-xs font-semibold uppercase tracking-widest text-[#c9c4d8]">{label}</p>
+      <p className="mt-2 text-4xl font-semibold">{value}</p>
     </div>
   );
 }

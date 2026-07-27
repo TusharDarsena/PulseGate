@@ -1,4 +1,4 @@
-import { refreshPublishedEventFromChain, supabase } from './supabase';
+import { supabase } from './supabase';
 
 export interface ReadModelSyncResult {
   ok: boolean;
@@ -43,30 +43,6 @@ async function synchronize(operation: string, write: () => Promise<void>): Promi
 export function synchronizationWarning(result: ReadModelSyncResult): string {
   const detail = result.error?.message ?? 'The read-model update failed.';
   return `The blockchain transaction succeeded, but the app data did not synchronize. Do not retry the blockchain action. Refresh later or contact support. ${detail}`;
-}
-
-function mirrorEventState(
-  eventId: string,
-  transactionHash: string,
-  operation: string,
-) {
-  return synchronize(operation, async () => {
-    await refreshPublishedEventFromChain(eventId, transactionHash);
-  });
-}
-
-export function mirrorCancelledEvent(
-  eventId: string,
-  transactionHash: string,
-): Promise<ReadModelSyncResult> {
-  return mirrorEventState(eventId, transactionHash, 'refresh the cancelled event');
-}
-
-export function mirrorCompletedEvent(
-  eventId: string,
-  transactionHash: string,
-): Promise<ReadModelSyncResult> {
-  return mirrorEventState(eventId, transactionHash, 'refresh the completed event');
 }
 
 function mirrorTicketStatus(ticketId: string, status: 'Refunded' | 'Used', operation: string) {

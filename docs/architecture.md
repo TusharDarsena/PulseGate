@@ -44,8 +44,9 @@ See [`contracts/ticket/src/lib.rs`](../contracts/ticket/src/lib.rs) and
 
 - **Instance:** admin, `marketplace_address`, and `xlm_token` configuration.
 - **Persistent, keyed by `event_id`:** `Event` with `organizer`, `name`,
-  `date_unix`, `capacity`, `price_per_ticket`, `current_supply`, and status
-  (`Active`, `Cancelled`, `Completed`).
+  authoritative start (`date_unix`) and end (`end_unix`), `capacity`,
+  `price_per_ticket`, `current_supply`, and status (`Active`, `Cancelled`,
+  `Completed`).
 - **Persistent, keyed by `ticket_id`:** `Ticket` with `owner`, `event_id`, and
   status (`Active`, `Used`, `Refunded`). `Used` and `Refunded` are distinct
   terminal states (D-018).
@@ -60,18 +61,20 @@ callers (D-012). Persistent and instance TTLs are extended on every write path
 
 - `initialize(admin, marketplace_address, xlm_token)` stores configuration and
   prevents re-initialization.
-- `create_event(organizer, event_id, name, date_unix, capacity,
+- `create_event(organizer, event_id, name, date_unix, end_unix, capacity,
   price_per_ticket)` rejects an existing event ID and validates capacity, price,
-  and date before writing the event (D-017).
+  a future start, and an end strictly after the start before writing the event
+  (D-017).
 - `purchase(event_id, buyer, ticket_id)` requires a client-generated unique
   ticket ID, rejects collisions, inactive or full events, and rejects
   purchases at or after the event time with stable error 23. It mints an
   `Active` ticket, updates state before the token transfer, and adds to escrow
   using checked arithmetic and checks-effects-interactions ordering (D-016).
-- `release_funds(event_id, organizer)` checks the event time, marks the event
-  `Completed`, clears escrow, and transfers XLM to the organizer.
-- `cancel_event(event_id, organizer)` marks the event `Cancelled`; it does not
-  auto-refund attendees.
+- `release_funds(event_id, organizer)` requires an `Active` event at or after
+  its end, marks it `Completed`, clears escrow, and transfers XLM to the
+  organizer. Zero-sale events also complete and emit `ev_rel` with amount zero.
+- `cancel_event(event_id, organizer)` requires an `Active` event and marks it
+  `Cancelled`; it does not auto-refund attendees.
 - `refund(ticket_id, attendee)` is a pull-based refund available after
   cancellation (D-002). Pull-based refunds avoid an unbounded loop over
   attendees.
@@ -81,9 +84,9 @@ callers (D-012). Persistent and instance TTLs are extended on every write path
   listing, seller, current owner, ticket event, event status, and organizer
   before calling this entrypoint.
 - `mark_used(ticket_id, organizer)` marks an eligible ticket `Used` after QR
-  verification.
+  verification only while its event is `Active`.
 - Read-only functions: `get_ticket`, `get_event`, `get_marketplace`, and
-  `get_xlm_token`.
+  `get_xlm_token`, plus the existing-event keyed `get_escrow_balance`.
 
 ### MarketplaceContract
 
@@ -112,7 +115,7 @@ skipped (D-010).
   `Open` listing. Tickets are not locked on-chain; the supplied `event_id` is
   informational only (D-009).
 - `buy_listing(seller, listing_id, buyer)` rechecks the current on-chain owner,
-  ticket event, event status, and organizer before moving funds or ownership.
+  ticket event, `Active` event status, and organizer before moving funds or ownership.
   It derives the authoritative event ID from the ticket record, pays the
   organizer and seller, calls `restricted_transfer`, and marks the listing
   `Sold` (D-020/D-021).
@@ -188,10 +191,11 @@ and [`supabase/functions/purchase-operation/index.ts`](../supabase/functions/pur
 ### Routing and state (D-013/D-025)
 
 The React/Vite SPA uses durable React Router routes for discovery, event
-details, checkout, purchase receipts, tickets, account, organizer events, and
-event-scoped check-in. `/` redirects to `/events`; `/auth/callback` handles
-Google PKCE; `/purchases/:operationId` is authenticated but does not require
-wallet readiness, allowing receipt recovery during wallet restoration.
+details, checkout, purchase receipts, tickets, account, organizer events,
+event drafts, event management, and event-scoped check-in. `/` redirects to
+`/events`; `/auth/callback` handles Google PKCE; purchase receipts, organizer
+drafts, and organizer management routes are authenticated but do not require
+wallet readiness merely to restore their owner-scoped records.
 
 Protected routes store only a short-lived same-origin intent with an enumerated
 action. Invalid, external, or expired destinations are rejected, and consuming
@@ -203,8 +207,11 @@ reconstructed in memory and are not persisted.
 
 Supabase is a read model for searchable discovery and mirrored metadata. It
 must never authorize chain actions. Published event rows are trusted; editable
-preparation and interrupted-publication recovery use the private
-`event_publication_drafts` table.
+preparation, human ownership, and interrupted-publication recovery use the
+private `event_publication_drafts` table. Multiple incomplete drafts are
+allowed. Atomic expected-revision saves preserve newer work when two tabs edit
+the same draft, and published draft rows remain as the owner-derived link to
+organizer event management.
 
 Private `purchase_operations` and `purchase_operation_attempts` are retrievable
 by their owner only through the purchase-operation service and are not directly
@@ -213,13 +220,23 @@ stores the immutable receipt snapshot: event identity, start and timezone,
 venue, purchaser, amount, charged fee, transaction hash, ledger, close time,
 network, and contract.
 
-Before `create_event`, the browser reserves a complete draft with stable event
-ID, authenticated user, intended organizer, deployment identity, and expected
+Before `create_event`, the browser completes a draft with stable event ID,
+authenticated user, intended organizer, deployment identity, and expected
 immutable chain values. The organizer's creation transaction supplies the
-binding. The authenticated `event-publication` function reads `get_event`,
-verifies network, contract, organizer, name, start, capacity, and price, then
-atomically publishes the same draft. Only this trusted service writes published
-event rows or chain-verification fields.
+binding. Its signed transaction hash is persisted before the generated client
+can submit. The authenticated `event-publication` function requires matching
+`ev_create` proof and reads `get_event` to verify network, contract, organizer,
+name, start, end, capacity, and price before atomically publishing the same
+draft. Only this trusted service writes published event rows or
+chain-verification fields.
+
+Cancellation and completion use one private
+`organizer_event_operations` owner with a cross-type event lock. The browser
+still assembles, signs, and submits through the generated contract client; the
+service stores the signed hash first, resolves only matching `ev_cancel` or
+`ev_rel` proof, and mirrors confirmed state afterward. Unknown submission and
+mirror-sync states remain recoverable, and mirror-only retry never resubmits a
+terminal transaction.
 
 `discoverable_events` contains complete, verified, active future events.
 `published_events` intentionally has no upcoming/lifecycle filter so direct
@@ -256,11 +273,15 @@ authorize entry. See [`frontend/src/lib/qr.ts`](../frontend/src/lib/qr.ts) and
 ## Deployment sequence
 
 1. Fund test accounts, including auto-generating the organizer CLI identity.
-2. Deploy `TicketContract` and record its address.
-3. Deploy `MarketplaceContract` and record its address.
-4. Initialize `TicketContract` with admin, marketplace address, and XLM token.
-5. Initialize `MarketplaceContract` with admin, ticket address, and royalty
+2. Build both WASM artifacts and regenerate both TypeScript binding packages
+   from those exact artifacts.
+3. Deploy `TicketContract` and record its address.
+4. Deploy `MarketplaceContract` and record its address.
+5. Initialize `TicketContract` with admin, marketplace address, and XLM token.
+6. Initialize `MarketplaceContract` with admin, ticket address, and royalty
    rate.
+7. Update the frontend and Supabase deployment configuration together, then
+   deploy the compatible services before enabling organizer writes.
 
 Contract IDs, network values, generated bindings, and both contracts' stored
 peer addresses must remain synchronized. The deployment script is

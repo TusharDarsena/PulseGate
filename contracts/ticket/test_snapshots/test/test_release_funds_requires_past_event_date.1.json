@@ -116,6 +116,9 @@
                   "u64": "100"
                 },
                 {
+                  "u64": "101"
+                },
+                {
                   "i128": "50"
                 },
                 {
@@ -174,6 +177,7 @@
         }
       ]
     ],
+    [],
     [],
     [
       [
@@ -340,7 +344,7 @@
               "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
               "key": {
                 "ledger_key_nonce": {
-                  "nonce": "6277191135259896685"
+                  "nonce": "5806905060045992000"
                 }
               },
               "durability": "temporary",
@@ -440,6 +444,14 @@
                     },
                     "val": {
                       "u64": "100"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "end_unix"
+                    },
+                    "val": {
+                      "u64": "101"
                     }
                   },
                   {

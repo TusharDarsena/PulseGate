@@ -1,36 +1,35 @@
-import { useState } from 'react';
 import { Event, EventStatus } from '../../types';
-import { formatEventStart } from '../../lib/eventModel';
+import {
+  deriveOrganizerLifecycle,
+  formatEventStart,
+  ORGANIZER_LIFECYCLE_LABELS,
+} from '../../lib/eventModel';
 
 interface OrganizerEventRowProps {
   readonly event: Event;
   readonly ticketsSold: number;
-  readonly escrowXlm: number;
-  readonly canRelease: boolean;
-  readonly lockedUntilLabel?: string;
-  readonly onRelease: (eventId: string) => void;
-  readonly onCancel?: (eventId: string) => void;
   readonly onOpen: (eventId: string) => void;
 }
 
-function StatusBadge({ status }: { status: EventStatus }) {
+function StatusBadge({ status, event }: { status: EventStatus; event: Event }) {
+  const label = ORGANIZER_LIFECYCLE_LABELS[deriveOrganizerLifecycle(event)];
   if (status === 'Completed') {
     return (
       <span className="bg-[#7C5CFF]/10 text-[#7C5CFF] px-3 py-1 rounded-full text-[12px] font-semibold tracking-wider">
-        Completed
+        {label}
       </span>
     );
   }
   if (status === 'Active') {
     return (
       <span className="bg-[#272C33] text-[#EAEFF4]/60 px-3 py-1 rounded-full text-[12px] font-semibold tracking-wider">
-        Upcoming
+        {label}
       </span>
     );
   }
   return (
     <span className="bg-[#272C33] text-[#EAEFF4]/60 px-3 py-1 rounded-full text-[12px] font-semibold tracking-wider">
-      Pending
+      {label}
     </span>
   );
 }
@@ -38,14 +37,8 @@ function StatusBadge({ status }: { status: EventStatus }) {
 export function OrganizerEventRow({
   event,
   ticketsSold,
-  escrowXlm,
-  canRelease,
-  lockedUntilLabel,
-  onRelease,
-  onCancel,
   onOpen,
 }: OrganizerEventRowProps) {
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const soldPercent = event.capacity > 0
     ? Math.round((ticketsSold / event.capacity) * 100)
     : 0;
@@ -79,7 +72,7 @@ export function OrganizerEventRow({
               )}
             </div>
           </div>
-          <StatusBadge status={event.status} />
+          <StatusBadge status={event.status} event={event} />
         </div>
 
         {/* Progress bar */}
@@ -99,7 +92,7 @@ export function OrganizerEventRow({
         </div>
       </div>
 
-      {/* Escrow panel */}
+      {/* Event actions */}
       <div className="lg:w-64 w-full border-t lg:border-t-0 lg:border-l border-[#272C33] pt-4 lg:pt-0 lg:pl-6 flex flex-col gap-3">
         <button
           onClick={() => onOpen(event.eventId)}
@@ -107,65 +100,9 @@ export function OrganizerEventRow({
         >
           Manage Event
         </button>
-        <div className="text-center lg:text-left">
-          <p className="text-[#c9c4d8] text-xs font-semibold uppercase tracking-wider">
-            {canRelease ? 'Available to Release' : 'Locked in Escrow'}
-          </p>
-          <p className="text-[#EAEFF4] text-2xl font-semibold">
-            {escrowXlm.toLocaleString()} XLM
-          </p>
-        </div>
-
-        {canRelease ? (
-          <button
-            onClick={() => onRelease(event.eventId)}
-            className="w-full bg-[#ffb4ab] text-[#690005] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-sm">lock_open</span>
-            Release Funds
-          </button>
-        ) : (
-          <button
-            disabled
-            className="w-full bg-[#272C33] text-[#EAEFF4]/30 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-sm">lock</span>
-            {lockedUntilLabel ?? 'Locked'}
-          </button>
-        )}
-        
-        {event.status === 'Active' && onCancel && (
-          <>
-            {showCancelConfirm ? (
-              <div className="w-full mt-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                <p className="text-xs text-red-400 mb-3 text-center leading-relaxed">
-                  This will cancel the event and allow all attendees to claim refunds. This cannot be undone.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowCancelConfirm(false)}
-                    className="flex-1 py-2 bg-[#272C33] text-white rounded-lg text-xs font-bold hover:bg-white/10 transition-colors"
-                  >
-                    Go Back
-                  </button>
-                  <button
-                    onClick={() => { setShowCancelConfirm(false); onCancel(event.eventId); }}
-                    className="flex-1 py-2 bg-red-500 text-white rounded-lg text-xs font-bold hover:opacity-90 transition-opacity"
-                  >
-                    Confirm Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowCancelConfirm(true)}
-                className="w-full mt-2 border border-red-500/30 text-red-400 py-2 rounded-lg text-xs font-bold hover:bg-red-500/10 transition-colors"
-              >
-                Cancel Event
-              </button>
-            )}
-          </>
-        )}
+        <p className="text-center text-xs text-[#938ea1] lg:text-left">
+          Lifecycle actions and receipts are available inside this event's management page.
+        </p>
       </div>
     </div>
   );

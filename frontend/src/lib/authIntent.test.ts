@@ -18,7 +18,11 @@ describe('validated authentication return', () => {
     '/tickets/ticket-1',
     '/tickets/ticket-1/qr',
     '/account',
+    '/organizer/events',
+    '/organizer/events/new',
+    '/organizer/drafts/draft-1',
     '/organizer/events/event-1/check-in',
+    '/organizer/events/event-1?operation=operation-1',
   ])('accepts protected application route %s', (path) => {
     expect(isValidReturnPath(path)).toBe(true);
   });

@@ -56,8 +56,10 @@ pub struct Event {
     pub organizer: Address,
     /// Short display name (stored as String to handle spaces and length > 32)
     pub name: String,
-    /// Unix timestamp of the event date
+    /// Unix timestamp when primary sales close and the event starts
     pub date_unix: u64,
+    /// Unix timestamp when the event ends and completion becomes eligible
+    pub end_unix: u64,
     /// Maximum number of tickets that can be sold
     pub capacity: i128,
     /// Price per ticket in stroops (1 XLM = 10_000_000 stroops)

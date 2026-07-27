@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { Address } from '@stellar/stellar-sdk';
+import { Address } from "@stellar/stellar-sdk";
 import {
   AssembledTransaction,
   Client as ContractClient,
@@ -7,7 +7,7 @@ import {
   MethodOptions,
   Result,
   Spec as ContractSpec,
-} from '@stellar/stellar-sdk/contract';
+} from "@stellar/stellar-sdk/contract";
 import type {
   u32,
   i32,
@@ -18,14 +18,14 @@ import type {
   u256,
   i256,
   Option,
-  Typepoint,
+  Timepoint,
   Duration,
-} from '@stellar/stellar-sdk/contract';
-// export * from '@stellar/stellar-sdk'  // removed — breaks Vite ESM interop
-export * as contract from '@stellar/stellar-sdk/contract'
-export * as rpc from '@stellar/stellar-sdk/rpc'
+} from "@stellar/stellar-sdk/contract";
+export * from "@stellar/stellar-sdk";
+export * as contract from "@stellar/stellar-sdk/contract";
+export * as rpc from "@stellar/stellar-sdk/rpc";
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   //@ts-ignore Buffer exists
   window.Buffer = window.Buffer || Buffer;
 }
@@ -41,6 +41,7 @@ export interface Event {
   capacity: i128;
   current_supply: i128;
   date_unix: u64;
+  end_unix: u64;
   name: string;
   organizer: string;
   price_per_ticket: i128;
@@ -74,7 +75,8 @@ export const ContractError = {
   10: {message:"Underflow"},
   11: {message:"DivisionByZero"},
   12: {message:"TicketOwnerMismatch"},
-  13: {message:"EventCancelled"}
+  13: {message:"EventCancelled"},
+  14: {message:"EventNotActive"}
 }
 
 /**
@@ -111,22 +113,7 @@ export interface Client {
    * Rate is clamped to [0, 100]. Can only be called once.
    * Admin is authenticated to prevent front-running.
    */
-  initialize: ({admin, ticket_contract_address, royalty_rate}: {admin: string, ticket_contract_address: string, royalty_rate: i128}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  initialize: ({admin, ticket_contract_address, royalty_rate}: {admin: string, ticket_contract_address: string, royalty_rate: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a buy_listing transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -136,42 +123,12 @@ export interface Client {
    * 
    * CEI order: all reads → compute → state write → token interactions → restricted_transfer.
    */
-  buy_listing: ({seller, listing_id, buyer}: {seller: string, listing_id: string, buyer: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  buy_listing: ({seller, listing_id, buyer}: {seller: string, listing_id: string, buyer: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a get_listing transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_listing: ({seller, listing_id}: {seller: string, listing_id: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<Listing>>>
+  get_listing: ({seller, listing_id}: {seller: string, listing_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Listing>>>
 
   /**
    * Construct and simulate a list_ticket transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -179,43 +136,13 @@ export interface Client {
    * third party can block a seller's chosen ID by front-running.
    * No on-chain ticket lock — see D-009. Stale listings fail fast in buy_listing.
    */
-  list_ticket: ({seller, listing_id, ticket_id, event_id, ask_price}: {seller: string, listing_id: string, ticket_id: string, event_id: string, ask_price: i128}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  list_ticket: ({seller, listing_id, ticket_id, event_id, ask_price}: {seller: string, listing_id: string, ticket_id: string, event_id: string, ask_price: i128}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   /**
    * Construct and simulate a cancel_listing transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Cancel an Open listing. Only the original seller can cancel.
    */
-  cancel_listing: ({seller, listing_id}: {seller: string, listing_id: string}, options?: {
-    /**
-     * The fee to pay for the transaction. Default: BASE_FEE
-     */
-    fee?: number;
-
-    /**
-     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-     */
-    timeoutInSeconds?: number;
-
-    /**
-     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-     */
-    simulate?: boolean;
-  }) => Promise<AssembledTransaction<Result<void>>>
+  cancel_listing: ({seller, listing_id}: {seller: string, listing_id: string}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
 }
 export class Client extends ContractClient {
@@ -235,7 +162,7 @@ export class Client extends ContractClient {
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([ "AAAAAQAAAEJNaXJyb3Igb2YgdGlja2V0Ojp0eXBlczo6RXZlbnQg4oCUIGZpZWxkIG9yZGVyIG11c3QgbWF0Y2ggZXhhY3RseS4AAAAAAAAAAAAFRXZlbnQAAAAAAAAHAAAAAAAAAAhjYXBhY2l0eQAAAAsAAAAAAAAADmN1cnJlbnRfc3VwcGx5AAAAAAALAAAAAAAAAAlkYXRlX3VuaXgAAAAAAAAGAAAAAAAAAARuYW1lAAAAEAAAAAAAAAAJb3JnYW5pemVyAAAAAAAAEwAAAAAAAAAQcHJpY2VfcGVyX3RpY2tldAAAAAsAAAAAAAAABnN0YXR1cwAAAAAH0AAAAAtFdmVudFN0YXR1cwA=",
+      new ContractSpec([ "AAAAAQAAAEJNaXJyb3Igb2YgdGlja2V0Ojp0eXBlczo6RXZlbnQg4oCUIGZpZWxkIG9yZGVyIG11c3QgbWF0Y2ggZXhhY3RseS4AAAAAAAAAAAAFRXZlbnQAAAAAAAAIAAAAAAAAAAhjYXBhY2l0eQAAAAsAAAAAAAAADmN1cnJlbnRfc3VwcGx5AAAAAAALAAAAAAAAAAlkYXRlX3VuaXgAAAAAAAAGAAAAAAAAAAhlbmRfdW5peAAAAAYAAAAAAAAABG5hbWUAAAAQAAAAAAAAAAlvcmdhbml6ZXIAAAAAAAATAAAAAAAAABBwcmljZV9wZXJfdGlja2V0AAAACwAAAAAAAAAGc3RhdHVzAAAAAAfQAAAAC0V2ZW50U3RhdHVzAA==",
         "AAAAAQAAAENNaXJyb3Igb2YgdGlja2V0Ojp0eXBlczo6VGlja2V0IOKAlCBmaWVsZCBvcmRlciBtdXN0IG1hdGNoIGV4YWN0bHkuAAAAAAAAAAAGVGlja2V0AAAAAAADAAAAAAAAAAhldmVudF9pZAAAABAAAAAAAAAABW93bmVyAAAAAAAAEwAAAAAAAAAGc3RhdHVzAAAAAAfQAAAADFRpY2tldFN0YXR1cw==",
         "AAAAAgAAAAAAAAAAAAAAC0V2ZW50U3RhdHVzAAAAAAMAAAAAAAAAAAAAAAZBY3RpdmUAAAAAAAAAAAAAAAAACUNhbmNlbGxlZAAAAAAAAAAAAAAAAAAACUNvbXBsZXRlZAAAAA==",
         "AAAAAgAAAAAAAAAAAAAADFRpY2tldFN0YXR1cwAAAAMAAAAAAAAAAAAAAAZBY3RpdmUAAAAAAAAAAAAAAAAABFVzZWQAAAAAAAAAAAAAAAhSZWZ1bmRlZA==",
@@ -244,10 +171,9 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAALZ2V0X2xpc3RpbmcAAAAAAgAAAAAAAAAGc2VsbGVyAAAAAAATAAAAAAAAAApsaXN0aW5nX2lkAAAAAAAQAAAAAQAAA+kAAAfQAAAAB0xpc3RpbmcAAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
         "AAAAAAAAANFDcmVhdGUgYSBsaXN0aW5nLiBgbGlzdGluZ19pZGAgaXMgc2VsbGVyLW5hbWVzcGFjZWQgaW4gc3RvcmFnZSBzbyBubwp0aGlyZCBwYXJ0eSBjYW4gYmxvY2sgYSBzZWxsZXIncyBjaG9zZW4gSUQgYnkgZnJvbnQtcnVubmluZy4KTm8gb24tY2hhaW4gdGlja2V0IGxvY2sg4oCUIHNlZSBELTAwOS4gU3RhbGUgbGlzdGluZ3MgZmFpbCBmYXN0IGluIGJ1eV9saXN0aW5nLgAAAAAAAAtsaXN0X3RpY2tldAAAAAAFAAAAAAAAAAZzZWxsZXIAAAAAABMAAAAAAAAACmxpc3RpbmdfaWQAAAAAABAAAAAAAAAACXRpY2tldF9pZAAAAAAAABAAAAAAAAAACGV2ZW50X2lkAAAAEAAAAAAAAAAJYXNrX3ByaWNlAAAAAAAACwAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
         "AAAAAAAAADxDYW5jZWwgYW4gT3BlbiBsaXN0aW5nLiBPbmx5IHRoZSBvcmlnaW5hbCBzZWxsZXIgY2FuIGNhbmNlbC4AAAAOY2FuY2VsX2xpc3RpbmcAAAAAAAIAAAAAAAAABnNlbGxlcgAAAAAAEwAAAAAAAAAKbGlzdGluZ19pZAAAAAAAEAAAAAEAAAPpAAAAAgAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
-        "AAAABAAAAAAAAAAAAAAADUNvbnRyYWN0RXJyb3IAAAAAAAANAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAA9MaXN0aW5nTm90Rm91bmQAAAAAAwAAAAAAAAAOTGlzdGluZ05vdE9wZW4AAAAAAAQAAAAAAAAAFExpc3RpbmdBbHJlYWR5RXhpc3RzAAAABQAAAAAAAAAMSW52YWxpZFByaWNlAAAABgAAAAAAAAAQTm90TGlzdGluZ1NlbGxlcgAAAAcAAAAAAAAADUJ1eWVySXNTZWxsZXIAAAAAAAAIAAAAAAAAAAhPdmVyZmxvdwAAAAkAAAAAAAAACVVuZGVyZmxvdwAAAAAAAAoAAAAAAAAADkRpdmlzaW9uQnlaZXJvAAAAAAALAAAAAAAAABNUaWNrZXRPd25lck1pc21hdGNoAAAAAAwAAAAAAAAADkV2ZW50Q2FuY2VsbGVkAAAAAAAN",
-        "AAAAAgAAADFTdG9yYWdlIGtleXMgZm9yIGFsbCBkYXRhIGluIE1hcmtldHBsYWNlQ29udHJhY3QuAAAAAAAAAAAAAAdEYXRhS2V5AAAAAAQAAAABAAAAn0xpc3RpbmcgcmVjb3JkLCBrZXllZCBieSAoc2VsbGVyLCBsaXN0aW5nX2lkKS4KTmFtZXNwYWNlZCB0byBzZWxsZXIgc28gbm8gdGhpcmQgcGFydHkgY2FuIGJsb2NrIGEgc2VsbGVyJ3MgY2hvc2VuIElECmJ5IGZyb250LXJ1bm5pbmcgd2l0aCB0aGUgc2FtZSBsaXN0aW5nX2lkLgAAAAAHTGlzdGluZwAAAAACAAAAEwAAABAAAAAAAAAASFRpY2tldENvbnRyYWN0IGFkZHJlc3Mg4oCUIHNldCBvbmNlIGF0IGluaXRpYWxpemUsIHN0b3JlZCBpbiBpbnN0YW5jZSgpLgAAAA5UaWNrZXRDb250cmFjdAAAAAAAAAAAAHVSb3lhbHR5IHJhdGUgYXMgaW50ZWdlciBwZXJjZW50YWdlIFswLCAxMDBdIOKAlCBzZXQgb25jZSBhdCBpbml0aWFsaXplLApzdG9yZWQgaW4gaW5zdGFuY2UoKS4gU2VlIGRlY2lzaW9ucy5tZCBELTAxMC4AAAAAAAALUm95YWx0eVJhdGUAAAAAAAAAAFNBZG1pbiBhZGRyZXNzIOKAlCBzZXQgb25jZSBhdCBpbml0aWFsaXplLCBjYW4gcmUtaW5pdGlhbGl6ZSBhZnRlciBjb250cmFjdCB1cGdyYWRlLgAAAAAFQWRtaW4AAAA=",
+        "AAAABAAAAAAAAAAAAAAADUNvbnRyYWN0RXJyb3IAAAAAAAAOAAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAADk5vdEluaXRpYWxpemVkAAAAAAACAAAAAAAAAA9MaXN0aW5nTm90Rm91bmQAAAAAAwAAAAAAAAAOTGlzdGluZ05vdE9wZW4AAAAAAAQAAAAAAAAAFExpc3RpbmdBbHJlYWR5RXhpc3RzAAAABQAAAAAAAAAMSW52YWxpZFByaWNlAAAABgAAAAAAAAAQTm90TGlzdGluZ1NlbGxlcgAAAAcAAAAAAAAADUJ1eWVySXNTZWxsZXIAAAAAAAAIAAAAAAAAAAhPdmVyZmxvdwAAAAkAAAAAAAAACVVuZGVyZmxvdwAAAAAAAAoAAAAAAAAADkRpdmlzaW9uQnlaZXJvAAAAAAALAAAAAAAAABNUaWNrZXRPd25lck1pc21hdGNoAAAAAAwAAAAAAAAADkV2ZW50Q2FuY2VsbGVkAAAAAAANAAAAAAAAAA5FdmVudE5vdEFjdGl2ZQAAAAAADg==",
+        "AAAAAgAAADFTdG9yYWdlIGtleXMgZm9yIGFsbCBkYXRhIGluIE1hcmtldHBsYWNlQ29udHJhY3QuAAAAAAAAAAAAAAdEYXRhS2V5AAAAAAQAAAABAAAAn0xpc3RpbmcgcmVjb3JkLCBrZXllZCBieSAoc2VsbGVyLCBsaXN0aW5nX2lkKS4KTmFtZXNwYWNlZCB0byBzZWxsZXIgc28gbm8gdGhpcmQgcGFydHkgY2FuIGJsb2NrIGEgc2VsbGVyJ3MgY2hvc2VuIElECmJ5IGZyb250LXJ1bm5pbmcgd2l0aCB0aGUgc2FtZSBsaXN0aW5nX2lkLgAAAAAHTGlzdGluZwAAAAACAAAAEwAAABAAAAAAAAAASFRpY2tldENvbnRyYWN0IGFkZHJlc3Mg4oCUIHNldCBvbmNlIGF0IGluaXRpYWxpemUsIHN0b3JlZCBpbiBpbnN0YW5jZSgpLgAAAA5UaWNrZXRDb250cmFjdAAAAAAAAAAAAH1Sb3lhbHR5IHJhdGUgYXMgaW50ZWdlciBwZXJjZW50YWdlIFswLCAxMDBdIOKAlCBzZXQgb25jZSBhdCBpbml0aWFsaXplLApzdG9yZWQgaW4gaW5zdGFuY2UoKS4gU2VlIGRvY3MvYXJjaGl0ZWN0dXJlLm1kIEQtMDEwLgAAAAAAAAtSb3lhbHR5UmF0ZQAAAAAAAAAAU0FkbWluIGFkZHJlc3Mg4oCUIHNldCBvbmNlIGF0IGluaXRpYWxpemUsIGNhbiByZS1pbml0aWFsaXplIGFmdGVyIGNvbnRyYWN0IHVwZ3JhZGUuAAAAAAVBZG1pbgAAAA==",
         "AAAAAQAAADJBIHNlY29uZGFyeS1tYXJrZXQgbGlzdGluZyByZWNvcmQgc3RvcmVkIG9uLWNoYWluLgAAAAAAAAAAAAdMaXN0aW5nAAAAAAUAAAAAAAAACWFza19wcmljZQAAAAAAAAsAAACuU3RvcmVkIGZvciBpbmZvcm1hdGlvbmFsIC8gZnJvbnRlbmQgcHVycG9zZXMgb25seS4KYnV5X2xpc3RpbmcgZGVyaXZlcyB0aGUgYXV0aG9yaXRhdGl2ZSBldmVudF9pZCBmcm9tIHRoZSBvbi1jaGFpbgp0aWNrZXQgcmVjb3JkIHRvIHByZXZlbnQgc2VsbGVyLXN1cHBsaWVkIGV2ZW50X2lkIGZvcmdlcnkuAAAAAAAIZXZlbnRfaWQAAAAQAAAAAAAAAAZzZWxsZXIAAAAAABMAAAAAAAAABnN0YXR1cwAAAAAH0AAAAA1MaXN0aW5nU3RhdHVzAAAAAAAAAAAAAAl0aWNrZXRfaWQAAAAAAAAQ",
-        "AAAAAgAAAE1FdmVudCBzdGF0dXMg4oCUIG1pcnJvcnMgdGlja2V0Ojp0eXBlczo6RXZlbnRTdGF0dXMgZm9yIGNyb3NzLWNvbnRyYWN0IGNhbGxzLgAAAAAAAAAAAAALRXZlbnRTdGF0dXMAAAAAAwAAAAAAAAAAAAAABkFjdGl2ZQAAAAAAAAAAAAAAAAAJQ2FuY2VsbGVkAAAAAAAAAAAAAAAAAAAJQ29tcGxldGVkAAAA",
         "AAAAAgAAABJMaXN0aW5nIGxpZmVjeWNsZS4AAAAAAAAAAAANTGlzdGluZ1N0YXR1cwAAAAAAAAMAAAAAAAAAAAAAAARPcGVuAAAAAAAAAAAAAAAEU29sZAAAAAAAAAAAAAAACUNhbmNlbGxlZAAAAA==" ]),
       options
     )

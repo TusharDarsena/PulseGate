@@ -26,15 +26,6 @@ pub enum ListingStatus {
     Cancelled,
 }
 
-/// Event status — mirrors ticket::types::EventStatus for cross-contract calls.
-#[derive(Clone, PartialEq, Debug)]
-#[contracttype]
-pub enum EventStatus {
-    Active,
-    Cancelled,
-    Completed,
-}
-
 /// A secondary-market listing record stored on-chain.
 #[derive(Clone)]
 #[contracttype]

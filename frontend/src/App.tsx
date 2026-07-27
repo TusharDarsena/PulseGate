@@ -28,6 +28,7 @@ import { ScannerPage } from './pages/ScannerPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
 import { CreateEventPage } from './pages/organizer/CreateEventPage';
 import { DashboardPage } from './pages/organizer/DashboardPage';
+import { EventDraftPage } from './pages/organizer/EventDraftPage';
 import { OrganizerEventPage } from './pages/organizer/OrganizerEventPage';
 import { useAppStore } from './store/useAppStore';
 
@@ -166,13 +167,19 @@ function App() {
           <RequireAuth action="open_organizer">
             <DashboardPage
               onCreateEvent={() => navigate('/organizer/events/new')}
+              onOpenDraft={(id) => navigate(`/organizer/drafts/${id}`)}
               onOpenEvent={(id) => navigate(`/organizer/events/${id}`)}
             />
           </RequireAuth>
         } />
         <Route path="/organizer/events/new" element={
           <RequireAuth action="open_organizer">
-            <CreateEventPage onSubmit={() => navigate('/organizer/events')} />
+            <CreateEventPage />
+          </RequireAuth>
+        } />
+        <Route path="/organizer/drafts/:draftId" element={
+          <RequireAuth action="open_organizer">
+            <EventDraftPage />
           </RequireAuth>
         } />
         <Route path="/organizer/events/:eventId" element={

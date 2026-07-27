@@ -48,6 +48,7 @@ export interface Event {
   capacity: number;
   pricePerTicket: number;
   currentSupply: number;
+  escrowBalance?: number;
   status: EventStatus;
   network: 'StellarTestnet';
   ticketContractId: string;
@@ -65,6 +66,8 @@ export interface AuthoritativeEventSnapshot {
   capacity: number;
   pricePerTicket: number;
   currentSupply: number;
+  endUnix: number;
+  escrowBalance: number;
   status: EventStatus;
 }
 

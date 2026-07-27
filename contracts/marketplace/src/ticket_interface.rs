@@ -42,6 +42,7 @@ pub struct Event {
     pub organizer: Address,
     pub name: String,
     pub date_unix: u64,
+    pub end_unix: u64,
     pub capacity: i128,
     pub price_per_ticket: i128,
     pub current_supply: i128,
@@ -68,10 +69,12 @@ pub trait TicketInterface {
         event_id: String,
         name: String,
         date_unix: u64,
+        end_unix: u64,
         capacity: i128,
         price_per_ticket: i128,
     );
     fn purchase(env: Env, event_id: String, buyer: Address, ticket_id: String);
     fn cancel_event(env: Env, event_id: String, organizer: Address);
+    fn release_funds(env: Env, event_id: String, organizer: Address);
     fn mark_used(env: Env, ticket_id: String, organizer: Address);
 }

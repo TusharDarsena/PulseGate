@@ -10,7 +10,7 @@ export function AppHeader() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isDetail = /^\/(events\/[^/]+|tickets\/[^/]+|organizer\/events\/[^/]+)/.test(location.pathname);
+  const isDetail = /^\/(events\/[^/]+|tickets\/[^/]+|organizer\/(?:events|drafts)\/[^/]+)/.test(location.pathname);
 
   return (
     <header className="fixed top-0 w-full z-50 border-b border-[#272C33] bg-[#15181C]/95 backdrop-blur-md">

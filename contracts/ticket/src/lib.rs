@@ -55,6 +55,7 @@ impl TicketContract {
         event_id: String,
         name: String,
         date_unix: u64,
+        end_unix: u64,
         capacity: i128,
         price_per_ticket: i128,
     ) -> Result<(), ContractError> {
@@ -73,11 +74,15 @@ impl TicketContract {
         if date_unix <= env.ledger().timestamp() {
             return Err(ContractError::EventDateInPast);
         }
+        if end_unix <= date_unix {
+            return Err(ContractError::InvalidEventEndTime);
+        }
 
         let event = Event {
             organizer: organizer.clone(),
             name,
             date_unix,
+            end_unix,
             capacity,
             price_per_ticket,
             current_supply: 0,
@@ -102,8 +107,11 @@ impl TicketContract {
         if event.organizer != organizer {
             return Err(ContractError::OnlyOrganizerAllowed);
         }
-        if event.status == EventStatus::Completed {
-            return Err(ContractError::EventAlreadyCompleted);
+        if event.status != EventStatus::Active {
+            return match event.status {
+                EventStatus::Completed => Err(ContractError::EventAlreadyCompleted),
+                _ => Err(ContractError::EventNotActive),
+            };
         }
 
         event.status = EventStatus::Cancelled;
@@ -180,7 +188,8 @@ impl TicketContract {
     // Escrow release
     // -----------------------------------------------------------------------
 
-    /// Release escrowed funds to organizer. Only callable after event date.
+    /// Complete the event and release escrowed funds to organizer.
+    /// Only callable at or after the authoritative event end time.
     /// Token address is read from contract storage — never trusted from caller (S-001).
     pub fn release_funds(
         env: Env,
@@ -194,29 +203,32 @@ impl TicketContract {
         if event.organizer != organizer {
             return Err(ContractError::OnlyOrganizerAllowed);
         }
-        if event.status == EventStatus::Cancelled {
-            return Err(ContractError::EventNotActive);
+        if event.status != EventStatus::Active {
+            return match event.status {
+                EventStatus::Completed => Err(ContractError::EventAlreadyCompleted),
+                _ => Err(ContractError::EventNotActive),
+            };
         }
-        if event.status == EventStatus::Completed {
-            return Err(ContractError::EventAlreadyCompleted);
-        }
-        if env.ledger().timestamp() <= event.date_unix {
+        if env.ledger().timestamp() < event.end_unix {
             return Err(ContractError::EventNotEligibleForRelease);
         }
 
         let held = escrow::get_escrow_balance(&env, &event_id);
-        if held == 0 {
-            return Err(ContractError::InsufficientEscrowBalance);
-        }
 
-        // State updates before external transfer (CEI).
-        escrow::subtract_from_escrow(&env, &event_id, held)?;
+        // State updates before any external transfer (CEI).
+        if held > 0 {
+            escrow::subtract_from_escrow(&env, &event_id, held)?;
+        }
         event.status = EventStatus::Completed;
         storage::write_event(&env, &event_id, &event);
 
-        let xlm_token = storage::read_xlm_token(&env)?;
-        let token_client = token::Client::new(&env, &xlm_token);
-        token_client.transfer(&env.current_contract_address(), &organizer, &held);
+        // The SAC rejects zero-value transfers. A zero-sale event still
+        // completes authoritatively and emits ev_rel with amount 0.
+        if held > 0 {
+            let xlm_token = storage::read_xlm_token(&env)?;
+            let token_client = token::Client::new(&env, &xlm_token);
+            token_client.transfer(&env.current_contract_address(), &organizer, &held);
+        }
 
         events::emit_funds_released(&env, &event_id, &organizer, held);
         Ok(())
@@ -306,6 +318,9 @@ impl TicketContract {
         if event.organizer != organizer {
             return Err(ContractError::OnlyOrganizerAllowed);
         }
+        if event.status != EventStatus::Active {
+            return Err(ContractError::EventNotActive);
+        }
 
         // Mark ticket Used — distinct from Refunded. See D-018.
         ticket.status = TicketStatus::Used;
@@ -325,6 +340,14 @@ impl TicketContract {
 
     pub fn get_event(env: Env, event_id: String) -> Result<Event, ContractError> {
         storage::read_event(&env, &event_id)
+    }
+
+    /// Return the actual XLM escrow held for an existing event.
+    pub fn get_escrow_balance(env: Env, event_id: String) -> Result<i128, ContractError> {
+        // Escrow defaults to zero internally, so prove the event exists first
+        // rather than making a missing event indistinguishable from no sales.
+        storage::read_event(&env, &event_id)?;
+        Ok(escrow::get_escrow_balance(&env, &event_id))
     }
 
     pub fn get_marketplace(env: Env) -> Result<Address, ContractError> {

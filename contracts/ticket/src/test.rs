@@ -1,14 +1,15 @@
 #![cfg(test)]
 
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    token, Address, Env, String, Symbol,
+    symbol_short,
+    testutils::{Address as _, Events as _, Ledger},
+    token, Address, Env, IntoVal, String, Symbol,
 };
 use token::Client as TokenClient;
 use token::StellarAssetClient as TokenAdminClient;
 
 use crate::error::ContractError;
-use crate::types::TicketStatus;
+use crate::types::{EventStatus, TicketStatus};
 use crate::{TicketContract, TicketContractClient};
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ impl<'a> TestSetup<'a> {
             event_id,
             &String::from_str(&self.env, "TestEvent"),
             &(self.env.ledger().timestamp() + 86400),
+            &(self.env.ledger().timestamp() + 90_000),
             &capacity,
             &Self::PRICE,
         );
@@ -92,15 +94,12 @@ impl<'a> TestSetup<'a> {
 // Helper: assert that a try_* call fails with a specific ContractError variant.
 //
 // Soroban's generated try_* methods return:
-//   Result<Result<T, ConversionError>, Result<ContractError, InvokeError>>
+//   Result<Result<T, E>, Result<ContractError, InvokeError>>
 //
 // A contract-level error returned via ContractError lands as Err(Ok(e)).
 // ---------------------------------------------------------------------------
-fn assert_err<T: core::fmt::Debug>(
-    result: Result<
-        Result<T, soroban_sdk::ConversionError>,
-        Result<ContractError, soroban_sdk::InvokeError>,
-    >,
+fn assert_err<T: core::fmt::Debug, E: core::fmt::Debug>(
+    result: Result<Result<T, E>, Result<ContractError, soroban_sdk::InvokeError>>,
     expected: ContractError,
 ) {
     match result {
@@ -128,6 +127,7 @@ fn test_create_event_and_purchase() {
 
     let event = s.contract.get_event(&event_id);
     assert_eq!(event.current_supply, 1);
+    assert_eq!(event.end_unix, event.date_unix + 3_600);
 
     // Contract holds the XLM in escrow
     assert_eq!(s.xlm.balance(&s.contract.address), TestSetup::PRICE);
@@ -165,6 +165,7 @@ fn test_purchase_closes_at_event_start() {
             event_id,
             &s.str("TimedEvent"),
             &start,
+            &(start + 100),
             &10,
             &TestSetup::PRICE,
         );
@@ -203,23 +204,79 @@ fn test_release_funds_requires_past_event_date() {
         &event_id,
         &s.str("Fest"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
     s.purchase(&event_id, &s.str("t1"));
 
-    // Release before event date must fail
+    // Completion is not eligible before the event ends.
     assert_err(
         s.contract.try_release_funds(&event_id, &s.organizer),
         ContractError::EventNotEligibleForRelease,
     );
 
-    // Advance ledger past event date
+    // The start time closes sales but does not unlock settlement.
+    s.env.ledger().set_timestamp(event_date);
+    assert_err(
+        s.contract.try_release_funds(&event_id, &s.organizer),
+        ContractError::EventNotEligibleForRelease,
+    );
+
+    // Completion becomes eligible exactly at the end time.
     s.env.ledger().set_timestamp(event_date + 1);
 
     s.contract.release_funds(&event_id, &s.organizer);
     assert_eq!(s.xlm.balance(&s.organizer), TestSetup::PRICE);
     assert_eq!(s.xlm.balance(&s.contract.address), 0);
+}
+
+#[test]
+fn test_zero_escrow_event_completes_and_emits_zero_release() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_zero_rel");
+
+    s.create_event(&event_id, 50);
+    let event = s.contract.get_event(&event_id);
+    s.env.ledger().set_timestamp(event.end_unix);
+
+    s.contract.release_funds(&event_id, &s.organizer);
+
+    assert_eq!(
+        s.env.events().all(),
+        soroban_sdk::vec![
+            &s.env,
+            (
+                s.contract.address.clone(),
+                (symbol_short!("ev_rel"), event_id.clone()).into_val(&s.env),
+                (s.organizer.clone(), 0i128).into_val(&s.env),
+            )
+        ]
+    );
+
+    assert_eq!(
+        s.contract.get_event(&event_id).status,
+        EventStatus::Completed
+    );
+    assert_eq!(s.contract.get_escrow_balance(&event_id), 0);
+    assert_eq!(s.xlm.balance(&s.organizer), 0);
+}
+
+#[test]
+fn test_public_escrow_read_is_keyed_to_existing_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_escrow_read");
+
+    s.create_event(&event_id, 10);
+    assert_eq!(s.contract.get_escrow_balance(&event_id), 0);
+
+    s.purchase(&event_id, &s.str("t_escrow_read"));
+    assert_eq!(s.contract.get_escrow_balance(&event_id), TestSetup::PRICE);
+
+    assert_err(
+        s.contract.try_get_escrow_balance(&s.str("missing_event")),
+        ContractError::EventNotFound,
+    );
 }
 
 #[test]
@@ -383,6 +440,7 @@ fn test_duplicate_ticket_id_rejected() {
 fn test_invalid_event_params_rejected() {
     let s = TestSetup::new();
     let future = s.env.ledger().timestamp() + 86400;
+    let future_end = future + 3_600;
     let price = TestSetup::PRICE;
 
     // Zero capacity
@@ -392,6 +450,7 @@ fn test_invalid_event_params_rejected() {
             &s.str("ev_a"),
             &s.str("Bad"),
             &future,
+            &future_end,
             &0,
             &price,
         ),
@@ -404,6 +463,7 @@ fn test_invalid_event_params_rejected() {
             &s.str("ev_b"),
             &s.str("Bad"),
             &future,
+            &future_end,
             &-1,
             &price,
         ),
@@ -416,6 +476,7 @@ fn test_invalid_event_params_rejected() {
             &s.str("ev_c"),
             &s.str("Bad"),
             &future,
+            &future_end,
             &100,
             &0,
         ),
@@ -428,6 +489,7 @@ fn test_invalid_event_params_rejected() {
             &s.str("ev_d"),
             &s.str("Bad"),
             &future,
+            &future_end,
             &100,
             &-1,
         ),
@@ -440,10 +502,37 @@ fn test_invalid_event_params_rejected() {
             &s.str("ev_e"),
             &s.str("Bad"),
             &0u64,
+            &future_end,
             &100,
             &price,
         ),
         ContractError::EventDateInPast,
+    );
+
+    // End must be strictly later than start.
+    assert_err(
+        s.contract.try_create_event(
+            &s.organizer,
+            &s.str("ev_f"),
+            &s.str("Bad"),
+            &future,
+            &future,
+            &100,
+            &price,
+        ),
+        ContractError::InvalidEventEndTime,
+    );
+    assert_err(
+        s.contract.try_create_event(
+            &s.organizer,
+            &s.str("ev_g"),
+            &s.str("Bad"),
+            &future,
+            &(future - 1),
+            &100,
+            &price,
+        ),
+        ContractError::InvalidEventEndTime,
     );
 }
 
@@ -524,6 +613,7 @@ fn test_double_release_funds_rejected() {
         &event_id,
         &s.str("Fest"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
@@ -555,6 +645,7 @@ fn test_refund_after_release_rejected() {
         &event_id,
         &s.str("Gone"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
@@ -599,6 +690,7 @@ fn test_purchase_on_completed_event_rejected() {
         &event_id,
         &s.str("Done"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
@@ -680,6 +772,7 @@ fn test_cancel_already_completed_event_rejected() {
         &event_id,
         &s.str("Over"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
@@ -695,6 +788,20 @@ fn test_cancel_already_completed_event_rejected() {
 }
 
 #[test]
+fn test_cancel_already_cancelled_event_rejected() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_cancel_twice");
+
+    s.create_event(&event_id, 10);
+    s.contract.cancel_event(&event_id, &s.organizer);
+
+    assert_err(
+        s.contract.try_cancel_event(&event_id, &s.organizer),
+        ContractError::EventNotActive,
+    );
+}
+
+#[test]
 fn test_non_organizer_cannot_release_funds() {
     let s = TestSetup::new();
     let event_id = s.str("ev_rel_auth");
@@ -705,6 +812,7 @@ fn test_non_organizer_cannot_release_funds() {
         &event_id,
         &s.str("Fest"),
         &event_date,
+        &(event_date + 1),
         &50,
         &TestSetup::PRICE,
     );
@@ -732,6 +840,48 @@ fn test_release_funds_on_cancelled_event_rejected() {
     assert_err(
         s.contract.try_release_funds(&event_id, &s.organizer),
         ContractError::EventNotActive,
+    );
+}
+
+#[test]
+fn test_mark_used_rejects_cancelled_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_scan_cancelled");
+    let ticket_id = s.str("t_scan_cancelled");
+
+    s.create_event(&event_id, 10);
+    s.purchase(&event_id, &ticket_id);
+    s.contract.cancel_event(&event_id, &s.organizer);
+
+    assert_err(
+        s.contract.try_mark_used(&ticket_id, &s.organizer),
+        ContractError::EventNotActive,
+    );
+    assert_eq!(
+        s.contract.get_ticket(&ticket_id).status,
+        TicketStatus::Active
+    );
+}
+
+#[test]
+fn test_mark_used_rejects_completed_event() {
+    let s = TestSetup::new();
+    let event_id = s.str("ev_scan_completed");
+    let ticket_id = s.str("t_scan_completed");
+
+    s.create_event(&event_id, 10);
+    s.purchase(&event_id, &ticket_id);
+    let event = s.contract.get_event(&event_id);
+    s.env.ledger().set_timestamp(event.end_unix);
+    s.contract.release_funds(&event_id, &s.organizer);
+
+    assert_err(
+        s.contract.try_mark_used(&ticket_id, &s.organizer),
+        ContractError::EventNotActive,
+    );
+    assert_eq!(
+        s.contract.get_ticket(&ticket_id).status,
+        TicketStatus::Active
     );
 }
 
