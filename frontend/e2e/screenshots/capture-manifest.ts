@@ -118,4 +118,32 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     reviewFocus: 'Review confirmation hierarchy, event identity, amount and fee clarity, receipt-fact scanning, transaction provenance, next-action prominence, mobile navigation, and clipping or overflow.',
   },
 
+  {
+    id: 'my-tickets-upcoming-mobile',
+    tier: 1,
+    page: 'my-tickets',
+    state: 'upcoming',
+    route: '/tickets',
+    role: 'attendee',
+    data: 'seedA',
+    version: 'v01',
+    viewportName: 'mobile-390x844',
+    viewport: { width: 390, height: 844 },
+    folder: ['01-tier-1-core-flow', 'my-tickets'],
+    readyText: 'My Tickets',
+    visibleTexts: [
+      'UPCOMING',
+      'GENERAL ADMISSION',
+      'Midnight Frequency',
+      'The Foundry',
+      'VIEW TICKET',
+      'VIEW RECEIPT',
+      'SHOW QR',
+      'LIST FOR SALE',
+    ],
+    scrollToText: 'VIEW TICKET',
+    purpose: 'Represents the authenticated mobile My Tickets surface with a synchronized upcoming ticket ready for viewing, receipt access, QR entry, or resale.',
+    reviewFocus: 'Review upcoming-tab clarity, ticket-card hierarchy, event date and venue readability, ticket identity treatment, primary and secondary action priority, mobile navigation, spacing, clipping, and overflow.',
+  },
+
 ];
