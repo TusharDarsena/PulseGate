@@ -68,3 +68,12 @@ Cover applicable auth failures, transitions, balances, duplicate IDs, stable
 errors, rollback-sensitive paths, TTL writes, and cross-contract compatibility.
 Regenerate TypeScript bindings after ABI changes; never patch them manually.
 
+On Windows, `cargo test` uses the default MSVC host toolchain and requires the
+Visual C++ linker (`link.exe`) from Visual Studio Build Tools or a Developer
+PowerShell. Git's `usr/bin/link.exe` is not the MSVC linker. Do not switch to
+the GNU target as a workaround for these contract tests; the `cdylib` test link
+can fail before tests run. If MSVC Build Tools are not available, report that
+toolchain issue and still run `cargo fmt --check` plus the WASM release build.
+On this Windows workspace, use
+`cargo +stable-x86_64-pc-windows-gnu build --target wasm32v1-none --release`
+for that deployable WASM build.

@@ -49,6 +49,7 @@ export function MyTicketsPage({
   const [openListings, setOpenListings] = useState<Record<string, unknown>>({});
   const [showListingModal, setShowListingModal] = useState<string | null>(null);
   const [askPrice, setAskPrice] = useState('');
+  const [nowUnix, setNowUnix] = useState(0);
 
   const { attendeeWallet: wallet, setTxState } = useAppStore();
   const eventState = usePublishedEventsByIds(tickets.map((ticket) => ticket.eventId));
@@ -172,7 +173,6 @@ export function MyTicketsPage({
   const loading = loadingTickets || eventState.loading;
   const error = errorTickets || eventState.error;
 
-  const nowUnix = Math.floor(Date.now() / 1000);
   const upcomingTickets = tickets.filter((ticket) => {
     const event = events.find((candidate) => candidate.eventId === ticket.eventId);
     const eventEnds = event ? (event.endUnix || event.dateUnix) : 0;
@@ -184,6 +184,13 @@ export function MyTicketsPage({
     const db = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
     return db - da;
   });
+
+  useEffect(() => {
+    const updateNow = () => setNowUnix(Math.floor(Date.now() / 1000));
+    updateNow();
+    const interval = window.setInterval(updateNow, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const active = tickets.filter((ticket) => ticket.status === 'Active');

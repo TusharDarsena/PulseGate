@@ -158,6 +158,7 @@ Do not introduce new SDK imports across pages/components to bypass these adapter
 | `supabase/functions/test-funding/` | Explicit testnet activation and rate-limited demo-account top-ups. |
 | `scripts/fund.sh` | Creates/funds expected Stellar testnet CLI identities. |
 | `scripts/deploy.sh` | Builds, deploys Ticket then Marketplace, initializes both mutually, and writes frontend contract/network env values. |
+| `scripts/deploy.ps1` | Windows deployment path using `C:\tmp\stellar.exe` with `C:\Users\asus\.config\stellar`; can also update linked Supabase Stellar secrets. |
 
 Deploying or replacing only one contract without updating the other contract’s stored address breaks resale transfers.
 
@@ -330,6 +331,12 @@ cargo fmt --check
 cargo test
 cargo build --target wasm32v1-none --release
 ```
+
+On Windows, `cargo test` is a native host build and needs the MSVC linker in the
+active shell. The deployable WASM build can use
+`cargo +stable-x86_64-pc-windows-gnu build --target wasm32v1-none --release`,
+which is what the Windows deploy script does, but that is not a replacement for
+the full native test suite.
 
 Tests must cover applicable auth failures, state transitions, token balances, duplicate IDs, stable errors, rollback-sensitive paths, TTL-preserving writes, and cross-contract compatibility.
 

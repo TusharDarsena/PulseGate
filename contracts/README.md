@@ -31,11 +31,24 @@ contracts/
 ## Commands
 
 ```bash
-cargo build                                              # check compiles
+cargo build                                              # host compile check
 cargo test -p ticket                                     # run ticket tests
 cargo test -p marketplace                                # run marketplace tests
-cargo build --target wasm32v1-none --release             # build wasm for deploy
+cargo build --target wasm32v1-none --release             # build deployable wasm
 ```
+
+On Windows, plain `cargo build` and `cargo test` compile native host binaries.
+With the default `stable-x86_64-pc-windows-msvc` toolchain, they require the
+Visual C++ linker to be available in the shell, for example from a Developer
+PowerShell. The deploy path may use the GNU toolchain for the WASM build:
+
+```powershell
+cargo +stable-x86_64-pc-windows-gnu build --target wasm32v1-none --release
+```
+
+That GNU command is appropriate for deployable WASM artifacts. It is not a
+complete substitute for `cargo test`, because marketplace tests can still need
+to link native test DLLs.
 
 ## Status
 
@@ -45,4 +58,5 @@ cargo build --target wasm32v1-none --release             # build wasm for deploy
 
 ## Deploying
 
-Use `scripts/deploy.sh`. Order matters — see `docs/architecture.md` → Deployment Sequence.
+Use `scripts/deploy.sh` on Unix-like shells or `scripts/deploy.ps1` on this
+Windows workspace. Order matters — see `docs/architecture.md` → Deployment Sequence.

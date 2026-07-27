@@ -285,7 +285,8 @@ authorize entry. See [`frontend/src/lib/qr.ts`](../frontend/src/lib/qr.ts) and
 
 Contract IDs, network values, generated bindings, and both contracts' stored
 peer addresses must remain synchronized. The deployment script is
-[`scripts/deploy.sh`](../scripts/deploy.sh).
+[`scripts/deploy.sh`](../scripts/deploy.sh) on Unix-like shells and
+[`scripts/deploy.ps1`](../scripts/deploy.ps1) on this Windows workspace.
 
 ## Accepted MVP limitations
 

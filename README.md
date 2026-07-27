@@ -15,9 +15,23 @@ Stellar Ticketing is a decentralized platform for event management and NFT ticke
 
 - **Live Demo**: [stellar-gamma-weld.vercel.app](https://stellar-gamma-weld.vercel.app/)
 
-## Contact Addresses
-- **Ticket Contract**: [`CC2EV22Q3MRKNYKWAFUODA7IH2UGT7NCDASHU62QY4UAMAI4KTW6NFTQ`](https://stellar.expert/explorer/testnet/contract/CC2EV22Q3MRKNYKWAFUODA7IH2UGT7NCDASHU62QY4UAMAI4KTW6NFTQ)
-- **Marketplace Contract**: [`CAFFG3YKYG7BURNQ4SU6SB6MKLDQQIAAWORT3MICHKGCXMDJEQB7KGWT`](https://stellar.expert/explorer/testnet/contract/CAFFG3YKYG7BURNQ4SU6SB6MKLDQQIAAWORT3MICHKGCXMDJEQB7KGWT)
+## Contract Addresses
+
+Current Testnet deployment, cut over on July 27, 2026:
+
+- **Ticket Contract**: [`CDO4I4NMRXSTKBL3K7D3WWGRTVNRAUVOMKPKA6X726SY6SYQRBPQIDDQ`](https://stellar.expert/explorer/testnet/contract/CDO4I4NMRXSTKBL3K7D3WWGRTVNRAUVOMKPKA6X726SY6SYQRBPQIDDQ)
+- **Marketplace Contract**: [`CC34MVNENC3VD26RJ42SVQXPDZ3JYZJBBNIHHXCX4EDIGUSPZOPDBC6M`](https://stellar.expert/explorer/testnet/contract/CC34MVNENC3VD26RJ42SVQXPDZ3JYZJBBNIHHXCX4EDIGUSPZOPDBC6M)
+- **Testnet XLM SAC**: [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
+
+### Deployment Screenshots
+
+TicketContract deployment:
+
+![TicketContract deployed on Testnet](screenshots/testnet_ticket_contract_deployed_20260727.png)
+
+MarketplaceContract deployment:
+
+![MarketplaceContract deployed on Testnet](screenshots/testnet_marketplace_contract_deployed_20260727.png)
 
 ---
 
@@ -199,6 +213,24 @@ connection and is not affected by human sign-out.
 - Rust & wasm32 target
 - Node.js & npm
 
+On this Windows workspace, the Stellar CLI is already available at
+`C:\tmp\stellar.exe`, and the saved identities are in
+`C:\Users\asus\.config\stellar`. Use `--config-dir
+C:\Users\asus\.config\stellar` for direct CLI calls. The expected identities are
+`alice`, `buyer`, `inspector`, `organizer`, and `seller`.
+
+For contract deployment builds on this Windows workspace, prefer the deploy
+script or explicitly use the GNU toolchain for the WASM artifact:
+
+```powershell
+cd contracts
+cargo +stable-x86_64-pc-windows-gnu build --target wasm32v1-none --release
+```
+
+Plain `cargo build` and `cargo test` compile native Windows host binaries. With
+the default MSVC Rust toolchain, run them from a Visual Studio Developer
+PowerShell or another shell where the Visual C++ `link.exe` is on `PATH`.
+
 ### Steps
 1.  **Clone the Repo**:
     ```bash
@@ -208,7 +240,7 @@ connection and is not affected by human sign-out.
 2.  **Build Contracts**:
     ```bash
     cd contracts
-    cargo build --target wasm32-unknown-unknown --release
+    cargo build --target wasm32v1-none --release
     ```
 3.  **Configure Frontend**:
     ```bash
@@ -234,6 +266,11 @@ connection and is not affected by human sign-out.
     ```bash
     supabase db push
     supabase functions deploy purchase-operation
+    ```
+    On Windows, coordinated Testnet deployment can be run with:
+
+    ```powershell
+    powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -SetSupabaseSecrets
     ```
 4.  **Run Development Server**:
     ```bash

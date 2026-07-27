@@ -73,6 +73,17 @@ architectural decision.
 - Never paste `repomix-output.*` into a task by default. Use the repository's
   Repomix configuration and include only the area needed.
 
+## Local Stellar CLI
+
+- On this Windows workspace, use `C:\tmp\stellar.exe` explicitly. Do not waste
+  time searching PATH first.
+- Saved Stellar identities live under `C:\Users\asus\.config\stellar`; pass
+  `--config-dir C:\Users\asus\.config\stellar` on CLI calls. Expected identities
+  are `alice`, `buyer`, `inspector`, `organizer`, and `seller`.
+- For Windows deployment, prefer `scripts/deploy.ps1`. It uses the known CLI
+  path/config directory, regenerates bindings, deploys Ticket then Marketplace,
+  initializes both, and can update Supabase secrets with `-SetSupabaseSecrets`.
+
 ## Completion
 
 A change is complete when authoritative behavior is correct, downstream layers

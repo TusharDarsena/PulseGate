@@ -29,6 +29,7 @@ function mapTicket(row: TicketRow): Ticket {
 
 export function TicketDetailPage() {
   const { ticketId = '' } = useParams();
+  const hasTicketId = Boolean(ticketId);
   const navigate = useNavigate();
   const wallet = useAppStore((state) => state.attendeeWallet);
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -37,16 +38,15 @@ export function TicketDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!ticketId) {
-      setLoading(false);
-      setError('Ticket not found for this account.');
-      return;
-    }
+    if (!hasTicketId) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
     void (async () => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
+
       const local = await fetchMyTicket(ticketId).catch(() => null);
       if (local) {
         if (!cancelled) setTicket(mapTicket(local));
@@ -100,7 +100,7 @@ export function TicketDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [ticketId, wallet.address, wallet.readiness]);
+  }, [hasTicketId, ticketId, wallet.address, wallet.readiness]);
 
   const eventState = usePublishedEventsByIds(ticket ? [ticket.eventId] : []);
   const event = eventState.events[0];
@@ -109,6 +109,13 @@ export function TicketDetailPage() {
   const receiptStart = operation?.receipt_event_start_unix;
   const receiptTimezone = operation?.receipt_event_timezone ?? 'UTC';
 
+  if (!hasTicketId) {
+    return (
+      <main className="pt-28 min-h-screen text-center text-slate-300">
+        Ticket not found for this account.
+      </main>
+    );
+  }
   if (loading || (ticket && eventState.loading)) {
     return <main className="pt-28 min-h-screen text-center text-slate-400">Loading ticket…</main>;
   }
