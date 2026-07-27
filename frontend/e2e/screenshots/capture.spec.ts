@@ -8,6 +8,8 @@ import { installMyTicketsUpcomingMocks } from './helpers/install-my-tickets-mock
 import { installScannerReadyMocks } from './helpers/install-scanner-ready-mocks';
 import { installEventDraftReadyMocks } from './helpers/install-event-draft-mocks';
 import { installOrganizerEventReadyMocks } from './helpers/install-organizer-event-mocks';
+import { installMarketplaceLoadedMocks } from './helpers/install-marketplace-loaded-mocks';
+import { installQrDisplayActiveMocks, installTicketDetailReadyMocks } from './helpers/install-ticket-support-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -39,6 +41,12 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installEventDraftReadyMocks(page);
     } else if (capture.id === 'organizer-event-ready-desktop') {
       await installOrganizerEventReadyMocks(page);
+    } else if (capture.id === 'marketplace-listings-loaded-desktop') {
+      await installMarketplaceLoadedMocks(page);
+    } else if (capture.id === 'ticket-detail-ready-mobile') {
+      await installTicketDetailReadyMocks(page);
+    } else if (capture.id === 'qr-display-active-mobile') {
+      await installQrDisplayActiveMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }

@@ -12,6 +12,10 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   const [validating, setValidating] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const wallet = useAppStore((state) => state.attendeeWallet);
+  const screenshotPayload = import.meta.env.DEV
+    ? (window as Window & { __STELLAR_TICKETS_SCREENSHOT_QR_PAYLOAD__?: string })
+        .__STELLAR_TICKETS_SCREENSHOT_QR_PAYLOAD__
+    : undefined;
 
   const validate = useCallback(async () => {
     if (wallet.readiness !== 'ready' || !wallet.address) return false;
@@ -22,6 +26,14 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   }, [ticketId, wallet.address, wallet.readiness]);
 
   useEffect(() => {
+    if (screenshotPayload) {
+      setPayload(screenshotPayload);
+      setValidated(true);
+      setValidating(false);
+      setError(null);
+      setCountdown(24);
+      return;
+    }
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signMessage) return;
     let cancelled = false;
     let chainValidated = false;
@@ -76,13 +88,16 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
       window.clearInterval(rotation);
       window.clearInterval(timer);
     };
-  }, [ticketId, wallet.address, wallet.readiness, wallet.signMessage, validate, refreshNonce]);
+  }, [ticketId, wallet.address, wallet.readiness, wallet.signMessage, validate, refreshNonce, screenshotPayload]);
 
   return (
     <main className="bg-black min-h-screen pt-28 pb-24 px-6 flex flex-col items-center">
       <h1 className="text-3xl font-bold mb-2">Your ticket</h1>
       <p className="font-mono text-xs text-slate-500 mb-8">{ticketId}</p>
-      <div className="w-full max-w-sm aspect-square bg-white rounded-xl p-8 flex items-center justify-center">
+      <div
+        aria-label={payload && validated ? 'Active entry QR' : 'Ticket QR validation'}
+        className="w-full max-w-sm aspect-square bg-white rounded-xl p-8 flex items-center justify-center"
+      >
         {payload && validated ? <QRCodeSVG value={payload} size={256} level="H" /> : <p className="text-gray-600 text-center">Validating ticket ownership…</p>}
       </div>
       <p className="mt-5 text-sm text-slate-400">Refreshes in {countdown}s</p>
