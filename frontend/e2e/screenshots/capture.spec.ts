@@ -10,6 +10,12 @@ import { installEventDraftReadyMocks } from './helpers/install-event-draft-mocks
 import { installOrganizerEventReadyMocks } from './helpers/install-organizer-event-mocks';
 import { installMarketplaceLoadedMocks } from './helpers/install-marketplace-loaded-mocks';
 import { installQrDisplayActiveMocks, installTicketDetailReadyMocks } from './helpers/install-ticket-support-mocks';
+import {
+  installAuthDefaultMocks,
+  installCreateEventPreparingMocks,
+  installNotFoundMocks,
+  installOrganizerDashboardPopulatedMocks,
+} from './helpers/install-tier2-tier3-mocks';
 import { screenshotOutputPath } from './helpers/output-path';
 import { stabilizePage } from './helpers/stabilize-page';
 import { writeCaptureCatalog } from './helpers/write-catalog';
@@ -47,6 +53,14 @@ for (const capture of SCREENSHOT_CAPTURES) {
       await installTicketDetailReadyMocks(page);
     } else if (capture.id === 'qr-display-active-mobile') {
       await installQrDisplayActiveMocks(page);
+    } else if (capture.id === 'organizer-dashboard-populated-desktop') {
+      await installOrganizerDashboardPopulatedMocks(page);
+    } else if (capture.id === 'auth-default-mobile') {
+      await installAuthDefaultMocks(page);
+    } else if (capture.id === 'create-event-preparing-desktop') {
+      await installCreateEventPreparingMocks(page);
+    } else if (capture.id === 'not-found-default-desktop') {
+      await installNotFoundMocks(page);
     } else {
       throw new Error(`No fixture installer exists for screenshot capture: ${capture.id}`);
     }
