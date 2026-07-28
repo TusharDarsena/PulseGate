@@ -5,6 +5,7 @@ param(
   [string] $XlmToken = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
   [string] $RuntimeNode = "C:\Users\asus\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe",
   [string] $FallbackPnpm = "C:\Users\asus\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback\pnpm.cmd",
+  [string] $AppOrigin = "https://stellar-gamma-weld.vercel.app",
   [switch] $SetSupabaseSecrets
 )
 
@@ -134,7 +135,7 @@ if ($SetSupabaseSecrets) {
       STELLAR_RPC_URL=https://soroban-testnet.stellar.org:443 `
       STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org `
       STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org `
-      APP_ORIGIN=http://localhost:5173
+      APP_ORIGIN=$AppOrigin
   }
 }
 

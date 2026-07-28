@@ -10,7 +10,7 @@ import type { Event } from '../types';
 
 function useScopedLoader(key: string, loader: () => Promise<Event[]>) {
   const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
 
@@ -62,7 +62,7 @@ export function useOrganizerEvents() {
 
 export function useOrganizerDrafts() {
   const [drafts, setDrafts] = useState<EventPublicationDraft[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
 

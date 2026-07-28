@@ -34,7 +34,9 @@ async function invoke<T>(action: string, body: Record<string, unknown> = {}): Pr
 }
 
 function base64Url(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('base64url');
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 async function createRecoveryCredential(
@@ -86,7 +88,9 @@ async function createRecoveryCredential(
 }
 
 function bytesFromBase64Url(value: string): Uint8Array {
-  return Uint8Array.from(Buffer.from(value, 'base64url'));
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function arrayBufferFromBase64Url(value: string): ArrayBuffer {

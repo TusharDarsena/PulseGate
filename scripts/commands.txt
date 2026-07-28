@@ -1,0 +1,12 @@
+zip creation command
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\New-StellarTicketsCodingZip.ps1
+
+
+
+
+It generates the same three logical ingests
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\New-StellarTicketsIngests.ps1

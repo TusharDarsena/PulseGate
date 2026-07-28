@@ -19,6 +19,7 @@ import {
 } from '../../lib/supabase';
 import { useAppStore } from '../../store/useAppStore';
 import { xlmToStroops } from '../../types';
+import { useWallet } from '../../hooks/useWallet';
 
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'failed' | 'offline' | 'conflict';
 
@@ -236,6 +237,7 @@ export function EventDraftPage() {
   const { draftId = '' } = useParams();
   const navigate = useNavigate();
   const wallet = useAppStore((state) => state.organizerWallet);
+  const { connectOrganizer } = useWallet();
   const [draft, setDraft] = useState<EventPublicationDraft | null>(null);
   const [form, setForm] = useState<DraftForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(true);
@@ -246,6 +248,14 @@ export function EventDraftPage() {
   const [publicationBusy, setPublicationBusy] = useState(false);
   const [publicationFeeStroops, setPublicationFeeStroops] = useState<string | null>(null);
   const zones = useMemo(() => timezoneOptions(), []);
+
+  const run = async (action: () => Promise<unknown>) => {
+    try {
+      await action();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'The wallet action failed.');
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -330,10 +340,20 @@ export function EventDraftPage() {
   };
 
   const publishOrRecover = async () => {
-    if (!draft || !wallet.publicKey || !wallet.signFn) return;
+    if (!draft) return;
     setPublicationBusy(true);
     setError(null);
     try {
+      let activeWallet = wallet;
+      if (!wallet.isConnected || !wallet.publicKey || !wallet.signFn) {
+        activeWallet = await connectOrganizer();
+      }
+      if (!draft.intended_organizer_address) {
+        throw new Error('Save this draft once after connecting Freighter to bind the organizer wallet.');
+      }
+      if (activeWallet.publicKey !== draft.intended_organizer_address) {
+        throw new Error('Connect the exact organizer wallet reserved by this draft.');
+      }
       if (draft.state === 'approval_required') {
         const reset = await recordPublicationPreSubmissionFailure(
           draft.draft_id,
@@ -377,8 +397,8 @@ export function EventDraftPage() {
         throw new Error('The publication preflight returned incomplete contract terms.');
       }
       if (
-        preflight.organizerAddress !== wallet.publicKey ||
-        checkedDraft.intended_organizer_address !== wallet.publicKey
+        preflight.organizerAddress !== activeWallet.publicKey ||
+        checkedDraft.intended_organizer_address !== activeWallet.publicKey
       ) {
         throw new Error('Connect the exact organizer wallet reserved by this draft.');
       }
@@ -392,12 +412,12 @@ export function EventDraftPage() {
           capacityXlm: checkedDraft.expected_capacity,
           priceStroops: BigInt(checkedDraft.expected_price_per_ticket),
         },
-        wallet.publicKey,
+        activeWallet.publicKey,
       );
       setPublicationFeeStroops(transaction.estimatedFeeStroops.toString());
       if (
-        wallet.xlmBalance === null ||
-        xlmToStroops(Number(wallet.xlmBalance)) < transaction.estimatedFeeStroops
+        activeWallet.xlmBalance === null ||
+        xlmToStroops(Number(activeWallet.xlmBalance)) < transaction.estimatedFeeStroops
       ) {
         throw new Error('The organizer wallet does not have enough XLM for the network fee.');
       }
@@ -406,7 +426,7 @@ export function EventDraftPage() {
 
       let signedHashPersisted = false;
       try {
-        await transaction.submit(wallet.signFn, async ({ signedTransactionHash }) => {
+        await transaction.submit(activeWallet.signFn!, async ({ signedTransactionHash }) => {
           const signed = await recordSignedEventPublication(
             draft.draft_id,
             signedTransactionHash,
@@ -492,6 +512,9 @@ export function EventDraftPage() {
     wallet.publicKey &&
     wallet.publicKey === draft.intended_organizer_address,
   );
+  const requiredTotal = 17;
+  const completedRequired = Math.max(0, requiredTotal - missing.length);
+  const completionPercent = Math.min(100, Math.round((completedRequired / requiredTotal) * 100));
   const canStartPublication = ['prepared', 'publication_failed'].includes(draft.state);
   const canResolvePublication = [
     'approval_required',
@@ -531,6 +554,36 @@ export function EventDraftPage() {
         </div>
       </header>
 
+      <section className="mb-8 rounded-2xl border border-[#7C5CFF]/30 bg-[#191622] p-5 shadow-[0_12px_40px_rgba(124,92,255,0.08)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9f8cff]">Publication checklist</p>
+            <h2 className="mt-1 text-xl font-semibold">
+              {missing.length === 0 ? 'Ready for review' : `${completedRequired} of ${requiredTotal} requirements complete`}
+            </h2>
+          </div>
+          <span className="rounded-full border border-[#343941] px-3 py-1 text-sm text-slate-300">
+            {completionPercent}% complete
+          </span>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#0E1113]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
+          <div className="h-full rounded-full bg-gradient-to-r from-[#7C5CFF] to-[#b39cff] transition-all" style={{ width: `${completionPercent}%` }} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
+          <span className={`rounded-full px-3 py-1 ${saveState === 'saved' ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200'}`}>
+            {saveState === 'saved' ? '✓ Draft saved' : '● Save your latest edits'}
+          </span>
+          <span className={`rounded-full px-3 py-1 ${exactWalletConnected ? 'bg-emerald-500/15 text-emerald-200' : 'bg-slate-500/15 text-slate-300'}`}>
+            {exactWalletConnected ? '✓ Organizer wallet connected' : 'Connect organizer wallet to publish'}
+          </span>
+        </div>
+        {missing.length > 0 && (
+          <p className="mt-4 text-sm text-amber-200">
+            Next up: {missing.slice(0, 3).join(', ')}{missing.length > 3 ? `, and ${missing.length - 3} more` : ''}.
+          </p>
+        )}
+      </section>
+
       {error && (
         <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-amber-100">
           {error}
@@ -566,12 +619,12 @@ export function EventDraftPage() {
 
       <div className="space-y-8">
         <Section title="Public event information">
-          <Field label="Event name"><input disabled={!editable} value={form.name} onChange={change('name')} /></Field>
-          <Field label="Short summary"><textarea disabled={!editable} rows={2} value={form.summary} onChange={change('summary')} /></Field>
-          <Field label="Full description"><textarea disabled={!editable} rows={5} value={form.description} onChange={change('description')} /></Field>
+          <Field required label="Event name"><input disabled={!editable} value={form.name} onChange={change('name')} /></Field>
+          <Field required label="Short summary"><textarea disabled={!editable} rows={2} value={form.summary} onChange={change('summary')} /></Field>
+          <Field required label="Full description"><textarea disabled={!editable} rows={5} value={form.description} onChange={change('description')} /></Field>
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Poster URL"><input disabled={!editable} type="url" value={form.imageUrl} onChange={change('imageUrl')} /></Field>
-            <Field label="Category">
+            <Field required label="Poster URL"><input disabled={!editable} type="url" value={form.imageUrl} onChange={change('imageUrl')} /></Field>
+            <Field required label="Category">
               <select disabled={!editable} value={form.category} onChange={change('category')}>
                 <option value="">Select category</option>
                 {CATEGORIES.map((category) => <option key={category}>{category}</option>)}
@@ -582,12 +635,12 @@ export function EventDraftPage() {
 
         <Section title="Schedule">
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Start date"><input disabled={!editable} type="date" value={form.startDate} onChange={change('startDate')} /></Field>
-            <Field label="Start time"><input disabled={!editable} type="time" value={form.startTime} onChange={change('startTime')} /></Field>
-            <Field label="End date"><input disabled={!editable} type="date" value={form.endDate} onChange={change('endDate')} /></Field>
-            <Field label="End time"><input disabled={!editable} type="time" value={form.endTime} onChange={change('endTime')} /></Field>
+            <Field required label="Start date"><input disabled={!editable} type="date" value={form.startDate} onChange={change('startDate')} /></Field>
+            <Field required label="Start time"><input disabled={!editable} type="time" value={form.startTime} onChange={change('startTime')} /></Field>
+            <Field required label="End date"><input disabled={!editable} type="date" value={form.endDate} onChange={change('endDate')} /></Field>
+            <Field required label="End time"><input disabled={!editable} type="time" value={form.endTime} onChange={change('endTime')} /></Field>
           </div>
-          <Field label="IANA timezone">
+          <Field required label="IANA timezone">
             <select disabled={!editable} value={form.timezone} onChange={change('timezone')}>
               {zones.map((zone) => <option key={zone}>{zone}</option>)}
             </select>
@@ -596,18 +649,18 @@ export function EventDraftPage() {
 
         <Section title="Venue and entry">
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Venue"><input disabled={!editable} value={form.venue} onChange={change('venue')} /></Field>
-            <Field label="City"><input disabled={!editable} value={form.city} onChange={change('city')} /></Field>
+            <Field required label="Venue"><input disabled={!editable} value={form.venue} onChange={change('venue')} /></Field>
+            <Field required label="City"><input disabled={!editable} value={form.city} onChange={change('city')} /></Field>
           </div>
-          <Field label="Full address"><input disabled={!editable} value={form.address} onChange={change('address')} /></Field>
+          <Field required label="Full address"><input disabled={!editable} value={form.address} onChange={change('address')} /></Field>
           <Field label="Map URL"><input disabled={!editable} type="url" value={form.mapUrl} onChange={change('mapUrl')} /></Field>
-          <Field label="Entry instructions"><textarea disabled={!editable} rows={3} value={form.entryInstructions} onChange={change('entryInstructions')} /></Field>
+          <Field required label="Entry instructions"><textarea disabled={!editable} rows={3} value={form.entryInstructions} onChange={change('entryInstructions')} /></Field>
         </Section>
 
         <Section title="Organizer and attendee guidance">
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Organizer display name"><input disabled={!editable} value={form.organizerDisplayName} onChange={change('organizerDisplayName')} /></Field>
-            <Field label="Support contact"><input disabled={!editable} value={form.supportContact} onChange={change('supportContact')} /></Field>
+            <Field required label="Organizer display name"><input disabled={!editable} value={form.organizerDisplayName} onChange={change('organizerDisplayName')} /></Field>
+            <Field required label="Support contact"><input disabled={!editable} value={form.supportContact} onChange={change('supportContact')} /></Field>
           </div>
           <Field label="Accessibility notes"><textarea disabled={!editable} rows={2} value={form.accessibilityNotes} onChange={change('accessibilityNotes')} /></Field>
           <Field label="Age restriction"><input disabled={!editable} value={form.ageRestriction} onChange={change('ageRestriction')} /></Field>
@@ -617,8 +670,8 @@ export function EventDraftPage() {
 
         <Section title="General Admission contract terms">
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Capacity"><input disabled={!editable} type="number" min="1" step="1" value={form.capacity} onChange={change('capacity')} /></Field>
-            <Field label="Price in XLM"><input disabled={!editable} type="number" min="0.0000001" step="0.0000001" value={form.priceXlm} onChange={change('priceXlm')} /></Field>
+            <Field required label="Capacity"><input disabled={!editable} type="number" min="1" step="1" value={form.capacity} onChange={change('capacity')} /></Field>
+            <Field required label="Price in XLM"><input disabled={!editable} type="number" min="0.0000001" step="0.0000001" value={form.priceXlm} onChange={change('priceXlm')} /></Field>
           </div>
           <p className="text-sm text-slate-400">These values, the title, schedule, event ID, and organizer wallet lock after publication.</p>
         </Section>
@@ -639,6 +692,37 @@ export function EventDraftPage() {
             {showReview ? 'Hide attendee preview' : 'Review attendee preview'}
           </button>
           {showReview && <DraftPreview form={form} />}
+          {!exactWalletConnected && (
+            <div className="mt-5 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+              {!wallet.isConnected ? (
+                <>
+                  <p>Connect the organizer wallet in Freighter to publish this event.</p>
+                  <button
+                    type="button"
+                    onClick={() => void run(connectOrganizer)}
+                    className="mt-3 rounded-lg bg-[#7C5CFF] px-4 py-2 font-semibold text-white"
+                  >
+                    Connect Freighter
+                  </button>
+                </>
+              ) : walletMismatch ? (
+                <p>Switch Freighter to the wallet reserved by this draft before publishing.</p>
+              ) : !draft.intended_organizer_address ? (
+                <p>Save this draft once after connecting Freighter to bind the organizer wallet.</p>
+              ) : (
+                <>
+                  <p>Freighter signing is not ready yet. Reconnect Freighter and try again.</p>
+                  <button
+                    type="button"
+                    onClick={() => void run(connectOrganizer)}
+                    className="mt-3 rounded-lg border border-[#7C5CFF]/60 px-4 py-2 font-semibold text-white"
+                  >
+                    Reconnect Freighter
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {publicationFeeStroops && (
             <p className="mt-4 text-sm text-slate-300">
               Latest simulated network fee:{' '}
@@ -650,7 +734,6 @@ export function EventDraftPage() {
             onClick={() => void publishOrRecover()}
             disabled={
               publicationBusy ||
-              !exactWalletConnected ||
               (!canResolvePublication && (
                 !canStartPublication ||
                 missing.length > 0 ||
@@ -707,10 +790,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactElement }) {
+function Field({ label, required = false, children }: { label: string; required?: boolean; children: React.ReactElement }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-[#c9c4d8]">{label}</span>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-[#c9c4d8]">
+        {label}{required && <span className="ml-1 text-[#b39cff]" aria-hidden="true">*</span>}
+      </span>
       <div className="[&>input]:w-full [&>input]:rounded-lg [&>input]:border [&>input]:border-[#272C33] [&>input]:bg-[#0E1113] [&>input]:p-3 [&>textarea]:w-full [&>textarea]:rounded-lg [&>textarea]:border [&>textarea]:border-[#272C33] [&>textarea]:bg-[#0E1113] [&>textarea]:p-3 [&>select]:w-full [&>select]:rounded-lg [&>select]:border [&>select]:border-[#272C33] [&>select]:bg-[#0E1113] [&>select]:p-3 [&_input:disabled]:opacity-60 [&_textarea:disabled]:opacity-60 [&_select:disabled]:opacity-60">
         {children}
       </div>

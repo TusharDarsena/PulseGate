@@ -11,7 +11,12 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
+    headers: {
+      ...cors,
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      Pragma: 'no-cache',
+    },
   });
 
 function required(name: string): string {
@@ -27,6 +32,7 @@ function serviceDfns(authToken = required('DFNS_SERVICE_ACCOUNT_TOKEN')) {
     signer: new AsymmetricKeySigner({
       credId: required('DFNS_SERVICE_ACCOUNT_CRED_ID'),
       privateKey: required('DFNS_SERVICE_ACCOUNT_PRIVATE_KEY'),
+      algorithm: 'sha256',
     }),
   });
 }
@@ -37,6 +43,25 @@ function delegatedDfns(authToken: string) {
     authToken,
     orgId: required('DFNS_ORG_ID'),
   });
+}
+
+class HttpError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+async function enforceRecoveryRateLimit(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  action: 'recovery-init' | 'recovery-complete',
+) {
+  const { data, error } = await admin.rpc('consume_wallet_recovery_rate_limit', {
+    p_user_id: userId,
+    p_action: action,
+  });
+  if (error) throw error;
+  if (data !== true) throw new HttpError(429, 'Too many recovery attempts. Try again later.');
 }
 
 function validateSignatureRequest(value: unknown): Record<string, unknown> {
@@ -200,6 +225,7 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'recovery-init') {
+      await enforceRecoveryRateLimit(admin, user.id, 'recovery-init');
       if (!link.provider_recovery_credential_id) {
         throw new Error('No recovery credential is registered for this wallet.');
       }
@@ -220,6 +246,7 @@ Deno.serve(async (request) => {
       } = challenge;
       await admin.from('wallet_provider_links').update({
         temporary_auth_token: temporaryAuthenticationToken,
+        recovery_challenge_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
       }).eq('user_id', user.id);
       return json({
         challenge: publicChallenge,
@@ -229,18 +256,38 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'recovery-complete') {
+      await enforceRecoveryRateLimit(admin, user.id, 'recovery-complete');
       if (!body.recovery || !body.firstFactorCredential || !body.recoveryCredential) {
         throw new Error('Recovery approval and replacement credentials are required.');
       }
       const { data: recoveryLink, error: recoveryLinkError } = await admin
         .from('wallet_provider_links')
-        .select('temporary_auth_token')
+        .select('temporary_auth_token,recovery_challenge_expires_at')
         .eq('user_id', user.id)
         .single();
-      if (recoveryLinkError || !recoveryLink?.temporary_auth_token) {
+      if (
+        recoveryLinkError ||
+        !recoveryLink?.temporary_auth_token ||
+        !recoveryLink.recovery_challenge_expires_at ||
+        new Date(recoveryLink.recovery_challenge_expires_at).getTime() <= Date.now()
+      ) {
         throw new Error('No active recovery challenge exists.');
       }
-      await serviceDfns(recoveryLink.temporary_auth_token).auth.recover({
+      const recoveryToken = recoveryLink.temporary_auth_token;
+      const { data: claimed, error: claimError } = await admin
+        .from('wallet_provider_links')
+        .update({
+          temporary_auth_token: 'consumed',
+          recovery_challenge_expires_at: null,
+        })
+        .eq('user_id', user.id)
+        .eq('temporary_auth_token', recoveryToken)
+        .gt('recovery_challenge_expires_at', new Date().toISOString())
+        .select('user_id')
+        .maybeSingle();
+      if (claimError || !claimed) throw new Error('Recovery challenge is invalid or already used.');
+
+      await serviceDfns(recoveryToken).auth.recover({
         body: {
           recovery: body.recovery,
           newCredentials: {
@@ -254,6 +301,7 @@ Deno.serve(async (request) => {
           body.recoveryCredential as { credentialInfo: { credId: string } }
         ).credentialInfo.credId,
         temporary_auth_token: null,
+        recovery_challenge_expires_at: null,
         recovery_state: 'ready',
         updated_at: new Date().toISOString(),
       }).eq('user_id', user.id);
@@ -387,6 +435,7 @@ Deno.serve(async (request) => {
     return json({ error: 'Unknown wallet action.' }, 400);
   } catch (error) {
     console.error('[attendee-wallet]', error instanceof Error ? error.message : error);
-    return json({ error: error instanceof Error ? error.message : 'Wallet service failed.' }, 400);
+    const status = error instanceof HttpError ? error.status : 400;
+    return json({ error: error instanceof Error ? error.message : 'Wallet service failed.' }, status);
   }
 });

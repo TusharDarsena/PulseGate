@@ -6,6 +6,7 @@ import {
   EVENT_SALES_LABELS,
   remainingTickets,
 } from '../lib/eventModel';
+import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
 
 interface BrowsePageProps {
   onEventClick: (eventId: string) => void;
@@ -14,29 +15,6 @@ interface BrowsePageProps {
 const CATEGORIES = ['All', 'Music', 'Sports', 'Theater', 'Comedy', 'Festivals', 'Tech'];
 
 /* ── Skeleton ─────────────────────────────────────────────────────────────── */
-function SkeletonCard() {
-  return (
-    <div className="bg-[#15181C] border border-[#272C33] rounded-xl overflow-hidden animate-pulse">
-      <div className="aspect-video bg-[#272C33]/50" />
-      <div className="p-5 space-y-3">
-        <div className="h-6 bg-[#272C33]/50 rounded w-3/4" />
-        <div className="space-y-2">
-          <div className="h-4 bg-[#272C33]/50 rounded w-1/2" />
-          <div className="h-4 bg-[#272C33]/50 rounded w-2/3" />
-        </div>
-        <div className="flex justify-between items-center pt-2 border-t border-[#272C33]/30">
-          <div className="space-y-1">
-            <div className="h-2 bg-[#272C33]/50 rounded w-8" />
-            <div className="h-6 bg-[#272C33]/50 rounded w-20" />
-          </div>
-          <div className="h-10 bg-[#272C33]/50 rounded-lg w-28" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 /* ── BrowsePage ───────────────────────────────────────────────────────────── */
 export function BrowsePage({ onEventClick }: BrowsePageProps) {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -144,9 +122,7 @@ export function BrowsePage({ onEventClick }: BrowsePageProps) {
 
         {/* ── States ── */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 w-full">
-            {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-          </div>
+          <CollectionSkeleton variant="event" className="w-full gap-6 md:gap-8" />
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">

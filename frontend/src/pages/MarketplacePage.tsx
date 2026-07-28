@@ -7,6 +7,7 @@ import type { ListingWithEvent } from '../hooks/useListings';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { saveAuthIntent } from '../lib/authIntent';
+import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
 
 interface MarketplacePageProps {
   listings: ListingWithEvent[];
@@ -14,23 +15,6 @@ interface MarketplacePageProps {
   error: string | null;
   invalidateListings: () => Promise<void>;
   invalidateTickets: () => void;
-}
-
-function SkeletonCard() {
-  return (
-    <div className="bg-[#15181C] border border-[#272C33] rounded-xl overflow-hidden animate-pulse">
-      <div className="h-44 bg-[#272C33]" />
-      <div className="p-5 space-y-3">
-        <div className="h-5 bg-[#272C33] rounded w-3/4" />
-        <div className="h-4 bg-[#272C33] rounded w-1/2" />
-        <div className="h-px bg-[#272C33] my-2" />
-        <div className="flex justify-between items-center">
-          <div className="h-6 bg-[#272C33] rounded w-24" />
-          <div className="h-9 bg-[#272C33] rounded-lg w-28" />
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export function MarketplacePage({ listings, loading, error, invalidateListings, invalidateTickets }: MarketplacePageProps) {
@@ -140,9 +124,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
 
       {/* ── States ── */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
-        </div>
+        <CollectionSkeleton variant="listing" className="gap-8" />
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">

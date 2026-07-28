@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
+import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 
 import { generateID } from '../lib/utils';
@@ -248,8 +249,8 @@ export function MyTicketsPage({
       {activeTab === 'UPCOMING' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
-            <div className="col-span-full flex justify-center py-20">
-              <div className="w-8 h-8 border-2 border-[#947dff] border-t-transparent rounded-full animate-spin"></div>
+            <div className="col-span-full">
+              <CollectionSkeleton variant="ticket" count={3} />
             </div>
           ) : error ? (
             <div className="col-span-full bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-center">
@@ -277,13 +278,15 @@ export function MyTicketsPage({
           )}
 
           {/* Browse-more card */}
-          <button
-            onClick={onBrowseMore}
-            className="bg-[#15181C] border border-dashed border-[#272C33] rounded-xl flex flex-col items-center justify-center p-16 min-h-[300px] text-center opacity-60 hover:opacity-100 transition-opacity"
-          >
-            <span className="material-symbols-outlined text-[48px] text-[#c9c4d8] mb-4">add_circle</span>
-            <p className="text-xs font-semibold tracking-wider uppercase text-[#e6e0ee]">BROWSE MORE EVENTS</p>
-          </button>
+          {!loading && (
+            <button
+              onClick={onBrowseMore}
+              className="bg-[#15181C] border border-dashed border-[#272C33] rounded-xl flex flex-col items-center justify-center p-16 min-h-[300px] text-center opacity-60 hover:opacity-100 transition-opacity"
+            >
+              <span className="material-symbols-outlined text-[48px] text-[#c9c4d8] mb-4">add_circle</span>
+              <p className="text-xs font-semibold tracking-wider uppercase text-[#e6e0ee]">BROWSE MORE EVENTS</p>
+            </button>
+          )}
         </div>
       ) : (
         <section className="mt-10">

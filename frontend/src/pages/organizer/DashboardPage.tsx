@@ -1,4 +1,5 @@
 import { OrganizerEventRow } from '../../components/organizer/OrganizerEventRow';
+import { Skeleton } from '../../components/ui/LoadingSkeleton';
 import { useOrganizerDrafts, useOrganizerEvents } from '../../hooks/useScopedEvents';
 
 interface DashboardPageProps {
@@ -16,6 +17,7 @@ export function DashboardPage({
   const draftState = useOrganizerDrafts();
   const openDrafts = draftState.drafts.filter((draft) => draft.state !== 'published');
   const hasWorkspace = openDrafts.length > 0 || eventState.events.length > 0;
+  const initialLoading = !hasWorkspace && (eventState.loading || draftState.loading);
 
   return (
     <div className="min-h-screen bg-[#14121b] pt-16 text-[#e6e0ee]">
@@ -43,7 +45,9 @@ export function DashboardPage({
           </div>
         )}
 
-        {!hasWorkspace && !eventState.loading && !draftState.loading ? (
+        {initialLoading ? (
+          <OrganizerWorkspaceSkeleton />
+        ) : !hasWorkspace ? (
           <section className="rounded-2xl border border-[#272C33] bg-[#15181C] p-10 text-center">
             <span className="material-symbols-outlined text-5xl text-[#9f8cff]">event_note</span>
             <h2 className="mt-4 text-2xl font-semibold">Prepare your first event</h2>
@@ -123,6 +127,24 @@ export function DashboardPage({
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function OrganizerWorkspaceSkeleton() {
+  return (
+    <div className="space-y-12" aria-busy="true" aria-label="Loading organizer workspace">
+      <section className="grid gap-5 sm:grid-cols-2">
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-xl" />
+      </section>
+      <section className="space-y-5">
+        <Skeleton className="h-7 w-40" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="h-36 w-full rounded-xl" />
+        </div>
+      </section>
     </div>
   );
 }

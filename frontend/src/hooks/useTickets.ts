@@ -19,7 +19,7 @@ export function useTickets(): {
 } {
   const { user, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingSync, setPendingSync] = useState<PurchaseOperationResponse[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -77,6 +77,7 @@ export function useTickets(): {
     if (!user) {
       setTimeout(() => setTickets([]), 0);
       setTimeout(() => setPendingSync([]), 0);
+      setTimeout(() => setLoading(false), 0);
       repairedMount.current = null;
       stopPolling();
       return;

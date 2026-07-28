@@ -32,7 +32,7 @@ export function useListings(): {
   invalidate: () => Promise<void>;
 } {
   const [listings, setListings] = useState<ListingWithEvent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRef = useRef(0);

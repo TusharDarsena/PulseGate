@@ -6,12 +6,12 @@ import {
 import { useCallback } from 'react';
 import { fetchXlmBalance, formatStroops } from '../lib/stellar';
 import { EMPTY_ORGANIZER_WALLET, useAppStore } from '../store/useAppStore';
-import type { SignFn } from '../types';
+import type { OrganizerWalletState, SignFn } from '../types';
 
 export function useWallet() {
   const { setOrganizerWallet } = useAppStore();
 
-  const connectOrganizer = useCallback(async () => {
+  const connectOrganizer = useCallback(async (): Promise<OrganizerWalletState> => {
     try {
       const connected = await isFreighterConnected();
       if (!connected.isConnected) throw new Error('Freighter is not installed or connected.');
@@ -26,12 +26,14 @@ export function useWallet() {
         return { signedTxXdr: result.signedTxXdr, signerAddress: publicKey };
       };
       const balance = await fetchXlmBalance(publicKey);
-      setOrganizerWallet({
+      const organizerWallet: OrganizerWalletState = {
         isConnected: true,
         publicKey,
         xlmBalance: formatStroops(balance.balanceStroops),
         signFn,
-      });
+      };
+      setOrganizerWallet(organizerWallet);
+      return organizerWallet;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Freighter connection failed.';
       setOrganizerWallet({ ...EMPTY_ORGANIZER_WALLET, errorMessage: message });

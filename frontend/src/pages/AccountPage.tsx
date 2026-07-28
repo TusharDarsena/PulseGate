@@ -11,11 +11,12 @@ export function AccountPage() {
   const { connectOrganizer, disconnectOrganizer } = useWallet();
   const [error, setError] = useState<string | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [showRecoveryCode, setShowRecoveryCode] = useState(false);
   const [enteredRecoveryCode, setEnteredRecoveryCode] = useState('');
   const [showRecovery, setShowRecovery] = useState(false);
   const navigate = useNavigate();
 
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: () => Promise<unknown>) => {
     setError(null);
     try {
       await action();
@@ -44,6 +45,7 @@ export function AccountPage() {
           <button onClick={() => void run(async () => {
             const code = await provisionWallet();
             setRecoveryCode(code);
+            setShowRecoveryCode(false);
           })} className="mt-5 bg-[#7C5CFF] px-4 py-2 rounded-lg">
             Prepare ticket wallet
           </button>
@@ -51,12 +53,27 @@ export function AccountPage() {
         {recoveryCode && (
           <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
             <p className="font-semibold text-emerald-300">Save this recovery code now</p>
-            <p className="my-3 break-all rounded bg-black/30 p-3 font-mono text-sm">{recoveryCode}</p>
+            <p className="my-3 break-all rounded bg-black/30 p-3 font-mono text-sm" aria-live="polite">
+              {showRecoveryCode ? recoveryCode : '••••••••••••••••••••••••••••••••'}
+            </p>
             <p className="text-xs text-slate-300">
               Store it in a password manager. StellarTickets does not retain this code and cannot
               silently replace your wallet if it is lost.
             </p>
-            <button onClick={() => setRecoveryCode(null)} className="mt-3 underline text-sm">I saved it</button>
+            <div className="mt-3 flex gap-4 text-sm">
+              <button
+                onClick={() => setShowRecoveryCode((visible) => !visible)}
+                className="underline"
+              >
+                {showRecoveryCode ? 'Hide recovery code' : 'Reveal recovery code'}
+              </button>
+              <button
+                onClick={() => { setRecoveryCode(null); setShowRecoveryCode(false); }}
+                className="underline"
+              >
+                I saved it
+              </button>
+            </div>
           </div>
         )}
         {attendeeWallet.readiness === 'ready' && !showRecovery && (

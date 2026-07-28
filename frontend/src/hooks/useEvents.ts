@@ -12,7 +12,7 @@ export function useEvents(filters: DiscoveryFilters = {}): {
   invalidate: () => Promise<void>;
 } {
   const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchRef = useRef(0);
