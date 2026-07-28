@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { stroopsToXlm, formatEventDate } from '../types';
 import { useEvents } from '../hooks/useEvents';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   deriveEventSalesState,
   EVENT_SALES_LABELS,
@@ -21,6 +22,8 @@ export function BrowsePage({ onEventClick }: BrowsePageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [city, setCity] = useState('');
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
+  const debouncedCity = useDebouncedValue(city, 300);
 
   const dateBounds = useMemo(() => {
     if (dateRange === 'all') return {};
@@ -31,9 +34,9 @@ export function BrowsePage({ onEventClick }: BrowsePageProps) {
   }, [dateRange]);
 
   const { events, loading, error } = useEvents({
-    search: searchQuery,
+    search: debouncedSearchQuery,
     category: activeCategory,
-    city: city || undefined,
+    city: debouncedCity || undefined,
     ...dateBounds,
   });
 

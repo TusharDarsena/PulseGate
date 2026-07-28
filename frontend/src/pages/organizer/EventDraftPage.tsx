@@ -1,5 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { REFUND_POLICY, RESALE_POLICY, zonedDateTimeToUnix } from '../../lib/eventModel';
 import { prepareCreateEvent } from '../../lib/soroban';
@@ -20,6 +20,7 @@ import {
 import { useAppStore } from '../../store/useAppStore';
 import { xlmToStroops } from '../../types';
 import { useWallet } from '../../hooks/useWallet';
+import { useOrganizerUnsavedWorkGuard } from '../../hooks/useOrganizerUnsavedWorkGuard';
 
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'failed' | 'offline' | 'conflict';
 
@@ -146,7 +147,7 @@ function optional(value: string): string | null {
   return trimmed || null;
 }
 
-function buildPatch(form: DraftForm, organizerAddress: string | null): EventDraftPatch {
+function buildPatch(form: DraftForm): EventDraftPatch {
   const capacity = form.capacity ? Number.parseInt(form.capacity, 10) : null;
   const price = form.priceXlm ? Number.parseFloat(form.priceXlm) : null;
   const startUnix = form.startDate && form.startTime
@@ -167,7 +168,6 @@ function buildPatch(form: DraftForm, organizerAddress: string | null): EventDraf
   }
 
   return {
-    intended_organizer_address: organizerAddress,
     expected_name: optional(form.name),
     expected_date_unix: startUnix,
     expected_capacity: capacity,
@@ -247,6 +247,15 @@ export function EventDraftPage() {
   const [showReview, setShowReview] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState(false);
   const [publicationFeeStroops, setPublicationFeeStroops] = useState<string | null>(null);
+  const localEditRevision = useRef(0);
+  const navigationPrompt = useOrganizerUnsavedWorkGuard({
+    shouldBlock: saveState !== 'saved' && saveState !== 'saving',
+    onDiscard: () => {
+      setSaveState('saved');
+      setError(null);
+      setServerConflict(null);
+    },
+  });
   const zones = useMemo(() => timezoneOptions(), []);
 
   const run = async (action: () => Promise<unknown>) => {
@@ -289,6 +298,7 @@ export function EventDraftPage() {
 
   const change = (field: keyof DraftForm) =>
     (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      localEditRevision.current += 1;
       setForm((current) => ({ ...current, [field]: event.target.value }));
       setSaveState(navigator.onLine ? 'unsaved' : 'offline');
       setError(null);
@@ -302,17 +312,22 @@ export function EventDraftPage() {
       setError('You are offline. Your edits remain in this page and have not been saved.');
       return;
     }
+    const saveEditRevision = localEditRevision.current;
     setSaveState('saving');
     setError(null);
     try {
       const next = await saveEventDraft(
         draft.draft_id,
         draft.revision,
-        buildPatch(form, wallet.publicKey ?? draft.intended_organizer_address),
+        buildPatch(form),
       );
       setDraft(next);
-      setForm(formFromDraft(next));
-      setSaveState('saved');
+      if (localEditRevision.current === saveEditRevision) {
+        setForm(formFromDraft(next));
+        setSaveState('saved');
+      } else {
+        setSaveState('unsaved');
+      }
     } catch (nextError) {
       if (nextError instanceof DraftConflictError) {
         setSaveState('conflict');
@@ -323,6 +338,35 @@ export function EventDraftPage() {
         setSaveState(navigator.onLine ? 'failed' : 'offline');
         setError(nextError instanceof Error ? nextError.message : 'Draft save failed.');
       }
+    }
+  };
+
+  const bindOrganizer = async () => {
+    if (!draft || draft.state !== 'prepared' || draft.intended_organizer_address) return;
+    setError(null);
+    try {
+      let activeWallet = wallet;
+      if (!activeWallet.isConnected || !activeWallet.publicKey || !activeWallet.signFn) {
+        activeWallet = await connectOrganizer();
+      }
+      if (!activeWallet.publicKey) {
+        throw new Error('Connect Freighter before binding this draft to an organizer wallet.');
+      }
+      const bindEditRevision = localEditRevision.current;
+      setSaveState('saving');
+      const next = await saveEventDraft(draft.draft_id, draft.revision, {
+        intended_organizer_address: activeWallet.publicKey,
+      });
+      setDraft(next);
+      if (localEditRevision.current === bindEditRevision) {
+        setForm(formFromDraft(next));
+        setSaveState('saved');
+      } else {
+        setSaveState('unsaved');
+      }
+    } catch (nextError) {
+      setSaveState(navigator.onLine ? 'failed' : 'offline');
+      setError(nextError instanceof Error ? nextError.message : 'Could not bind the organizer wallet.');
     }
   };
 
@@ -499,7 +543,7 @@ export function EventDraftPage() {
   }
 
   const editable = draft.state === 'prepared';
-  const organizerAddress = wallet.publicKey ?? draft.intended_organizer_address;
+  const organizerAddress = draft.intended_organizer_address;
   const missing = publicationIssues(form, organizerAddress);
   const walletMismatch = Boolean(
     wallet.publicKey &&
@@ -531,7 +575,8 @@ export function EventDraftPage() {
       : 'Publish on Stellar';
 
   return (
-    <main className="min-h-screen pt-24 pb-28 px-4 max-w-5xl mx-auto">
+    <>
+      <main className="min-h-screen pt-24 pb-28 px-4 max-w-5xl mx-auto">
       <header className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold text-[#9f8cff]">Private event workspace</p>
@@ -708,7 +753,17 @@ export function EventDraftPage() {
               ) : walletMismatch ? (
                 <p>Switch Freighter to the wallet reserved by this draft before publishing.</p>
               ) : !draft.intended_organizer_address ? (
-                <p>Save this draft once after connecting Freighter to bind the organizer wallet.</p>
+                <>
+                  <p>Bind this unassigned draft to the connected organizer wallet before publishing.</p>
+                  <button
+                    type="button"
+                    onClick={() => void bindOrganizer()}
+                    disabled={saveState === 'saving'}
+                    className="mt-3 rounded-lg bg-[#7C5CFF] px-4 py-2 font-semibold text-white disabled:opacity-50"
+                  >
+                    Bind organizer wallet
+                  </button>
+                </>
               ) : (
                 <>
                   <p>Freighter signing is not ready yet. Reconnect Freighter and try again.</p>
@@ -750,7 +805,9 @@ export function EventDraftPage() {
           </p>
         </section>
       </div>
-    </main>
+      </main>
+      {navigationPrompt}
+    </>
   );
 }
 

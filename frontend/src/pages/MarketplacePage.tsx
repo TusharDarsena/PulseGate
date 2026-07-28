@@ -19,10 +19,9 @@ interface MarketplacePageProps {
   loading: boolean;
   error: string | null;
   invalidateListings: () => Promise<void>;
-  invalidateTickets: () => void;
 }
 
-export function MarketplacePage({ listings, loading, error, invalidateListings, invalidateTickets }: MarketplacePageProps) {
+export function MarketplacePage({ listings, loading, error, invalidateListings }: MarketplacePageProps) {
   const { attendeeWallet: wallet, setTxState } = useAppStore();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -78,7 +77,6 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
       }
       if (operation.state === 'complete') {
         await invalidateListings();
-        invalidateTickets();
       }
 
       setTxState({
@@ -127,7 +125,6 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
             ticketOperationRecovery.remember(recovered);
             if (recovered.state === 'complete') {
               await invalidateListings();
-              invalidateTickets();
             }
           }).catch(() => undefined);
         }}

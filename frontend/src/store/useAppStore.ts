@@ -1,7 +1,6 @@
-import { signTransaction as freighterSignTransaction } from '@stellar/freighter-api';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { AttendeeWalletState, OrganizerWalletState, SignFn, TxState } from '../types';
+import type { AttendeeWalletState, OrganizerWalletState, TxState } from '../types';
 
 interface AppState {
   txState: TxState;
@@ -40,21 +39,21 @@ export const useAppStore = create<AppState>()(
     {
       name: 'stellar-tickets-store-v2',
       partialize: (state) => ({
-        organizerWallet: { ...state.organizerWallet, signFn: null },
+        // This address is an untrusted hint only. Freighter must be checked
+        // before it becomes a connected signer again.
+        organizerWallet: {
+          isConnected: false,
+          publicKey: state.organizerWallet.publicKey,
+          xlmBalance: null,
+          signFn: null,
+        },
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const { organizerWallet } = state;
-        if (!organizerWallet.isConnected) return;
-
-        const signFn: SignFn = async (xdr, opts) => {
-          const networkPassphrase =
-            opts?.networkPassphrase || 'Test SDF Network ; September 2015';
-          const result = await freighterSignTransaction(xdr, { networkPassphrase });
-          if (result.error) throw new Error(result.error);
-          return { signedTxXdr: result.signedTxXdr };
-        };
-        state.setOrganizerWallet({ ...organizerWallet, signFn });
+        state.setOrganizerWallet({
+          ...EMPTY_ORGANIZER_WALLET,
+          publicKey: state.organizerWallet.publicKey,
+        });
       },
     },
   ),

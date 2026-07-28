@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
 import { TicketOperationRecovery } from '../components/tickets/TicketOperationRecovery';
@@ -12,7 +12,7 @@ import {
   prepareListTicket,
   prepareRefundTicket,
 } from '../lib/soroban';
-import { fetchOpenListingByTicket } from '../lib/supabase';
+import { fetchOpenListingsByTicketIds, type ListingRow } from '../lib/supabase';
 import {
   executeTicketOperation,
   ticketOperationMessage,
@@ -21,10 +21,11 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import type { PurchaseOperationResponse } from '../lib/purchaseOperations';
 
-interface ListingMinimal {
-  listing_id?: string;
-  listingId?: string;
-}
+type ListingLookupState = {
+  status: 'loading' | 'ready' | 'error';
+  listingsByTicketId: Record<string, Pick<ListingRow, 'listing_id'>>;
+  error: string | null;
+};
 
 interface MyTicketsPageProps {
   tickets: Ticket[];
@@ -35,7 +36,6 @@ interface MyTicketsPageProps {
   onShowQR: (ticketId: string) => void;
   onBrowseMore: () => void;
   invalidateTickets: () => void;
-  invalidateListings: () => void;
   pendingSync: PurchaseOperationResponse[];
   retryPending: () => void;
 }
@@ -49,41 +49,81 @@ export function MyTicketsPage({
   onShowQR,
   onBrowseMore,
   invalidateTickets,
-  invalidateListings,
   pendingSync,
   retryPending,
 }: MyTicketsPageProps) {
   const [activeTab, setActiveTab] = useState<'UPCOMING' | 'PAST'>('UPCOMING');
-  const [openListings, setOpenListings] = useState<Record<string, unknown>>({});
+  const [listingLookup, setListingLookup] = useState<ListingLookupState>({
+    status: 'loading',
+    listingsByTicketId: {},
+    error: null,
+  });
   const [showListingModal, setShowListingModal] = useState<string | null>(null);
   const [askPrice, setAskPrice] = useState('');
   const [nowUnix, setNowUnix] = useState(0);
+  const listingRequestRef = useRef(0);
 
   const { attendeeWallet: wallet, setTxState } = useAppStore();
   const ticketOperationRecovery = useTicketOperationRecovery();
   const eventState = usePublishedEventsByIds(tickets.map((ticket) => ticket.eventId));
   const events = eventState.events;
+  const eventById = new Map(events.map((event) => [event.eventId, event]));
+  const listingTicketIdsKey = [...new Set(tickets.map((ticket) => ticket.ticketId))].sort().join(',');
+  const resaleReady = listingLookup.status === 'ready';
 
   const applyRecoveredOperation = (operation: TicketOperation) => {
     ticketOperationRecovery.remember(operation);
     if (operation.state !== 'complete') return;
     if (operation.operation_type === 'create_listing' && operation.listing_id) {
-      setOpenListings((current) => ({
-        ...current,
-        [operation.ticket_id]: { listing_id: operation.listing_id },
-      }));
+      setListingLookup((current) => {
+        if (current.status !== 'ready') return current;
+        return {
+          ...current,
+          listingsByTicketId: {
+            ...current.listingsByTicketId,
+            [operation.ticket_id]: {
+              listing_id: operation.listing_id!,
+            },
+          },
+        };
+      });
     }
     if (
       operation.operation_type === 'cancel_listing' ||
       operation.operation_type === 'buy_listing'
     ) {
-      setOpenListings((current) => {
-        const next = { ...current };
-        delete next[operation.ticket_id];
-        return next;
+      setListingLookup((current) => {
+        if (current.status !== 'ready') return current;
+        const listingsByTicketId = { ...current.listingsByTicketId };
+        delete listingsByTicketId[operation.ticket_id];
+        return { ...current, listingsByTicketId };
       });
     }
   };
+
+  const loadOpenListings = useCallback(async () => {
+    const requestId = ++listingRequestRef.current;
+    setListingLookup({ status: 'loading', listingsByTicketId: {}, error: null });
+    try {
+      const listings = await fetchOpenListingsByTicketIds(
+        listingTicketIdsKey ? listingTicketIdsKey.split(',') : [],
+      );
+      if (requestId !== listingRequestRef.current) return;
+
+      const listingsByTicketId = listings.reduce<Record<string, Pick<ListingRow, 'listing_id'>>>((resolved, listing) => {
+        if (!resolved[listing.ticket_id]) resolved[listing.ticket_id] = listing;
+        return resolved;
+      }, {});
+      setListingLookup({ status: 'ready', listingsByTicketId, error: null });
+    } catch (error) {
+      if (requestId !== listingRequestRef.current) return;
+      setListingLookup({
+        status: 'error',
+        listingsByTicketId: {},
+        error: error instanceof Error ? error.message : 'Unable to load resale status.',
+      });
+    }
+  }, [listingTicketIdsKey]);
 
   const handleRefund = async (ticketId: string) => {
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
@@ -120,7 +160,13 @@ export function MyTicketsPage({
   };
 
   const handleListForSale = async () => {
-    if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn || !showListingModal) return;
+    if (
+      !resaleReady ||
+      wallet.readiness !== 'ready' ||
+      !wallet.address ||
+      !wallet.signFn ||
+      !showListingModal
+    ) return;
 
     const price = parseFloat(askPrice);
     if (isNaN(price) || price <= 0) {
@@ -163,7 +209,7 @@ export function MyTicketsPage({
       setAskPrice('');
 
       if (operation.state === 'complete') {
-        invalidateListings();
+        void loadOpenListings();
       }
 
       setTxState({
@@ -180,10 +226,9 @@ export function MyTicketsPage({
   };
 
   const handleCancelListing = async (ticketId: string) => {
-    if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
+    if (!resaleReady || wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
 
-    const listing = openListings[ticketId] as ListingMinimal;
-    const lid = listing.listing_id || listing.listingId;
+    const lid = listingLookup.listingsByTicketId[ticketId]?.listing_id;
     if (!lid) return;
 
     setTxState({ status: 'building' });
@@ -205,7 +250,7 @@ export function MyTicketsPage({
         throw new Error(operation.failure_detail || 'Stellar rejected the cancellation.');
       }
       if (operation.state === 'complete') {
-        invalidateListings();
+        void loadOpenListings();
       }
 
       setTxState({
@@ -224,13 +269,20 @@ export function MyTicketsPage({
   const loading = loadingTickets || eventState.loading;
   const error = errorTickets || eventState.error;
 
-  const upcomingTickets = tickets.filter((ticket) => {
-    const event = events.find((candidate) => candidate.eventId === ticket.eventId);
-    const eventEnds = event ? (event.endUnix || event.dateUnix) : 0;
+  const ticketsWithEventDetails = tickets.filter((ticket) => eventById.has(ticket.eventId));
+  const ticketsWithoutEventDetails = tickets
+    .filter((ticket) => !eventById.has(ticket.eventId))
+    .sort((a, b) => {
+      const purchasedAtDifference = new Date(b.purchasedAt ?? 0).getTime() - new Date(a.purchasedAt ?? 0).getTime();
+      return purchasedAtDifference || a.ticketId.localeCompare(b.ticketId);
+    });
+  const upcomingTickets = ticketsWithEventDetails.filter((ticket) => {
+    const event = eventById.get(ticket.eventId)!;
+    const eventEnds = event.endUnix || event.dateUnix;
     return ticket.status === 'Active' && eventEnds >= nowUnix;
   });
   const upcomingIds = new Set(upcomingTickets.map((ticket) => ticket.ticketId));
-  const pastTickets = tickets.filter((ticket) => !upcomingIds.has(ticket.ticketId)).sort((a, b) => {
+  const pastTickets = ticketsWithEventDetails.filter((ticket) => !upcomingIds.has(ticket.ticketId)).sort((a, b) => {
     const da = a.purchasedAt ? new Date(a.purchasedAt).getTime() : 0;
     const db = b.purchasedAt ? new Date(b.purchasedAt).getTime() : 0;
     return db - da;
@@ -244,25 +296,11 @@ export function MyTicketsPage({
   }, []);
 
   useEffect(() => {
-    const active = tickets.filter((ticket) => ticket.status === 'Active');
-    if (active.length === 0) return;
-
-    let isMounted = true;
-    async function checkListings() {
-      const results: Record<string, unknown> = {};
-      await Promise.all(active.map(async (t) => {
-        const listing = await fetchOpenListingByTicket(t.ticketId);
-        if (listing) {
-          results[t.ticketId] = listing;
-        }
-      }));
-      if (isMounted) {
-        setOpenListings(results);
-      }
-    }
-    checkListings();
-    return () => { isMounted = false; };
-  }, [tickets]);
+    void loadOpenListings();
+    return () => {
+      listingRequestRef.current += 1;
+    };
+  }, [loadOpenListings]);
 
   return (
     <main className="pt-24 pb-32 px-4 md:px-8 max-w-7xl mx-auto min-h-screen">
@@ -279,7 +317,7 @@ export function MyTicketsPage({
           void ticketOperationRecovery.recover(operation).then((recovered) => {
             applyRecoveredOperation(recovered);
             invalidateTickets();
-            invalidateListings();
+            void loadOpenListings();
           }).catch(() => undefined);
         }}
       />
@@ -288,6 +326,16 @@ export function MyTicketsPage({
           <p className="font-semibold">Some confirmed tickets are still syncing.</p>
           <p className="mt-1 text-sm text-amber-200/80">Your payment will not be repeated.</p>
           <button onClick={retryPending} className="mt-3 rounded-lg border border-amber-300/40 px-3 py-2 text-sm">Retry synchronization</button>
+        </section>
+      )}
+      {listingLookup.status === 'error' && (
+        <section className="mb-8 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-amber-100">
+          <p className="font-semibold">Resale status is unavailable.</p>
+          <p className="mt-1 text-sm text-amber-200/80">Listing actions stay unavailable until the status check succeeds.</p>
+          <button onClick={() => void loadOpenListings()} className="mt-3 rounded-lg border border-amber-300/40 px-3 py-2 text-sm">
+            Retry resale status
+          </button>
+          <p className="mt-2 text-xs text-amber-200/70">{listingLookup.error}</p>
         </section>
       )}
 
@@ -307,6 +355,44 @@ export function MyTicketsPage({
         </button>
       </nav>
 
+      {!loading && !error && ticketsWithoutEventDetails.length > 0 && (
+        <section className="mb-10 rounded-xl border border-amber-400/30 bg-amber-400/10 p-6">
+          <h2 className="text-xl font-bold text-amber-100">Tickets awaiting event details</h2>
+          <p className="mt-1 text-sm text-amber-200/80">These tickets remain available while their event projection is unavailable.</p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-amber-300/20 text-amber-100/80">
+                  <th className="pb-3 text-xs font-semibold tracking-wider uppercase">Ticket ID</th>
+                  <th className="pb-3 text-xs font-semibold tracking-wider uppercase">Status</th>
+                  <th className="pb-3 text-xs font-semibold tracking-wider uppercase">Purchased</th>
+                  <th className="pb-3 text-right text-xs font-semibold tracking-wider uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-300/10">
+                {ticketsWithoutEventDetails.map((ticket) => (
+                  <tr key={ticket.ticketId}>
+                    <td className="py-4 font-mono text-sm text-amber-50">{ticket.ticketId}</td>
+                    <td className="py-4 text-sm text-amber-100">{ticket.status}</td>
+                    <td className="py-4 text-sm text-amber-100">{formatDateTime(ticket.purchasedAt)}</td>
+                    <td className="py-4 text-right">
+                      <button onClick={() => onViewTicket(ticket.ticketId)} className="text-sm text-[#7C5CFF] hover:underline">
+                        View ticket
+                      </button>
+                      {ticket.receiptOperationId && (
+                        <button onClick={() => onViewReceipt(ticket.receiptOperationId!)} className="ml-4 text-sm text-amber-100 hover:underline">
+                          View receipt
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {/* Ticket Grid */}
       {activeTab === 'UPCOMING' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -320,8 +406,7 @@ export function MyTicketsPage({
             </div>
           ) : (
             upcomingTickets.map(ticket => {
-              const event = events.find(e => e.eventId === ticket.eventId);
-              if (!event) return null;
+              const event = eventById.get(ticket.eventId)!;
               return (
                 <TicketCard
                   key={ticket.ticketId}
@@ -331,9 +416,9 @@ export function MyTicketsPage({
                   onViewReceipt={onViewReceipt}
                   onShowQR={onShowQR}
                   onRefund={event.status === 'Cancelled' ? handleRefund : undefined}
-                  onListForSale={() => setShowListingModal(ticket.ticketId)}
-                  onCancelListing={() => handleCancelListing(ticket.ticketId)}
-                  hasOpenListing={!!openListings[ticket.ticketId]}
+                  onListForSale={resaleReady ? () => setShowListingModal(ticket.ticketId) : undefined}
+                  onCancelListing={resaleReady ? () => handleCancelListing(ticket.ticketId) : undefined}
+                  hasOpenListing={resaleReady && !!listingLookup.listingsByTicketId[ticket.ticketId]}
                 />
               );
             })
@@ -368,8 +453,7 @@ export function MyTicketsPage({
                 </thead>
                 <tbody className="divide-y divide-[#272C33]/30">
                   {pastTickets.map(ticket => {
-                    const event = events.find(e => e.eventId === ticket.eventId);
-                    if (!event) return null;
+                    const event = eventById.get(ticket.eventId)!;
                     return (
                       <tr key={ticket.ticketId} className="group hover:bg-white/5 transition-colors">
                         <td className="py-6">

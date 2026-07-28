@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEvent } from '../../hooks/useEvent';
 import { useWallet } from '../../hooks/useWallet';
+import { useOrganizerUnsavedWorkGuard } from '../../hooks/useOrganizerUnsavedWorkGuard';
 import {
   deriveOrganizerLifecycle,
   formatEventRange,
@@ -50,6 +51,14 @@ export function OrganizerEventPage() {
   const [terminalBusy, setTerminalBusy] = useState(false);
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [terminalFeeStroops, setTerminalFeeStroops] = useState<string | null>(null);
+  const localMetadataEditRevision = useRef(0);
+  const navigationPrompt = useOrganizerUnsavedWorkGuard({
+    shouldBlock: metadataState !== 'saved' && metadataState !== 'saving',
+    onDiscard: () => {
+      setMetadataState('saved');
+      setMetadataError(null);
+    },
+  });
 
   const reloadOwnership = async () => {
     const next = await getMyOrganizerEvent(eventId);
@@ -175,6 +184,7 @@ export function OrganizerEventPage() {
 
   const changeMetadata = (field: keyof typeof metadata) =>
     (changeEvent: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      localMetadataEditRevision.current += 1;
       setMetadata((current) => ({ ...current, [field]: changeEvent.target.value }));
       setMetadataState('unsaved');
       setMetadataError(null);
@@ -182,6 +192,7 @@ export function OrganizerEventPage() {
 
   const saveMetadata = async () => {
     if (!owned) return;
+    const saveEditRevision = localMetadataEditRevision.current;
     setMetadataState('saving');
     setMetadataError(null);
     try {
@@ -200,9 +211,30 @@ export function OrganizerEventPage() {
         patch.address = metadata.address.trim();
         patch.city = metadata.city.trim();
       }
-      await updateOrganizerEventMetadata(eventId, owned.metadata_revision ?? 0, patch);
-      await reloadOwnership();
-      setMetadataState('saved');
+      const next = await updateOrganizerEventMetadata(
+        eventId,
+        owned.metadata_revision ?? 0,
+        patch,
+      );
+      setOwned(next);
+      if (localMetadataEditRevision.current === saveEditRevision) {
+        setMetadata({
+          summary: next.summary ?? '',
+          description: next.description ?? '',
+          supportContact: next.support_contact ?? '',
+          entryInstructions: next.entry_instructions ?? '',
+          accessibilityNotes: next.accessibility_notes ?? '',
+          ageRestriction: next.age_restriction ?? '',
+          prohibitedItems: next.prohibited_items ?? '',
+          mapUrl: next.map_url ?? '',
+          venue: next.venue ?? '',
+          address: next.address ?? '',
+          city: next.city ?? '',
+        });
+        setMetadataState('saved');
+      } else {
+        setMetadataState('unsaved');
+      }
     } catch (error) {
       setMetadataState('failed');
       setMetadataError(error instanceof Error ? error.message : 'Metadata save failed.');
@@ -337,7 +369,8 @@ export function OrganizerEventPage() {
     event.organizer !== owned.organizer_address;
 
   return (
-    <main className="min-h-screen pt-24 pb-28 px-4 max-w-6xl mx-auto">
+    <>
+      <main className="min-h-screen pt-24 pb-28 px-4 max-w-6xl mx-auto">
       <header className="mb-8">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full bg-[#7C5CFF]/15 px-3 py-1 text-sm text-[#b6a8ff]">
@@ -551,7 +584,9 @@ export function OrganizerEventPage() {
           </section>
         </div>
       )}
-    </main>
+      </main>
+      {navigationPrompt}
+    </>
   );
 }
 

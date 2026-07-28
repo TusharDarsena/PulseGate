@@ -12,20 +12,18 @@ export function safeStorageSet(
   storageKind: StorageKind,
   key: string,
   value: string,
-): boolean {
+): void {
   try {
     window[storageKind].setItem(key, value);
-    return true;
   } catch {
-    return false;
+    // Browser storage is optional persistence and must not interrupt the caller.
   }
 }
 
-export function safeStorageRemove(storageKind: StorageKind, key: string): boolean {
+export function safeStorageRemove(storageKind: StorageKind, key: string): void {
   try {
     window[storageKind].removeItem(key);
-    return true;
   } catch {
-    return false;
+    // Browser storage is optional persistence and must not interrupt the caller.
   }
 }

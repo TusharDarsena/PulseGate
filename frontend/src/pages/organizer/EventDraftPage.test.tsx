@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventPublicationDraft } from '../../lib/supabase';
 import { EMPTY_ORGANIZER_WALLET, useAppStore } from '../../store/useAppStore';
@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   recordSignedEventPublication: vi.fn(),
   resolveEventPublication: vi.fn(),
   connectOrganizer: vi.fn(),
+  saveEventDraft: vi.fn(),
 }));
 
 vi.mock('../../lib/soroban', () => ({
@@ -30,7 +31,7 @@ vi.mock('../../lib/supabase', () => ({
   recordSignedEventPublication: mocks.recordSignedEventPublication,
   resolveEventPublication: mocks.resolveEventPublication,
   retryEventPublicationSync: vi.fn(),
-  saveEventDraft: vi.fn(),
+  saveEventDraft: mocks.saveEventDraft,
 }));
 
 vi.mock('../../hooks/useWallet', () => ({
@@ -39,12 +40,15 @@ vi.mock('../../hooks/useWallet', () => ({
 
 const ORGANIZER = 'GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-function draft(state: EventPublicationDraft['state'] = 'prepared'): EventPublicationDraft {
+function draft(
+  state: EventPublicationDraft['state'] = 'prepared',
+  intendedOrganizerAddress: string | null = ORGANIZER,
+): EventPublicationDraft {
   return {
     draft_id: 'draft-1',
     user_id: 'user-1',
     event_id: 'event-1',
-    intended_organizer_address: ORGANIZER,
+    intended_organizer_address: intendedOrganizerAddress,
     expected_name: 'Stellar Builders',
     expected_date_unix: 2_525_644_800,
     expected_capacity: 100,
@@ -85,6 +89,20 @@ describe('EventDraftPage publication after refresh', () => {
     vi.clearAllMocks();
     useAppStore.getState().setOrganizerWallet(EMPTY_ORGANIZER_WALLET);
   });
+
+  const renderDraftPage = () => {
+    const router = createMemoryRouter([
+      {
+        path: '/organizer/drafts/:draftId',
+        element: <EventDraftPage />,
+      },
+      {
+        path: '/organizer/events',
+        element: <p>Organizer events</p>,
+      },
+    ], { initialEntries: ['/organizer/drafts/draft-1'] });
+    return { router, ...render(<RouterProvider router={router} />) };
+  };
 
   it('reconnects the non-persisted Freighter signer and publishes on the first click', async () => {
     const signer: SignFn = vi.fn().mockResolvedValue({ signedTxXdr: 'signed-xdr' });
@@ -133,13 +151,7 @@ describe('EventDraftPage publication after refresh', () => {
     mocks.recordSignedEventPublication.mockResolvedValue({ ...initialDraft, state: 'signed_submission_pending' });
     mocks.resolveEventPublication.mockResolvedValue(publishedDraft);
 
-    render(
-      <MemoryRouter initialEntries={['/organizer/drafts/draft-1']}>
-        <Routes>
-          <Route path="/organizer/drafts/:draftId" element={<EventDraftPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderDraftPage();
 
     const publish = await screen.findByRole('button', { name: 'Publish on Stellar' });
     expect(publish).toBeEnabled();
@@ -155,5 +167,74 @@ describe('EventDraftPage publication after refresh', () => {
     expect(submit).toHaveBeenCalledWith(signer, expect.any(Function));
     expect(mocks.recordSignedEventPublication).toHaveBeenCalledWith('draft-1', 'signed-hash');
     expect(await screen.findByText('Publication receipt')).toBeInTheDocument();
+  });
+
+  it('binds an unassigned draft only through the explicit organizer action', async () => {
+    const unboundDraft = draft('prepared', null);
+    useAppStore.getState().setOrganizerWallet({
+      isConnected: true,
+      publicKey: ORGANIZER,
+      xlmBalance: '10',
+      signFn: vi.fn(),
+    });
+    mocks.getMyEventDraft.mockResolvedValue(unboundDraft);
+    mocks.saveEventDraft.mockResolvedValue({
+      ...unboundDraft,
+      intended_organizer_address: ORGANIZER,
+      revision: 2,
+    });
+
+    renderDraftPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Bind organizer wallet' }));
+
+    await waitFor(() => expect(mocks.saveEventDraft).toHaveBeenCalledWith(
+      'draft-1',
+      1,
+      { intended_organizer_address: ORGANIZER },
+    ));
+  });
+
+  it('keeps newer typing while accepting the server draft revision from an in-flight save', async () => {
+    const initialDraft = draft();
+    let resolveSave: ((value: EventPublicationDraft) => void) | undefined;
+    mocks.getMyEventDraft.mockResolvedValue(initialDraft);
+    mocks.saveEventDraft.mockImplementation(() => new Promise<EventPublicationDraft>((resolve) => {
+      resolveSave = resolve;
+    }));
+
+    renderDraftPage();
+
+    const summary = await screen.findByLabelText('Short summary');
+    fireEvent.change(summary, { target: { value: 'Saved text' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    fireEvent.change(summary, { target: { value: 'Newer local text' } });
+    resolveSave?.({ ...initialDraft, summary: 'Saved text', revision: 2 });
+
+    await waitFor(() => expect(screen.getByLabelText('Short summary')).toHaveValue('Newer local text'));
+    expect(screen.getByText(/Revision 2/)).toBeInTheDocument();
+    expect(mocks.saveEventDraft).toHaveBeenCalledWith(
+      'draft-1',
+      1,
+      expect.not.objectContaining({ intended_organizer_address: expect.anything() }),
+    );
+  });
+
+  it('blocks unsaved SPA navigation until the organizer stays or discards edits', async () => {
+    mocks.getMyEventDraft.mockResolvedValue(draft());
+    const { router } = renderDraftPage();
+
+    fireEvent.change(await screen.findByLabelText('Short summary'), {
+      target: { value: 'Unsaved organizer edit' },
+    });
+    void router.navigate('/organizer/events');
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Stay' }));
+    expect(screen.getByLabelText('Short summary')).toHaveValue('Unsaved organizer edit');
+
+    void router.navigate('/organizer/events');
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard and leave' }));
+    expect(await screen.findByText('Organizer events')).toBeInTheDocument();
   });
 });

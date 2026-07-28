@@ -16,10 +16,6 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import { truncateKey, xlmToStroops, type Event } from '../types';
 
-interface ScannerPageProps {
-  invalidateTickets: () => void;
-}
-
 type CameraState = 'idle' | 'starting' | 'running' | 'paused' | 'blocked' | 'unavailable';
 
 type ScanResultKind =
@@ -48,13 +44,14 @@ interface ScanResult {
 const PENDING_STATES = ['signed_submission_pending', 'confirmation_pending', 'status_unknown'];
 const CONFIRMED_STATES = ['chain_confirmed', 'mirror_syncing', 'sync_warning', 'complete'];
 
-export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
+export function ScannerPage() {
   const { eventId = '' } = useParams();
   const wallet = useAppStore((state) => state.organizerWallet);
-  const { connectOrganizer } = useWallet();
+  const { connectOrganizer, verifyOrganizer } = useWallet();
   const chainState = useEvent(eventId);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
+  const processScanRef = useRef<(raw: string) => void>(() => undefined);
   const [owned, setOwned] = useState<OwnedOrganizerEvent | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(true);
   const [ownershipError, setOwnershipError] = useState<string | null>(null);
@@ -81,7 +78,9 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
       event.status === 'Active' &&
       withinWindow &&
       wallet.isConnected &&
-      walletMatches,
+      wallet.signFn &&
+      walletMatches &&
+      owned.organizer_address === event.organizer,
   );
   const unresolvedOperation = useMemo(
     () => operations.find((operation) => PENDING_STATES.includes(operation.state)),
@@ -104,6 +103,29 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
       setStats((current) => ({ ...current, unresolved: current.unresolved }));
     }
   }, [eventId, owned]);
+
+  const recheckScannerAuthority = React.useCallback(async () => {
+    const nextEvent = await chainState.reload();
+    const currentUnix = Math.floor(Date.now() / 1000);
+    if (
+      !owned ||
+      !nextEvent ||
+      nextEvent.eventId !== eventId ||
+      nextEvent.authority !== 'confirmed' ||
+      nextEvent.status !== 'Active' ||
+      nextEvent.organizer !== owned.organizer_address
+    ) {
+      throw new Error('Authoritative organizer event access is no longer available.');
+    }
+    if (currentUnix < nextEvent.dateUnix - 7_200 || currentUnix >= nextEvent.endUnix) {
+      throw new Error('Check-in is not currently open for this event.');
+    }
+    const organizerWallet = await verifyOrganizer(nextEvent.organizer);
+    if (!organizerWallet.signFn || organizerWallet.publicKey !== nextEvent.organizer) {
+      throw new Error('Freighter signing is not ready for this organizer wallet.');
+    }
+    return { event: nextEvent, organizerWallet };
+  }, [chainState.reload, eventId, owned, verifyOrganizer]);
 
   useEffect(() => {
     let active = true;
@@ -148,11 +170,18 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
   }, []);
 
   useEffect(() => {
+    if (scannerReady || !scannerRef.current?.isScanning) return;
+    scannerRef.current.pause(true);
+    setCameraState((current) => current === 'running' ? 'paused' : current);
+  }, [scannerReady]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
       setNowUnix(Math.floor(Date.now() / 1000));
+      void chainState.reload();
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [chainState.reload]);
 
   const stopCamera = async () => {
     if (scannerRef.current?.isScanning) {
@@ -161,12 +190,21 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
     setCameraState('idle');
   };
 
-  const resumeScanning = () => {
-    setScanResult(null);
-    processingRef.current = false;
-    if (scannerRef.current?.isScanning) {
-      scannerRef.current.resume();
-      setCameraState('running');
+  const resumeScanning = async () => {
+    try {
+      await recheckScannerAuthority();
+      setScanResult(null);
+      processingRef.current = false;
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.resume();
+        setCameraState('running');
+      }
+    } catch (error) {
+      setScanResult({
+        kind: 'status_unavailable',
+        detail: error instanceof Error ? error.message : 'Check-in authorization must be verified again.',
+      });
+      setCameraState('paused');
     }
   };
 
@@ -176,7 +214,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
   };
 
   const processScan = React.useCallback(async (raw: string) => {
-    if (processingRef.current || !event || !wallet.publicKey || !wallet.signFn) return;
+    if (processingRef.current || !event || !wallet.publicKey || !wallet.signFn || !scannerReady) return;
     processingRef.current = true;
     setBusy(true);
     setScanResult(null);
@@ -241,6 +279,8 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
         return;
       }
 
+      const { event: verifiedEvent, organizerWallet } = await recheckScannerAuthority();
+
       const allocated = await invokeCheckInOperation('allocate', {
         idempotencyKey: crypto.randomUUID(),
         eventId,
@@ -270,11 +310,11 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
         eventId,
         parsed.ticketId,
         parsed.walletAddress,
-        wallet.publicKey,
+        verifiedEvent.organizer,
       );
       if (
-        wallet.xlmBalance === null ||
-        xlmToStroops(Number(wallet.xlmBalance)) < transaction.estimatedFeeStroops
+        organizerWallet.xlmBalance === null ||
+        xlmToStroops(Number(organizerWallet.xlmBalance)) < transaction.estimatedFeeStroops
       ) {
         throw new Error('The organizer wallet does not have enough XLM for the network fee.');
       }
@@ -286,7 +326,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
       });
       if (begun.operation) rememberOperation(begun.operation);
 
-      await transaction.submit(wallet.signFn, async ({ signedTransactionHash }) => {
+      await transaction.submit(organizerWallet.signFn!, async ({ signedTransactionHash }) => {
         const signed = await invokeCheckInOperation('record-signed-attempt', {
           operationId,
           signedTransactionHash,
@@ -305,7 +345,6 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
           ticketId: parsed.ticketId,
           walletAddress: parsed.walletAddress,
         });
-        invalidateTickets();
         await Promise.all([chainState.reload(), refreshStats()]);
       }
     } catch (error) {
@@ -344,16 +383,27 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
       setBusy(false);
     }
   }, [
-    chainState,
+    chainState.reload,
     event,
     eventId,
-    invalidateTickets,
     refreshStats,
+    recheckScannerAuthority,
+    scannerReady,
     wallet.publicKey,
     wallet.signFn,
     wallet.xlmBalance,
     walletMatches,
   ]);
+
+  useEffect(() => {
+    processScanRef.current = (raw) => {
+      void processScan(raw);
+    };
+  }, [processScan]);
+
+  const onScanSuccess = React.useCallback((decodedText: string) => {
+    processScanRef.current(decodedText);
+  }, []);
 
   const enableCamera = async () => {
     if (!scannerReady || cameraState === 'starting' || cameraState === 'running') return;
@@ -364,7 +414,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
       await scannerRef.current.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 260, height: 260 } },
-        (decodedText) => void processScan(decodedText),
+        onScanSuccess,
         () => undefined,
       );
       setCameraState('running');
@@ -426,7 +476,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
 
   const gate = scannerGate({
     event,
-    walletConnected: wallet.isConnected,
+    walletConnected: wallet.isConnected && Boolean(wallet.signFn),
     walletMatches,
     withinWindow,
     opensAt,
@@ -517,7 +567,7 @@ export function ScannerPage({ invalidateTickets }: ScannerPageProps) {
         <ResultOverlay
           result={scanResult}
           busy={busy}
-          onNext={resumeScanning}
+          onNext={() => void resumeScanning()}
           onResolve={scanResult.operation ? () => void resolveOperation(scanResult.operation!) : undefined}
         />
       )}

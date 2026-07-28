@@ -12,12 +12,8 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   const [validating, setValidating] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const wallet = useAppStore((state) => state.attendeeWallet);
-  const screenshotPayload = import.meta.env.DEV
-    ? (window as Window & { __STELLAR_TICKETS_SCREENSHOT_QR_PAYLOAD__?: string })
-        .__STELLAR_TICKETS_SCREENSHOT_QR_PAYLOAD__
-    : undefined;
 
-  const validate = useCallback(async () => {
+  const validateBeforeSigning = useCallback(async () => {
     if (wallet.readiness !== 'ready' || !wallet.address) return false;
     const ticket = await getTicket(ticketId);
     if (!ticket || ticket.owner !== wallet.address) throw new Error('This ticket is not owned by the restored attendee wallet.');
@@ -26,61 +22,49 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   }, [ticketId, wallet.address, wallet.readiness]);
 
   useEffect(() => {
-    if (screenshotPayload) {
-      setPayload(screenshotPayload);
-      setValidated(true);
+    const address = wallet.address;
+    const signMessage = wallet.signMessage;
+    if (wallet.readiness !== 'ready' || !address || !signMessage) {
+      setPayload(null);
+      setValidated(false);
       setValidating(false);
-      setError(null);
-      setCountdown(24);
       return;
     }
-    if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signMessage) return;
     let cancelled = false;
-    let chainValidated = false;
-    const signPayload = async () => {
-      const next = await buildQRPayload(wallet.address!, ticketId, wallet.signMessage!);
-      if (!cancelled) {
-        setPayload(next);
-        setError(null);
-        setCountdown(30);
-      }
-    };
-    const revalidate = async () => {
-      chainValidated = false;
+    let refreshing = false;
+
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
       if (!cancelled) {
         setValidating(true);
         setValidated(false);
         setPayload(null);
       }
       try {
-        chainValidated = await validate();
+        // A code is never signed from cached UI or mirror data. This runs for
+        // every rotation so a transfer, refund, or check-in stops QR use.
+        const eligible = await validateBeforeSigning();
+        if (!eligible) throw new Error('The attendee wallet is not ready to sign this QR.');
+        const next = await buildQRPayload(address, ticketId, signMessage);
         if (!cancelled) {
-          setValidated(chainValidated);
+          setPayload(next);
+          setValidated(true);
+          setError(null);
+          setCountdown(30);
         }
-        if (chainValidated) await signPayload();
       } catch (caught) {
-        chainValidated = false;
-        if (!cancelled) setError(caught instanceof Error ? caught.message : 'QR signing failed.');
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'QR validation or signing failed.');
         if (!cancelled) { setPayload(null); setValidated(false); }
       } finally {
         if (!cancelled) setValidating(false);
+        refreshing = false;
       }
     };
-    const rotate = async () => {
-      if (!chainValidated) return;
-      try {
-        await signPayload();
-      } catch (caught) {
-        if (!cancelled) {
-          setPayload(null);
-          setError(caught instanceof Error ? caught.message : 'QR signing failed.');
-        }
-      }
-    };
-    void revalidate();
-    const onFocus = () => void revalidate();
+    void refresh();
+    const onFocus = () => void refresh();
     window.addEventListener('focus', onFocus);
-    const rotation = window.setInterval(() => void rotate(), 30_000);
+    const rotation = window.setInterval(() => void refresh(), 30_000);
     const timer = window.setInterval(() => setCountdown((value) => value <= 1 ? 30 : value - 1), 1_000);
     return () => {
       cancelled = true;
@@ -88,7 +72,7 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
       window.clearInterval(rotation);
       window.clearInterval(timer);
     };
-  }, [ticketId, wallet.address, wallet.readiness, wallet.signMessage, validate, refreshNonce, screenshotPayload]);
+  }, [ticketId, wallet.address, wallet.readiness, wallet.signMessage, validateBeforeSigning, refreshNonce]);
 
   return (
     <main className="bg-black min-h-screen pt-28 pb-24 px-6 flex flex-col items-center">

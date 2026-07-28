@@ -237,7 +237,8 @@ export async function fetchMyTickets(): Promise<TicketRow[]> {
 }
 
 export interface EventDraftPatch {
-  intended_organizer_address: string | null;
+  /** Present only for the one-time initial organizer wallet binding. */
+  intended_organizer_address?: string;
   expected_name: string | null;
   expected_date_unix: number | null;
   expected_capacity: number | null;
@@ -260,6 +261,10 @@ export interface EventDraftPatch {
   map_url: string | null;
   public_links: string[];
 }
+
+export type EventDraftSavePatch =
+  | EventDraftPatch
+  | Required<Pick<EventDraftPatch, 'intended_organizer_address'>>;
 
 export class DraftConflictError extends Error {
   constructor() {
@@ -321,7 +326,7 @@ export async function getMyEventDraft(draftId: string): Promise<EventPublication
 export async function saveEventDraft(
   draftId: string,
   expectedRevision: number,
-  patch: EventDraftPatch,
+  patch: EventDraftSavePatch,
 ): Promise<EventPublicationDraft> {
   const payload = await callEventPublication<{ draft: EventPublicationDraft }>('save-draft', {
     draftId,
@@ -595,23 +600,26 @@ export async function fetchMyTicket(ticketId: string): Promise<TicketRow | null>
 }
 
 /**
- * Fetch open listing for a specific ticket to determine "Cancel Listing" UI state.
+ * Fetch all open listings for a ticket collection in one request. Resale UI must
+ * not infer a ticket's listing state until this trusted read-model result arrives.
  */
-export async function fetchOpenListingByTicket(ticketId: string): Promise<ListingRow | null> {
+export async function fetchOpenListingsByTicketIds(ticketIds: string[]): Promise<ListingRow[]> {
+  const uniqueTicketIds = [...new Set(ticketIds.filter(Boolean))];
+  if (uniqueTicketIds.length === 0) return [];
+
   const { data, error } = await supabase
     .from('listings')
     .select('*')
-    .eq('ticket_id', ticketId)
+    .in('ticket_id', uniqueTicketIds)
     .eq('status', 'Open')
-    .limit(1)
-    .maybeSingle();
+    .order('listed_at', { ascending: false });
 
   if (error) {
-    console.warn('[supabase] fetchOpenListingByTicket failed:', error.message);
-    return null;
+    console.warn('[supabase] fetchOpenListingsByTicketIds failed:', error.message);
+    throw new Error('Unable to load resale status.');
   }
 
-  return data;
+  return (data ?? []) as ListingRow[];
 }
 
 export async function fetchUserProfile(walletAddress: string): Promise<UserProfileRow | null> {

@@ -13,6 +13,7 @@ import { BottomNav } from './components/layout/BottomNav';
 import { TxOverlay } from './components/ui/TxOverlay';
 import { useListings } from './hooks/useListings';
 import { useTickets } from './hooks/useTickets';
+import { useWallet } from './hooks/useWallet';
 import { saveAuthIntent, type ProtectedAction } from './lib/authIntent';
 import { AccountPage } from './pages/AccountPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
@@ -110,11 +111,41 @@ function TicketQrRoute() {
   return <QRDisplayPage ticketId={ticketId} />;
 }
 
+function MarketplaceRoute() {
+  const listingsState = useListings();
+  return (
+    <MarketplacePage
+      listings={listingsState.listings}
+      loading={listingsState.loading}
+      error={listingsState.error}
+      invalidateListings={listingsState.invalidate}
+    />
+  );
+}
+
+function MyTicketsRoute() {
+  const ticketsState = useTickets();
+  const navigate = useNavigate();
+  return (
+    <MyTicketsPage
+      tickets={ticketsState.tickets}
+      loadingTickets={ticketsState.loading}
+      errorTickets={ticketsState.error}
+      onViewTicket={(id) => navigate(`/tickets/${id}`)}
+      onViewReceipt={(id) => navigate(`/purchases/${id}`)}
+      onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
+      onBrowseMore={() => navigate('/events')}
+      invalidateTickets={ticketsState.invalidate}
+      pendingSync={ticketsState.pendingSync}
+      retryPending={ticketsState.retryPending}
+    />
+  );
+}
+
 function App() {
+  useWallet();
   const { txState } = useAppStore();
   const navigate = useNavigate();
-  const ticketsState = useTickets();
-  const listingsState = useListings();
 
   return (
     <>
@@ -139,29 +170,11 @@ function App() {
           </RequireAuth>
         } />
         <Route path="/marketplace" element={
-          <MarketplacePage
-            listings={listingsState.listings}
-            loading={listingsState.loading}
-            error={listingsState.error}
-            invalidateListings={listingsState.invalidate}
-            invalidateTickets={ticketsState.invalidate}
-          />
+          <MarketplaceRoute />
         } />
         <Route path="/tickets" element={
           <RequireAuth action="open_tickets">
-            <MyTicketsPage
-              tickets={ticketsState.tickets}
-              loadingTickets={ticketsState.loading}
-              errorTickets={ticketsState.error}
-              onViewTicket={(id) => navigate(`/tickets/${id}`)}
-              onViewReceipt={(id) => navigate(`/purchases/${id}`)}
-              onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
-              onBrowseMore={() => navigate('/events')}
-              invalidateTickets={ticketsState.invalidate}
-              invalidateListings={listingsState.invalidate}
-              pendingSync={ticketsState.pendingSync}
-              retryPending={ticketsState.retryPending}
-            />
+            <MyTicketsRoute />
           </RequireAuth>
         } />
         <Route path="/tickets/:ticketId" element={
@@ -199,7 +212,7 @@ function App() {
         } />
         <Route path="/organizer/events/:eventId/check-in" element={
           <RequireAuth action="open_organizer">
-            <ScannerPage invalidateTickets={ticketsState.invalidate} />
+            <ScannerPage />
           </RequireAuth>
         } />
         <Route path="*" element={
