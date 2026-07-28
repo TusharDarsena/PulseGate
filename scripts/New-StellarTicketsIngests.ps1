@@ -239,8 +239,6 @@ $frontendFiles = @(
 # 3. Backend, database and Web3 integrations
 # ---------------------------------------------------------------------------
 
-# readModelSync.ts is deliberately excluded because its direct browser writes
-# conflict with the later RLS model and should not be treated as active authority.
 $integrationFiles = @(
     "frontend/src/lib/constants.ts",
     "frontend/src/lib/dfns.ts",
@@ -248,7 +246,8 @@ $integrationFiles = @(
     "frontend/src/lib/qr.ts",
     "frontend/src/lib/soroban.ts",
     "frontend/src/lib/stellar.ts",
-    "frontend/src/lib/supabase.ts"
+    "frontend/src/lib/supabase.ts",
+    "frontend/src/lib/ticketOperations.ts"
 )
 
 $backendFiles = @(

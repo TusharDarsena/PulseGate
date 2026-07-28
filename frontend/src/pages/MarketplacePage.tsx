@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { buyListing, getTicket } from '../lib/soroban';
-import { mirrorListingSale, synchronizationWarning } from '../lib/readModelSync';
+import { prepareBuyListing } from '../lib/soroban';
+import {
+  executeTicketOperation,
+  ticketOperationMessage,
+} from '../lib/ticketOperations';
 import { formatEventDate, stroopsToXlm } from '../types';
 import type { ListingWithEvent } from '../hooks/useListings';
+import { useTicketOperationRecovery } from '../hooks/useTicketOperationRecovery';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { saveAuthIntent } from '../lib/authIntent';
 import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
+import { TicketOperationRecovery } from '../components/tickets/TicketOperationRecovery';
 
 interface MarketplacePageProps {
   listings: ListingWithEvent[];
@@ -23,50 +28,64 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  const ticketOperationRecovery = useTicketOperationRecovery();
   const selectedListingId = searchParams.get('listing');
+  const selectedSeller = searchParams.get('seller');
 
   useEffect(() => {
     if (!selectedListingId || loading) return;
-    document.getElementById(`listing-${selectedListingId}`)?.scrollIntoView({
+    const selected = listings.find((listing) =>
+      listing.listingId === selectedListingId &&
+      (!selectedSeller || listing.seller === selectedSeller));
+    if (!selected) return;
+    document.getElementById(`listing-${selected.seller}-${selected.listingId}`)?.scrollIntoView({
       behavior: 'smooth',
       block: 'center',
     });
-  }, [loading, selectedListingId]);
+  }, [listings, loading, selectedListingId, selectedSeller]);
 
   const handleBuy = async (listing: ListingWithEvent) => {
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) {
-      saveAuthIntent(`/marketplace?listing=${encodeURIComponent(listing.listingId)}`, 'buy_listing');
+      saveAuthIntent(
+        `/marketplace?seller=${encodeURIComponent(listing.seller)}&listing=${encodeURIComponent(listing.listingId)}`,
+        'buy_listing',
+      );
       navigate(user ? '/account' : '/auth');
       return;
     }
 
-    setBuyingId(listing.listingId);
+    setBuyingId(`${listing.seller}:${listing.listingId}`);
     setTxState({ status: 'building' });
 
     try {
-      const ticket = await getTicket(listing.ticketId);
-      if (!ticket || ticket.owner !== listing.seller || ticket.status !== 'Active') {
-        throw new Error('Ticket ownership changed or ticket is no longer active.');
-      }
-
-      await buyListing(listing.seller, listing.listingId, wallet.address, wallet.signFn);
-
-      const syncResult = await mirrorListingSale({
-        listingId: listing.listingId,
-        ticketId: listing.ticketId,
-        buyerAddress: wallet.address,
+      const operation = await executeTicketOperation({
+        allocation: {
+          operationType: 'buy_listing',
+          sellerAddress: listing.seller,
+          listingId: listing.listingId,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        signFn: wallet.signFn,
+        prepare: (current) => prepareBuyListing(
+          current.seller_address!,
+          current.listing_id!,
+          current.actor_address,
+        ),
+        onChange: ticketOperationRecovery.remember,
       });
-
-      if (syncResult.ok) {
+      if (operation.state === 'chain_failed') {
+        throw new Error(operation.failure_detail || 'Stellar rejected the marketplace purchase.');
+      }
+      if (operation.state === 'complete') {
         await invalidateListings();
         invalidateTickets();
       }
 
       setTxState({
         status: 'success',
-        message: syncResult.ok ? 'Ticket purchased successfully!' : synchronizationWarning(syncResult),
+        message: ticketOperationMessage(operation, 'Ticket purchased successfully!'),
       });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
+      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e: unknown) {
       console.error('Buy listing failed:', e);
       const msg = e instanceof Error ? e.message : 'Purchase failed.';
@@ -98,6 +117,21 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
           Buy and sell eligible tickets through the verified Stellar resale contract.
         </p>
       </div>
+
+      <TicketOperationRecovery
+        operations={ticketOperationRecovery.operations}
+        busyOperationId={ticketOperationRecovery.busyOperationId}
+        error={ticketOperationRecovery.error}
+        onRecover={(operation) => {
+          void ticketOperationRecovery.recover(operation).then(async (recovered) => {
+            ticketOperationRecovery.remember(recovered);
+            if (recovered.state === 'complete') {
+              await invalidateListings();
+              invalidateTickets();
+            }
+          }).catch(() => undefined);
+        }}
+      />
 
       {/* ── Stats bar ── */}
       {!loading && !error && listings.length > 0 && (
@@ -149,14 +183,16 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {listings.map(listing => {
             const isOwnListing = wallet.readiness === 'ready' && wallet.address === listing.seller;
-            const isBeingBought = buyingId === listing.listingId;
+            const isBeingBought = buyingId === `${listing.seller}:${listing.listingId}`;
+            const isSelected = selectedListingId === listing.listingId &&
+              (!selectedSeller || selectedSeller === listing.seller);
 
             return (
               <div
-                key={listing.listingId}
-                id={`listing-${listing.listingId}`}
+                key={`${listing.seller}:${listing.listingId}`}
+                id={`listing-${listing.seller}-${listing.listingId}`}
                 className={`group bg-[#15181C] border rounded-xl overflow-hidden transition-all duration-300 shadow-xl hover:shadow-[0_8px_30px_rgba(124,92,255,0.12)] flex flex-col ${
-                  selectedListingId === listing.listingId
+                  isSelected
                     ? 'border-[#7C5CFF] ring-2 ring-[#7C5CFF]/30'
                     : 'border-[#272C33] hover:border-[#7C5CFF]/50'
                 }`}
@@ -225,8 +261,9 @@ export function MarketplacePage({ listings, loading, error, invalidateListings, 
                     ) : (
                       <button
                         onClick={() => {
-                          if (selectedListingId === listing.listingId) {
+                          if (isSelected) {
                             searchParams.delete('listing');
+                            searchParams.delete('seller');
                             setSearchParams(searchParams, { replace: true });
                           }
                           void handleBuy(listing);

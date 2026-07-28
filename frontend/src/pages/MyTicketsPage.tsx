@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Ticket, formatDateTime, xlmToStroops } from '../types';
 import { TicketCard } from '../components/tickets/TicketCard';
+import { TicketOperationRecovery } from '../components/tickets/TicketOperationRecovery';
 import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
+import { useTicketOperationRecovery } from '../hooks/useTicketOperationRecovery';
 
 import { generateID } from '../lib/utils';
-import { refundTicket, listTicket, cancelListing } from '../lib/soroban';
+import {
+  prepareCancelListing,
+  prepareListTicket,
+  prepareRefundTicket,
+} from '../lib/soroban';
 import { fetchOpenListingByTicket } from '../lib/supabase';
 import {
-  mirrorCancelledListing,
-  mirrorCreatedListing,
-  mirrorRefundedTicket,
-  synchronizationWarning,
-} from '../lib/readModelSync';
+  executeTicketOperation,
+  ticketOperationMessage,
+  type TicketOperation,
+} from '../lib/ticketOperations';
 import { useAppStore } from '../store/useAppStore';
 import type { PurchaseOperationResponse } from '../lib/purchaseOperations';
 
@@ -30,6 +35,7 @@ interface MyTicketsPageProps {
   onShowQR: (ticketId: string) => void;
   onBrowseMore: () => void;
   invalidateTickets: () => void;
+  invalidateListings: () => void;
   pendingSync: PurchaseOperationResponse[];
   retryPending: () => void;
 }
@@ -43,6 +49,7 @@ export function MyTicketsPage({
   onShowQR,
   onBrowseMore,
   invalidateTickets,
+  invalidateListings,
   pendingSync,
   retryPending,
 }: MyTicketsPageProps) {
@@ -53,26 +60,57 @@ export function MyTicketsPage({
   const [nowUnix, setNowUnix] = useState(0);
 
   const { attendeeWallet: wallet, setTxState } = useAppStore();
+  const ticketOperationRecovery = useTicketOperationRecovery();
   const eventState = usePublishedEventsByIds(tickets.map((ticket) => ticket.eventId));
   const events = eventState.events;
+
+  const applyRecoveredOperation = (operation: TicketOperation) => {
+    ticketOperationRecovery.remember(operation);
+    if (operation.state !== 'complete') return;
+    if (operation.operation_type === 'create_listing' && operation.listing_id) {
+      setOpenListings((current) => ({
+        ...current,
+        [operation.ticket_id]: { listing_id: operation.listing_id },
+      }));
+    }
+    if (
+      operation.operation_type === 'cancel_listing' ||
+      operation.operation_type === 'buy_listing'
+    ) {
+      setOpenListings((current) => {
+        const next = { ...current };
+        delete next[operation.ticket_id];
+        return next;
+      });
+    }
+  };
 
   const handleRefund = async (ticketId: string) => {
     if (wallet.readiness !== 'ready' || !wallet.address || !wallet.signFn) return;
     setTxState({ status: 'building' });
     try {
-      await refundTicket(ticketId, wallet.address, wallet.signFn);
-
-      const syncResult = await mirrorRefundedTicket(ticketId);
-
-      if (syncResult.ok) {
+      const operation = await executeTicketOperation({
+        allocation: {
+          operationType: 'refund',
+          ticketId,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        signFn: wallet.signFn,
+        prepare: (current) => prepareRefundTicket(current.ticket_id, current.actor_address),
+        onChange: applyRecoveredOperation,
+      });
+      if (operation.state === 'chain_failed') {
+        throw new Error(operation.failure_detail || 'Stellar rejected the refund.');
+      }
+      if (operation.state === 'complete') {
         invalidateTickets();
       }
 
       setTxState({
         status: 'success',
-        message: syncResult.ok ? 'Refund processed successfully' : synchronizationWarning(syncResult),
+        message: ticketOperationMessage(operation, 'Refund processed successfully'),
       });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
+      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e: unknown) {
       console.error('Refund failed:', e);
       const msg = e instanceof Error ? e.message : 'Refund failed';
@@ -99,36 +137,40 @@ export function MyTicketsPage({
       const listingId = generateID();
       const askPriceStroops = xlmToStroops(price);
 
-      await listTicket(
-        wallet.address,
-        listingId,
-        ticket.ticketId,
-        ticket.eventId,
-        askPriceStroops,
-        wallet.signFn
-      );
-
-      const syncResult = await mirrorCreatedListing({
-        listingId,
-        sellerAddress: wallet.address,
-        ticketId: ticket.ticketId,
-        eventId: ticket.eventId,
-        askPriceStroops,
+      const operation = await executeTicketOperation({
+        allocation: {
+          operationType: 'create_listing',
+          ticketId: ticket.ticketId,
+          listingId,
+          askPriceStroops,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        signFn: wallet.signFn,
+        prepare: (current) => prepareListTicket(
+          current.seller_address!,
+          current.listing_id!,
+          current.ticket_id,
+          current.event_id,
+          BigInt(String(current.amount_stroops)),
+        ),
+        onChange: applyRecoveredOperation,
       });
+      if (operation.state === 'chain_failed') {
+        throw new Error(operation.failure_detail || 'Stellar rejected the listing.');
+      }
 
       setShowListingModal(null);
       setAskPrice('');
 
-      if (syncResult.ok) {
-        // Refresh local state manually to avoid full reload delay
-        setOpenListings(prev => ({ ...prev, [ticket.ticketId]: { listing_id: listingId } }));
+      if (operation.state === 'complete') {
+        invalidateListings();
       }
 
       setTxState({
         status: 'success',
-        message: syncResult.ok ? 'Ticket listed for sale!' : synchronizationWarning(syncResult),
+        message: ticketOperationMessage(operation, 'Ticket listed for sale!'),
       });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
+      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e: unknown) {
       console.error('List ticket failed:', e);
       const msg = e instanceof Error ? e.message : 'Listing failed';
@@ -146,23 +188,31 @@ export function MyTicketsPage({
 
     setTxState({ status: 'building' });
     try {
-      await cancelListing(wallet.address, lid, wallet.signFn);
-
-      const syncResult = await mirrorCancelledListing(lid);
-
-      if (syncResult.ok) {
-        setOpenListings(prev => {
-          const next = { ...prev };
-          delete next[ticketId];
-          return next;
-        });
+      const operation = await executeTicketOperation({
+        allocation: {
+          operationType: 'cancel_listing',
+          listingId: lid,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        signFn: wallet.signFn,
+        prepare: (current) => prepareCancelListing(
+          current.seller_address!,
+          current.listing_id!,
+        ),
+        onChange: applyRecoveredOperation,
+      });
+      if (operation.state === 'chain_failed') {
+        throw new Error(operation.failure_detail || 'Stellar rejected the cancellation.');
+      }
+      if (operation.state === 'complete') {
+        invalidateListings();
       }
 
       setTxState({
         status: 'success',
-        message: syncResult.ok ? 'Listing cancelled' : synchronizationWarning(syncResult),
+        message: ticketOperationMessage(operation, 'Listing cancelled'),
       });
-      setTimeout(() => setTxState({ status: 'idle' }), syncResult.ok ? 3000 : 6000);
+      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e: unknown) {
       console.error('Cancel listing failed:', e);
       const msg = e instanceof Error ? e.message : 'Cancel failed';
@@ -221,6 +271,18 @@ export function MyTicketsPage({
         <h1 className="text-3xl md:text-4xl font-bold mb-2">My Tickets</h1>
         <p className="text-[#c9c4d8] text-sm md:text-base">View your event tickets, entry status, and event details.</p>
       </section>
+      <TicketOperationRecovery
+        operations={ticketOperationRecovery.operations}
+        busyOperationId={ticketOperationRecovery.busyOperationId}
+        error={ticketOperationRecovery.error}
+        onRecover={(operation) => {
+          void ticketOperationRecovery.recover(operation).then((recovered) => {
+            applyRecoveredOperation(recovered);
+            invalidateTickets();
+            invalidateListings();
+          }).catch(() => undefined);
+        }}
+      />
       {pendingSync.length > 0 && (
         <section className="mb-8 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-amber-100">
           <p className="font-semibold">Some confirmed tickets are still syncing.</p>

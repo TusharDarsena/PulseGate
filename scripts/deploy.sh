@@ -134,6 +134,6 @@ set_env_value "VITE_HORIZON_URL" '"https://horizon-testnet.stellar.org"'
 set_env_value "VITE_STELLAR_EXPLORER_URL" '"https://stellar.expert/explorer/testnet"'
 
 echo "Update the Supabase function deployment scope before enabling organizer writes:"
-echo "npx supabase secrets set STELLAR_NETWORK=StellarTestnet STELLAR_NETWORK_PASSPHRASE='Test SDF Network ; September 2015' TICKET_CONTRACT_ID=$TICKET_ID STELLAR_RPC_URL=https://soroban-testnet.stellar.org:443"
+echo "npx supabase secrets set STELLAR_NETWORK=StellarTestnet STELLAR_NETWORK_PASSPHRASE='Test SDF Network ; September 2015' TICKET_CONTRACT_ID=$TICKET_ID MARKETPLACE_CONTRACT_ID=$MARKETPLACE_ID STELLAR_RPC_URL=https://soroban-testnet.stellar.org:443"
 
 echo "✓ Saved contract IDs to frontend/.env.local"

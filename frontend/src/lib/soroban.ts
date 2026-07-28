@@ -27,12 +27,12 @@ export interface SignedTransactionIdentity {
 function parseTransactionIdentity(xdr: string): PreparedTransactionIdentity {
   const transaction = TransactionBuilder.fromXDR(xdr, NETWORK_PASSPHRASE);
   if (!('sequence' in transaction)) {
-    throw new Error('Fee-bump organizer transactions are not supported.');
+    throw new Error('Fee-bump contract transactions are not supported.');
   }
   const maxTime = transaction.timeBounds?.maxTime;
   const transactionMaxTime = maxTime === undefined ? 0 : Number(maxTime);
   if (!Number.isSafeInteger(transactionMaxTime) || transactionMaxTime <= 0) {
-    throw new Error('The organizer transaction must have a valid expiration time.');
+    throw new Error('The contract transaction must have a valid expiration time.');
   }
   return {
     unsignedEnvelopeHash: transaction.hash().toString('hex'),
@@ -46,7 +46,7 @@ export function inspectPreparedTransaction(xdr: string): PreparedTransactionIden
 }
 
 /**
- * Freighter returns signed XDR to this wrapper first. Persisting its hash must
+ * The active wallet returns signed XDR to this wrapper first. Persisting its hash must
  * succeed before the generated SDK receives the XDR and can submit it.
  */
 export function recordSignedTransactionBeforeSubmission(
@@ -182,7 +182,7 @@ export interface CreateEventParams {
   priceStroops: bigint;    // price in stroops — use xlmToStroops() from types
 }
 
-export interface PreparedOrganizerTransaction {
+export interface PreparedContractTransaction {
   identity: PreparedTransactionIdentity;
   estimatedFeeStroops: bigint;
   submit: (
@@ -190,6 +190,8 @@ export interface PreparedOrganizerTransaction {
     recordSigned: (identity: SignedTransactionIdentity) => Promise<void>,
   ) => Promise<{ transactionHash: string }>;
 }
+
+export type PreparedOrganizerTransaction = PreparedContractTransaction;
 
 interface OrganizerAssembledTransaction {
   built?: { fee: string | number };
@@ -199,11 +201,11 @@ interface OrganizerAssembledTransaction {
   }>;
 }
 
-function preparedOrganizerTransaction(
+function preparedContractTransaction(
   transaction: OrganizerAssembledTransaction,
   errorMap: Record<number, string>,
   missingHashMessage: string,
-): PreparedOrganizerTransaction {
+): PreparedContractTransaction {
   const identity = inspectPreparedTransaction(transaction.toXDR());
   const estimatedFeeStroops = BigInt(transaction.built?.fee ?? 0);
   return {
@@ -278,7 +280,7 @@ export async function prepareCreateEvent(
       capacity: BigInt(params.capacityXlm),
       price_per_ticket: params.priceStroops,
     });
-    return preparedOrganizerTransaction(
+    return preparedContractTransaction(
       tx,
       TICKET_ERRORS,
       'The event transaction confirmed without returning a hash.',
@@ -298,7 +300,7 @@ export async function prepareReleaseFunds(
   const client = getTicketClient(organizerPublicKey);
   try {
     const tx = await client.release_funds({ event_id: eventId, organizer: organizerPublicKey });
-    return preparedOrganizerTransaction(
+    return preparedContractTransaction(
       tx,
       TICKET_ERRORS,
       'The release transaction confirmed without returning a hash.',
@@ -309,7 +311,7 @@ export async function prepareReleaseFunds(
 }
 
 /**
- * Cancel an event. Pull-based refunds — attendees call refundTicket() individually. (D-002)
+ * Cancel an event. Pull-based refunds — attendees submit them individually. (D-002)
  */
 export async function prepareCancelEvent(
   eventId: string,
@@ -318,7 +320,7 @@ export async function prepareCancelEvent(
   const client = getTicketClient(organizerPublicKey);
   try {
     const tx = await client.cancel_event({ event_id: eventId, organizer: organizerPublicKey });
-    return preparedOrganizerTransaction(
+    return preparedContractTransaction(
       tx,
       TICKET_ERRORS,
       'The cancellation transaction confirmed without returning a hash.',
@@ -346,7 +348,7 @@ export async function prepareMarkUsed(
       expected_owner: expectedOwnerPublicKey,
       organizer: organizerPublicKey,
     });
-    return preparedOrganizerTransaction(
+    return preparedContractTransaction(
       tx,
       TICKET_ERRORS,
       'The check-in transaction confirmed without returning a hash.',
@@ -373,17 +375,20 @@ export async function markUsed(
 }
 
 /**
- * Refund a ticket after an event cancellation. Pull-based — attendee calls this. (D-002)
+ * Assemble and simulate a recoverable attendee refund.
  */
-export async function refundTicket(
+export async function prepareRefundTicket(
   ticketId: string,
   attendeePublicKey: string,
-  signFn: SignFn
-): Promise<void> {
+): Promise<PreparedContractTransaction> {
   const client = getTicketClient(attendeePublicKey);
   try {
     const tx = await client.refund({ ticket_id: ticketId, attendee: attendeePublicKey });
-    await tx.signAndSend({ signTransaction: signFn });
+    return preparedContractTransaction(
+      tx,
+      TICKET_ERRORS,
+      'The refund transaction confirmed without returning a hash.',
+    );
   } catch (err) {
     throw new Error(extractErrorMessage(err, TICKET_ERRORS), { cause: err });
   }
@@ -395,14 +400,13 @@ export async function refundTicket(
  * Create a secondary-market listing for a ticket.
  * listingId is generated by the caller (generateID()).
  */
-export async function listTicket(
+export async function prepareListTicket(
   sellerPublicKey: string,
   listingId: string,
   ticketId: string,
   eventId: string,
   askPriceStroops: bigint,
-  signFn: SignFn
-): Promise<void> {
+): Promise<PreparedContractTransaction> {
   const client = getMarketplaceClient(sellerPublicKey);
   try {
     const tx = await client.list_ticket({
@@ -412,7 +416,11 @@ export async function listTicket(
       event_id: eventId,
       ask_price: askPriceStroops,
     });
-    await tx.signAndSend({ signTransaction: signFn });
+    return preparedContractTransaction(
+      tx,
+      MARKETPLACE_ERRORS,
+      'The listing transaction confirmed without returning a hash.',
+    );
   } catch (err) {
     throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
   }
@@ -421,12 +429,11 @@ export async function listTicket(
 /**
  * Purchase a secondary-market listing.
  */
-export async function buyListing(
+export async function prepareBuyListing(
   sellerPublicKey: string,
   listingId: string,
   buyerPublicKey: string,
-  signFn: SignFn
-): Promise<void> {
+): Promise<PreparedContractTransaction> {
   const client = getMarketplaceClient(buyerPublicKey);
   try {
     const tx = await client.buy_listing({
@@ -434,7 +441,11 @@ export async function buyListing(
       listing_id: listingId,
       buyer: buyerPublicKey,
     });
-    await tx.signAndSend({ signTransaction: signFn });
+    return preparedContractTransaction(
+      tx,
+      MARKETPLACE_ERRORS,
+      'The resale transaction confirmed without returning a hash.',
+    );
   } catch (err) {
     throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
   }
@@ -443,15 +454,18 @@ export async function buyListing(
 /**
  * Cancel a secondary-market listing. Only the original seller can cancel.
  */
-export async function cancelListing(
+export async function prepareCancelListing(
   sellerPublicKey: string,
   listingId: string,
-  signFn: SignFn
-): Promise<void> {
+): Promise<PreparedContractTransaction> {
   const client = getMarketplaceClient(sellerPublicKey);
   try {
     const tx = await client.cancel_listing({ seller: sellerPublicKey, listing_id: listingId });
-    await tx.signAndSend({ signTransaction: signFn });
+    return preparedContractTransaction(
+      tx,
+      MARKETPLACE_ERRORS,
+      'The listing cancellation confirmed without returning a hash.',
+    );
   } catch (err) {
     throw new Error(extractErrorMessage(err, MARKETPLACE_ERRORS), { cause: err });
   }

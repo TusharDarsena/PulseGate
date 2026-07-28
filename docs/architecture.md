@@ -267,6 +267,23 @@ receipt snapshot: event identity, start and timezone, venue, purchaser,
 amount, charged fee, transaction hash, ledger, close time, network, and
 contract.
 
+#### Refund and resale operation flow
+
+Refunds and secondary-market changes use the private `ticket_operations`
+lifecycle. The browser still assembles and simulates generated contract
+transactions, while the authenticated service derives the attendee wallet,
+records the signed transaction hash before submission, and resolves only exact
+`tk_refund`, `mk_list`, `mk_cancel`, or `mk_sold` proof from the configured
+contracts. Current TicketContract and MarketplaceContract reads are reconciled
+atomically into `tickets` and `listings`; a newer observed ledger cannot be
+overwritten by delayed repair. Listings use the same `(seller, listing_id)`
+identity as MarketplaceContract.
+
+`status_unknown` never enables a replacement transaction. `sync_warning`
+permits only mirror synchronization, so a confirmed refund, listing change, or
+resale is never repeated because Supabase was unavailable. Browser insert and
+update authority over the economic projections is revoked.
+
 #### Event publication flow
 
 Before `create_event`, the browser completes a draft with stable event ID,
@@ -370,7 +387,6 @@ These are deliberate testnet compromises, not hidden guarantees:
 | D-030 | Cancellation refunds return the original mint price, not a later resale price. | A production resale-refund policy or resale escrow is designed. |
 | D-031 | Escrow release depends on organizer authorization and event time, not proof the event occurred or attendance reached a threshold. | Mainnet funds or adversarial organizers are in scope. |
 | D-034 | Some Soroban `i128` values become JavaScript `Number` values in the frontend adapter. | Production-scale balances or prices require end-to-end `bigint`. |
-| D-035 | Supabase RLS permits public mirror writes; forged rows can affect display but never authorize chain actions or entry. | Public deployment requires indexer- or trusted-service-verified writes. |
 
 The following remain outside the MVP: alternative attendee-wallet custody
 architectures, on-chain event images, automated refunds, and marketplace
@@ -403,7 +419,7 @@ lookup, alongside the section where it's explained in full.
 | D-030 | Cancellation refunds return the original mint price, not a later resale price. | Accepted MVP limitations |
 | D-031 | Escrow release depends on organizer authorization and event time, not proof the event occurred or that attendance reached a threshold. | Accepted MVP limitations |
 | D-034 | Some Soroban `i128` values become JavaScript `Number` values in the frontend adapter. | Accepted MVP limitations |
-| D-035 | Supabase RLS permits public mirror writes; forged rows can affect display but never authorize chain actions or entry. | Accepted MVP limitations |
+| D-035 | Economic ticket and listing projections are service-written only after exact transaction/event proof and current authoritative reads; mirror-only retry never repeats the chain action. | Refund and resale operation flow |
 
 ## Change checklist
 

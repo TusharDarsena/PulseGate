@@ -149,6 +149,7 @@ function App() {
               onShowQR={(id) => navigate(`/tickets/${id}/qr`)}
               onBrowseMore={() => navigate('/events')}
               invalidateTickets={ticketsState.invalidate}
+              invalidateListings={listingsState.invalidate}
               pendingSync={ticketsState.pendingSync}
               retryPending={ticketsState.retryPending}
             />

@@ -132,6 +132,7 @@ if ($SetSupabaseSecrets) {
       STELLAR_NETWORK=StellarTestnet `
       "STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015" `
       TICKET_CONTRACT_ID=$ticketId `
+      MARKETPLACE_CONTRACT_ID=$marketplaceId `
       STELLAR_RPC_URL=https://soroban-testnet.stellar.org:443 `
       STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org `
       STELLAR_FRIENDBOT_URL=https://friendbot.stellar.org `

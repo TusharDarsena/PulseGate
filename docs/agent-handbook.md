@@ -124,6 +124,7 @@ Important corrections to the old AGENTS file:
 | `frontend/src/lib/soroban.ts` | Only handwritten module importing generated bindings. Client creation, all contract wrappers, keyed reads, and error translation. |
 | `frontend/src/lib/stellar.ts` | Public Horizon balance reads only. Attendee provisioning and signing use the delegated-wallet boundary. |
 | `frontend/src/lib/purchaseOperations.ts` | Authenticated purchase-operation, attempt-binding, recovery, and explicit test-funding client. |
+| `frontend/src/lib/ticketOperations.ts` | Authenticated refund/resale operation allocation, signed-hash persistence, resolution, and mirror-only recovery. |
 | `frontend/src/lib/qr.ts` | QR payload building and local signature verification. No network calls. |
 | `frontend/src/lib/supabase.ts` | Supabase client, row types, shared queries, and metadata upserts. Read-model adapter only. |
 | `frontend/src/hooks/useWallet.ts` | Organizer Freighter connection only. It never replaces the attendee account or wallet. |
@@ -154,7 +155,9 @@ Do not introduce new SDK imports across pages/components to bypass these adapter
 | `supabase_schema.sql` | Phase 0/1 bootstrap read-model tables; later ordered migrations progressively harden the legacy policies. |
 | `supabase/migrations/202607270001_phase_3_purchase_operations.sql` | Private purchase operations, attempts, funding requests, idempotent allocators, and owner-read/service-write RLS. |
 | `supabase/migrations/202607270002_phase_4_recoverable_owned_ticket.sql` | Owner-derived ticket RPCs, service-only verified finalization, provenance, and synchronization RLS. |
+| `supabase/migrations/202607290002_phase_5_ticket_operations.sql` | Private refund/resale operations, seller-namespaced listing identity, service-only economic projection writes, and atomic reconciliation. |
 | `supabase/functions/purchase-operation/` | Trusted operation allocation and transaction/event resolution. It never builds, signs, or submits XDR. |
+| `supabase/functions/ticket-operation/` | Trusted refund and marketplace operation resolution. It verifies exact configured-contract proof and never builds, signs, or submits XDR. |
 | `supabase/functions/test-funding/` | Explicit testnet activation and rate-limited demo-account top-ups. |
 | `scripts/fund.sh` | Creates/funds expected Stellar testnet CLI identities. |
 | `scripts/deploy.sh` | Builds, deploys Ticket then Marketplace, initializes both mutually, and writes frontend contract/network env values. |
@@ -242,7 +245,11 @@ Never pre-write Supabase for optimistic authorization. A failed chain call must 
 
 A mirror failure after chain success is a synchronization failure, not a failed blockchain transaction. Do not retry the financial transaction blindly.
 
-For primary purchases in Phase 3, the browser writes only through the private purchase-operation service. It does not create ticket rows or increment event supply. The immutable operation receipt proves the confirmed purchase while Phase 4 adds trusted ticket/read-model reconciliation and repair.
+Primary purchases use the private purchase-operation service. Refunds and
+secondary-market actions use the private ticket-operation service. Neither path
+lets the browser mutate ticket or listing projections. A signed operation with
+unknown status must be resolved, while `sync_warning` retries only trusted
+reconciliation.
 
 ### Polling and models
 

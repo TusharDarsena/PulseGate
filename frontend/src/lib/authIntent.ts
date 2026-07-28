@@ -23,7 +23,7 @@ const ACTION_PATHS: Record<ProtectedAction, RegExp> = {
   open_tickets: /^\/tickets(?:\?.*)?$/,
   open_ticket: /^\/tickets\/[^/?#]+(?:\/qr)?(?:\?.*)?$/,
   open_account: /^\/account(?:\?.*)?$/,
-  buy_listing: /^\/marketplace\?listing=[^&#]+$/,
+  buy_listing: /^\/marketplace\?(?:seller=[^&#]+&listing=[^&#]+|listing=[^&#]+)$/,
   open_organizer:
     /^\/organizer\/(?:events(?:\/new|\/[^/?#]+(?:\/check-in)?)?|drafts\/[^/?#]+)(?:\?.*)?$/,
 };

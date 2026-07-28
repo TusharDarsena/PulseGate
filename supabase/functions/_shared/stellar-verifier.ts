@@ -22,6 +22,14 @@ export interface AuthoritativeTicket {
   status: { tag: string } | string;
 }
 
+export interface AuthoritativeListing {
+  seller: string;
+  ticket_id: string;
+  event_id: string;
+  ask_price: bigint | number;
+  status: { tag: string } | string;
+}
+
 export interface VerifiedContractEvent {
   topic: 'ev_create' | 'ev_cancel' | 'ev_rel';
   eventId: string;
@@ -40,6 +48,22 @@ export interface VerifiedTicketUsedEvent {
   ledgerClosedAt: string;
 }
 
+export type TicketOperationEventTopic =
+  | 'tk_refund'
+  | 'mk_list'
+  | 'mk_cancel'
+  | 'mk_sold';
+
+export interface VerifiedTicketOperationEvent {
+  topic: TicketOperationEventTopic;
+  entityId: string;
+  actor: string;
+  amount: bigint | null;
+  transactionHash: string;
+  ledgerSequence: number;
+  ledgerClosedAt: string;
+}
+
 export type TransactionEventResolution =
   | { status: 'not_found' }
   | { status: 'failed' }
@@ -51,6 +75,12 @@ export type TicketUsedEventResolution =
   | { status: 'failed' }
   | { status: 'success_without_event' }
   | { status: 'verified'; proof: VerifiedTicketUsedEvent };
+
+export type TicketOperationEventResolution =
+  | { status: 'not_found' }
+  | { status: 'failed' }
+  | { status: 'success_without_event' }
+  | { status: 'verified'; proof: VerifiedTicketOperationEvent };
 
 function unwrapResult(value: unknown, missingMessage: string): unknown {
   const result = value as {
@@ -96,6 +126,16 @@ export function ticketStatus(
   const tag = typeof value === 'string' ? value : value?.tag;
   if (tag !== 'Active' && tag !== 'Used' && tag !== 'Refunded') {
     throw new Error('The TicketContract returned an unsupported ticket status.');
+  }
+  return tag;
+}
+
+export function listingStatus(
+  value: AuthoritativeListing['status'],
+): 'Open' | 'Sold' | 'Cancelled' {
+  const tag = typeof value === 'string' ? value : value?.tag;
+  if (tag !== 'Open' && tag !== 'Sold' && tag !== 'Cancelled') {
+    throw new Error('The MarketplaceContract returned an unsupported listing status.');
   }
   return tag;
 }
@@ -159,6 +199,37 @@ export async function readAuthoritativeTicket(
     throw new Error('The TicketContract returned an incomplete ticket record.');
   }
   return record as AuthoritativeTicket;
+}
+
+export async function readAuthoritativeListing(
+  server: rpc.Server,
+  contractId: string,
+  seller: string,
+  listingId: string,
+): Promise<AuthoritativeListing> {
+  const queried = await server.queryContract<unknown>(
+    contractId,
+    'get_listing',
+    { seller, listing_id: listingId },
+  );
+  const listing = unwrapResult(
+    queried.result,
+    'The listing does not exist on the configured MarketplaceContract.',
+  );
+  if (!listing || typeof listing !== 'object') {
+    throw new Error('The MarketplaceContract returned an invalid listing record.');
+  }
+  const record = listing as Partial<AuthoritativeListing>;
+  if (
+    typeof record.seller !== 'string' ||
+    typeof record.ticket_id !== 'string' ||
+    typeof record.event_id !== 'string' ||
+    record.ask_price === undefined ||
+    record.status === undefined
+  ) {
+    throw new Error('The MarketplaceContract returned an incomplete listing record.');
+  }
+  return record as AuthoritativeListing;
 }
 
 export async function readAuthoritativeEscrow(
@@ -319,6 +390,85 @@ export async function resolveExactTicketUsedEvent(
       proof: {
         topic: 'tk_used',
         ticketId,
+        transactionHash: event.txHash.toLowerCase(),
+        ledgerSequence: event.ledger,
+        ledgerClosedAt: event.ledgerClosedAt,
+      },
+    };
+  }
+  return { status: 'success_without_event' };
+}
+
+function decodeTicketOperationEventValue(
+  topic: TicketOperationEventTopic,
+  value: unknown,
+): { actor: string; amount: bigint | null } | null {
+  const native = scValToNative(
+    value as Parameters<typeof scValToNative>[0],
+  ) as unknown;
+  if (topic === 'mk_cancel') {
+    return typeof native === 'string'
+      ? { actor: native, amount: null }
+      : null;
+  }
+  if (!Array.isArray(native) || native.length !== 2) return null;
+  const amount = BigInt(String(native[1]));
+  if (amount <= 0n) return null;
+  return { actor: String(native[0]), amount };
+}
+
+export async function resolveExactTicketOperationEvent(
+  server: rpc.Server,
+  networkPassphrase: string,
+  contractId: string,
+  transactionHash: string,
+  expectedSource: string,
+  topic: TicketOperationEventTopic,
+  entityId: string,
+): Promise<TicketOperationEventResolution> {
+  const transaction = await server.getTransaction(transactionHash);
+  if (transaction.status === 'NOT_FOUND') return { status: 'not_found' };
+  if (transaction.status === 'FAILED') return { status: 'failed' };
+
+  if (
+    transactionSource(
+      'envelopeXdr' in transaction ? transaction.envelopeXdr : undefined,
+      networkPassphrase,
+    ) !== expectedSource
+  ) {
+    throw new Error('The transaction source does not match the authenticated actor.');
+  }
+
+  const response = await server.getEvents({
+    startLedger: Math.max(1, transaction.ledger),
+    filters: [{
+      type: 'contract',
+      contractIds: [contractId],
+      topics: [[
+        nativeToScVal(topic, { type: 'symbol' }).toXDR('base64'),
+        nativeToScVal(entityId, { type: 'string' }).toXDR('base64'),
+      ]],
+    }],
+    limit: 100,
+  });
+
+  for (const event of response.events) {
+    if (
+      event.contractId !== contractId ||
+      event.txHash.toLowerCase() !== transactionHash.toLowerCase() ||
+      !event.inSuccessfulContractCall
+    ) {
+      continue;
+    }
+    const decoded = decodeTicketOperationEventValue(topic, event.value);
+    if (!decoded || decoded.actor !== expectedSource) continue;
+    return {
+      status: 'verified',
+      proof: {
+        topic,
+        entityId,
+        actor: decoded.actor,
+        amount: decoded.amount,
         transactionHash: event.txHash.toLowerCase(),
         ledgerSequence: event.ledger,
         ledgerClosedAt: event.ledgerClosedAt,

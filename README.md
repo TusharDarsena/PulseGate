@@ -157,8 +157,9 @@ Event and ticket lists are discovered via **Supabase** (read-cache layer). On-ch
 - **Event Discovery**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts` (queries `public.events` table).
 - **Ticket Library**: `useTickets` calls the owner-derived `get_my_tickets()` RPC from `lib/supabase.ts`; it repairs up to ten pending purchase synchronizations through the private purchase-operation service.
 - **Durable Ticket Routes**: `/tickets/:ticketId` first uses the owner-derived ticket RPC, repairs that ticket's caller-owned confirmed operation once when needed, and uses one current Soroban ownership read only as the final fallback.
-- **Polling**: Both hooks refresh every 30s. Primary purchase does not write or invalidate these mirrors from the browser; trusted reconciliation is a separate server-side boundary.
+- **Polling**: Both hooks refresh every 30s. Purchases, refunds, listings, cancellations, resales, and check-in do not write economic projections from the browser; trusted operation services reconcile confirmed chain state.
 - **Purchase Receipt**: `/purchases/:operationId` reads the buyer-owned durable operation and immutable chain-confirmed receipt snapshot.
+- **Refund and Resale Recovery**: The private `ticket-operation` service resolves signed refund and marketplace transactions, verifies exact contract events, and supports mirror-only retry without repeating the chain action.
 - **On-chain Authority**: The scanner calls `get_ticket(ticketId)` on-chain to verify ownership and status before every `mark_used` call.
 
 ### On-Chain Event Symbols (for indexers / Stellar Expert)
@@ -174,6 +175,9 @@ All state changes emit Soroban events using `symbol_short!` (9-char max). Use th
 | `tk_used` | `mark_used` | Ticket scanned at door |
 | `tk_xfer` | `restricted_transfer` | Ticket ownership transferred (marketplace) |
 | `tk_refund` | `refund` | Ticket refunded after cancellation |
+| `mk_list` | `list_ticket` | Secondary listing created |
+| `mk_sold` | `buy_listing` | Secondary listing sold |
+| `mk_cancel` | `cancel_listing` | Secondary listing cancelled |
 
 ---
 
@@ -251,21 +255,22 @@ PowerShell or another shell where the Visual C++ `link.exe` is on `PATH`.
     Set the required contract, RPC, Horizon, explorer, Supabase, and Dfns public
     values listed in `frontend/.env.example`.
 
-    The purchase-operation and test-funding Edge Functions use
+    The purchase-operation, ticket-operation, and test-funding Edge Functions use
     `supabase/.env.example`. Demo top-ups additionally require a funded
     `TESTNET_TOPUP_SECRET`; it must never be exposed through a `VITE_` variable.
-    Phase 4 read-only Soroban synchronization also needs the public key of a
+    Trusted functions require both `TICKET_CONTRACT_ID` and
+    `MARKETPLACE_CONTRACT_ID`. Phase 4 read-only Soroban synchronization also
+    needs the public key of a
     funded Testnet source account in `STELLAR_READ_ONLY_PUBLIC_KEY`; no secret
     key is used for these simulations.
 
-    For an existing linked Supabase project, apply the Phase 4 migration only
-    if `202607270002_phase_4_recoverable_owned_ticket.sql` is not already in
-    migration history, then deploy `purchase-operation` only when its source or
-    secrets changed:
+    For an existing linked Supabase project, apply unapplied ordered migrations,
+    then deploy an Edge Function when its source or secrets changed:
 
     ```bash
     supabase db push
     supabase functions deploy purchase-operation
+    supabase functions deploy ticket-operation
     ```
     On Windows, coordinated Testnet deployment can be run with:
 
