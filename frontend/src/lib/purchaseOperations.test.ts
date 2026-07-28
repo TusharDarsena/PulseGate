@@ -22,7 +22,9 @@ vi.mock('./supabase', () => ({
 }));
 
 import {
+  loadPurchaseRecovery,
   operationBoundPurchaseSigner,
+  savePurchaseRecovery,
   type PurchaseOperation,
   type PurchaseOperationResponse,
 } from './purchaseOperations';
@@ -137,5 +139,17 @@ describe('operation-bound purchase signer', () => {
     expect(recordedBody.action).toBe('record-signed-attempt');
     expect(recordedBody.signedTransactionHash).toBe(hash);
     expect(localStorage.getItem('stellar-tickets:purchase-recovery')).not.toContain('signedTxXdr');
+  });
+
+  it('does not let unavailable recovery storage interrupt operation resolution', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage disabled', 'SecurityError');
+    });
+    expect(() => savePurchaseRecovery(operation('signed_submission_pending'))).not.toThrow();
+
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage disabled', 'SecurityError');
+    });
+    expect(loadPurchaseRecovery()).toBeNull();
   });
 });

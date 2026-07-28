@@ -52,4 +52,19 @@ describe('validated authentication return', () => {
       'Unsafe authentication return path.',
     );
   });
+
+  it('fails soft when session storage is unavailable', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage disabled', 'SecurityError');
+    });
+    expect(() => saveAuthIntent('/tickets', 'open_tickets')).not.toThrow();
+
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('Storage disabled', 'SecurityError');
+    });
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new DOMException('Storage disabled', 'SecurityError');
+    });
+    expect(consumeAuthIntent()).toBeNull();
+  });
 });

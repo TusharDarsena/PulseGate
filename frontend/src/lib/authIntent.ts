@@ -1,3 +1,5 @@
+import { safeStorageGet, safeStorageRemove, safeStorageSet } from './safeStorage';
+
 const STORAGE_KEY = 'stellar-tickets:pending-auth-intent';
 const MAX_AGE_MS = 15 * 60 * 1000;
 
@@ -49,13 +51,13 @@ export function saveAuthIntent(path: string, action: ProtectedAction): AuthInten
     nonce: crypto.randomUUID(),
     createdAt: Date.now(),
   };
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(intent));
+  safeStorageSet('sessionStorage', STORAGE_KEY, JSON.stringify(intent));
   return intent;
 }
 
 export function consumeAuthIntent(expectedNonce?: string): AuthIntent | null {
-  const raw = sessionStorage.getItem(STORAGE_KEY);
-  sessionStorage.removeItem(STORAGE_KEY);
+  const raw = safeStorageGet('sessionStorage', STORAGE_KEY);
+  safeStorageRemove('sessionStorage', STORAGE_KEY);
   if (!raw) return null;
   try {
     const intent = JSON.parse(raw) as AuthIntent;
@@ -69,7 +71,7 @@ export function consumeAuthIntent(expectedNonce?: string): AuthIntent | null {
 }
 
 export function peekAuthIntent(): AuthIntent | null {
-  const raw = sessionStorage.getItem(STORAGE_KEY);
+  const raw = safeStorageGet('sessionStorage', STORAGE_KEY);
   if (!raw) return null;
   try {
     const intent = JSON.parse(raw) as AuthIntent;

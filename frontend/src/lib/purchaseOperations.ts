@@ -4,6 +4,7 @@ import {
   NETWORK_PASSPHRASE,
   SUPABASE_URL,
 } from './constants';
+import { safeStorageGet, safeStorageRemove, safeStorageSet } from './safeStorage';
 import { supabase } from './supabase';
 
 export type PurchaseOperationState =
@@ -106,16 +107,18 @@ export function savePurchaseRecovery(operation: PurchaseOperation) {
     ticketId: operation.ticket_id,
     transactionHash: operation.transaction_hash ?? undefined,
   };
-  localStorage.setItem(RECOVERY_KEY, JSON.stringify(bridge));
+  safeStorageSet('localStorage', RECOVERY_KEY, JSON.stringify(bridge));
 }
 
 export function clearPurchaseRecovery(operationId: string) {
   const bridge = loadPurchaseRecovery();
-  if (bridge?.operationId === operationId) localStorage.removeItem(RECOVERY_KEY);
+  if (bridge?.operationId === operationId) {
+    safeStorageRemove('localStorage', RECOVERY_KEY);
+  }
 }
 
 export function loadPurchaseRecovery(): PurchaseRecoveryBridge | null {
-  const raw = localStorage.getItem(RECOVERY_KEY);
+  const raw = safeStorageGet('localStorage', RECOVERY_KEY);
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as PurchaseRecoveryBridge;

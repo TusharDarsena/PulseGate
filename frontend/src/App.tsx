@@ -41,7 +41,7 @@ function RequireAuth({
   action: ProtectedAction;
   attendeeWallet?: boolean;
 }) {
-  const { user, loading, provisionWallet } = useAuth();
+  const { user, loading, walletRestoring, provisionWallet } = useAuth();
   const wallet = useAppStore((state) => state.attendeeWallet);
   const location = useLocation();
 
@@ -54,6 +54,9 @@ function RequireAuth({
   if (loading) return <div className="min-h-screen flex items-center justify-center">Restoring account…</div>;
   if (!user) return <Navigate to="/auth" replace />;
   if (!attendeeWallet) return children;
+  if (walletRestoring) {
+    return <div className="min-h-screen flex items-center justify-center">Restoring ticket wallet...</div>;
+  }
   if (wallet.readiness === 'ready') return children;
 
   return (
@@ -65,13 +68,19 @@ function RequireAuth({
             Your recorded wallet could not be restored. Recovery is required; StellarTickets will
             not create a replacement wallet.
           </p>
-        ) : (
+        ) : wallet.readiness === 'not_provisioned' ? (
           <>
             <p className="text-slate-400 mb-5">Prepare or restore your delegated Stellar Testnet wallet to continue.</p>
             <button onClick={() => void provisionWallet()} className="bg-[#7C5CFF] px-4 py-2 rounded-lg">
               Prepare wallet
             </button>
           </>
+        ) : wallet.readiness === 'provisioning' ? (
+          <p className="text-slate-400">Preparing your ticket wallet...</p>
+        ) : (
+          <p className="text-amber-300">
+            {wallet.errorMessage ?? 'Ticket wallet readiness could not be confirmed. Refresh to retry.'}
+          </p>
         )}
       </section>
     </main>

@@ -1,5 +1,5 @@
 import type { Session, User } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { buildDelegatedSigners, provisionDelegatedWallet, recoverDelegatedWallet } from '../lib/dfns';
 import { supabase } from '../lib/supabase';
@@ -9,6 +9,7 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  walletRestoring: boolean;
   authError: string | null;
   sendEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
@@ -23,17 +24,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [walletRestoring, setWalletRestoring] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const { setAttendeeWallet } = useAppStore();
+  const activeUserIdRef = useRef<string | null>(null);
+  const restorationRequestRef = useRef(0);
 
-  const refreshWallet = useCallback(async () => {
-    const { data: { session: current } } = await supabase.auth.getSession();
-    if (!current) {
-      setAttendeeWallet(EMPTY_ATTENDEE_WALLET);
-      return;
-    }
+  const restoreWallet = useCallback(async (capturedSession: Session, requestId: number) => {
+    const capturedUserId = capturedSession.user.id;
+    const isCurrent = () =>
+      restorationRequestRef.current === requestId &&
+      activeUserIdRef.current === capturedUserId;
+
     const { data, error } = await supabase.rpc('get_my_attendee_wallet');
     if (error) throw error;
+    if (!isCurrent()) return;
+
     const wallet = data?.[0] as { address: string | null; network: string; readiness: string } | undefined;
     if (!wallet) {
       setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'not_provisioned' });
@@ -57,25 +63,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [setAttendeeWallet]);
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      setLoading(false);
-      queueMicrotask(() => void refreshWallet().catch((error) => {
+  const runWalletRestoration = useCallback(async (
+    capturedSession: Session,
+    requestId: number,
+  ) => {
+    try {
+      await restoreWallet(capturedSession, requestId);
+    } catch (error) {
+      if (
+        restorationRequestRef.current === requestId &&
+        activeUserIdRef.current === capturedSession.user.id
+      ) {
         setAttendeeWallet({
           ...EMPTY_ATTENDEE_WALLET,
           readiness: 'error',
-          errorMessage: error instanceof Error ? error.message : 'Wallet readiness could not be loaded.',
+          errorMessage: error instanceof Error
+            ? error.message
+            : 'Wallet readiness could not be loaded.',
         });
-      }));
-    });
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      }
+      throw error;
+    } finally {
+      if (
+        restorationRequestRef.current === requestId &&
+        activeUserIdRef.current === capturedSession.user.id
+      ) {
+        setWalletRestoring(false);
+      }
+    }
+  }, [restoreWallet, setAttendeeWallet]);
+
+  const restoreCurrentWallet = useCallback(async (capturedSession: Session) => {
+    if (activeUserIdRef.current !== capturedSession.user.id) {
+      throw new Error('Authentication session changed.');
+    }
+    const requestId = ++restorationRequestRef.current;
+    setWalletRestoring(true);
+    await runWalletRestoration(capturedSession, requestId);
+  }, [runWalletRestoration]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
+      activeUserIdRef.current = next?.user.id ?? null;
+      const requestId = ++restorationRequestRef.current;
+      setSession(next);
       setLoading(false);
-      return refreshWallet();
+      if (!next) {
+        setWalletRestoring(false);
+        setAttendeeWallet(EMPTY_ATTENDEE_WALLET);
+        return;
+      }
+      setWalletRestoring(true);
+      queueMicrotask(() => void runWalletRestoration(next, requestId).catch(() => undefined));
     });
     return () => subscription.unsubscribe();
-  }, [refreshWallet, setAttendeeWallet]);
+  }, [runWalletRestoration, setAttendeeWallet]);
 
   const sendEmailOtp = async (email: string) => {
     setAuthError(null);
@@ -115,37 +157,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    activeUserIdRef.current = null;
+    restorationRequestRef.current += 1;
+    setSession(null);
+    setWalletRestoring(false);
     setAttendeeWallet(EMPTY_ATTENDEE_WALLET);
   };
 
   const provisionWallet = async () => {
+    const capturedSession = session;
+    if (!capturedSession) throw new Error('Sign in is required.');
     setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'provisioning' });
     try {
       const recoveryCode = await provisionDelegatedWallet();
-      await refreshWallet();
+      await restoreCurrentWallet(capturedSession);
       return recoveryCode;
     } catch (error) {
-      await refreshWallet().catch(() => setAttendeeWallet({
-        ...EMPTY_ATTENDEE_WALLET,
-        readiness: 'error',
-        errorMessage: error instanceof Error ? error.message : 'Wallet setup could not be completed.',
-      }));
+      if (activeUserIdRef.current === capturedSession.user.id) {
+        await restoreCurrentWallet(capturedSession).catch(() => setAttendeeWallet({
+          ...EMPTY_ATTENDEE_WALLET,
+          readiness: 'error',
+          errorMessage: error instanceof Error
+            ? error.message
+            : 'Wallet setup could not be completed.',
+        }));
+      }
       throw error;
     }
   };
 
   const recoverWallet = async (recoveryCode: string) => {
+    const capturedSession = session;
+    if (!capturedSession) throw new Error('Sign in is required.');
     setAttendeeWallet({ ...EMPTY_ATTENDEE_WALLET, readiness: 'provisioning' });
     try {
       const nextRecoveryCode = await recoverDelegatedWallet(recoveryCode);
-      await refreshWallet();
+      await restoreCurrentWallet(capturedSession);
       return nextRecoveryCode;
     } catch (error) {
-      setAttendeeWallet({
-        ...EMPTY_ATTENDEE_WALLET,
-        readiness: 'recovery_required',
-        errorMessage: error instanceof Error ? error.message : 'Wallet recovery failed.',
-      });
+      if (activeUserIdRef.current === capturedSession.user.id) {
+        setAttendeeWallet({
+          ...EMPTY_ATTENDEE_WALLET,
+          readiness: 'recovery_required',
+          errorMessage: error instanceof Error ? error.message : 'Wallet recovery failed.',
+        });
+      }
       throw error;
     }
   };
@@ -154,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     user: session?.user ?? null,
     loading,
+    walletRestoring,
     authError,
     sendEmailOtp,
     verifyEmailOtp,
