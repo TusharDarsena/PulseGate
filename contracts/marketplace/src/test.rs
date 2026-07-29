@@ -1,7 +1,10 @@
 #![cfg(test)]
 
 use crate::ticket_interface::TicketContractClient;
-use soroban_sdk::{testutils::Address as _, token, Address, Env, String, Symbol};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger as _},
+    token, Address, Env, String,
+};
 use ticket::TicketContract;
 use token::Client as TokenClient;
 use token::StellarAssetClient as TokenAdminClient;
@@ -109,10 +112,6 @@ impl<'a> TestSetup<'a> {
 
     fn str(&self, s: &str) -> String {
         String::from_str(&self.env, s)
-    }
-
-    fn sym(&self, s: &str) -> Symbol {
-        Symbol::new(&self.env, s)
     }
 }
 

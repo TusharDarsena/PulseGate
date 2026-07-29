@@ -296,8 +296,9 @@ export function MyTicketsPage({
   }, []);
 
   useEffect(() => {
-    void loadOpenListings();
+    const loadTimer = window.setTimeout(() => void loadOpenListings(), 0);
     return () => {
+      window.clearTimeout(loadTimer);
       listingRequestRef.current += 1;
     };
   }, [loadOpenListings]);

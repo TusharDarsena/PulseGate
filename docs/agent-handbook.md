@@ -125,9 +125,11 @@ Important corrections to the old AGENTS file:
 | `frontend/src/lib/stellar.ts` | Public Horizon balance reads only. Attendee provisioning and signing use the delegated-wallet boundary. |
 | `frontend/src/lib/purchaseOperations.ts` | Authenticated purchase-operation, attempt-binding, recovery, and explicit test-funding client. |
 | `frontend/src/lib/ticketOperations.ts` | Authenticated refund/resale operation allocation, signed-hash persistence, resolution, and mirror-only recovery. |
+| `frontend/src/lib/safeStorage.ts` | Fail-soft browser-storage reads, writes, and removal used only for navigation intent and purchase-operation recovery. |
 | `frontend/src/lib/qr.ts` | QR payload building and local signature verification. No network calls. |
 | `frontend/src/lib/supabase.ts` | Supabase client, row types, shared queries, and metadata upserts. Read-model adapter only. |
-| `frontend/src/hooks/useWallet.ts` | Organizer Freighter connection only. It never replaces the attendee account or wallet. |
+| `frontend/src/hooks/useWallet.ts` | Organizer Freighter connection and verified restoration only. Persisted state is an untrusted address hint; signer capability is reconstructed only after live Freighter verification. |
+| `frontend/src/hooks/useOrganizerUnsavedWorkGuard.tsx` | Shared organizer SPA and beforeunload protection with the supported React Router blocker. |
 | `frontend/src/store/useAppStore.ts` | Independent attendee-wallet, organizer-wallet, global transaction state, hydration gate, and organizer signer reconstruction. |
 | `frontend/src/hooks/useEvents.ts` | Event read-model polling, mapping, race suppression, and invalidation. |
 | `frontend/src/hooks/useTickets.ts` | Current-wallet ticket polling, mapping, race suppression, and invalidation. |
@@ -156,6 +158,8 @@ Do not introduce new SDK imports across pages/components to bypass these adapter
 | `supabase/migrations/202607270001_phase_3_purchase_operations.sql` | Private purchase operations, attempts, funding requests, idempotent allocators, and owner-read/service-write RLS. |
 | `supabase/migrations/202607270002_phase_4_recoverable_owned_ticket.sql` | Owner-derived ticket RPCs, service-only verified finalization, provenance, and synchronization RLS. |
 | `supabase/migrations/202607290002_phase_5_ticket_operations.sql` | Private refund/resale operations, seller-namespaced listing identity, service-only economic projection writes, and atomic reconciliation. |
+| `supabase/migrations/202607290003_part_3_organizer_editor_correctness.sql` | One-time organizer binding for prepared drafts and revision-safe organizer metadata updates. |
+| `supabase/migrations/202607290004_part_6_listing_truth_and_ticket_visibility.sql` | Batch open-listing reads and owner-derived ticket rows that tolerate missing event projections. |
 | `supabase/functions/purchase-operation/` | Trusted operation allocation and transaction/event resolution. It never builds, signs, or submits XDR. |
 | `supabase/functions/ticket-operation/` | Trusted refund and marketplace operation resolution. It verifies exact configured-contract proof and never builds, signs, or submits XDR. |
 | `supabase/functions/test-funding/` | Explicit testnet activation and rate-limited demo-account top-ups. |
@@ -228,8 +232,17 @@ Deploying or replacing only one contract without updating the other contract’s
 - Freighter private keys are never available to the app.
 - Raw attendee wallet secrets must never enter browser storage, Zustand, Supabase rows, logs, or application code.
 - Attendee and organizer signing functions are not persisted.
+- Attendee restoration follows Supabase auth-state changes. A restoration result
+  is accepted only when its request ID and user ID are still current;
+  authoritative sign-out immediately invalidates pending work and clears the
+  attendee wallet.
+- `walletRestoring` blocks only attendee-wallet routes. Authenticated receipt,
+  ticket-list, account, and organizer routes do not wait for it.
 - Restoration failure must enter `recovery_required`; never silently create another wallet.
 - Human sign-out and organizer-wallet disconnect are separate actions.
+- An organizer address stored locally is only a hint. Freighter connection and
+  address must be verified before restoring a signer or balance, and the signer
+  rechecks the current address immediately before signing.
 
 ### On-chain first, mirror second
 
@@ -253,9 +266,12 @@ reconciliation.
 
 ### Polling and models
 
-- `useEvents`, `useTickets`, and `useListings` poll every 30 seconds; this is polling, not a cache TTL.
+- `useEvents`, `useTickets`, and `useListings` poll every 30 seconds; this is polling, not a cache TTL. Ticket and listing hooks are route-scoped to My Tickets and Marketplace, respectively.
 - Never fetch inside a render body.
 - Clear intervals and ignore superseded responses.
+- My Tickets uses one batch open-listing read for its displayed ticket IDs and
+  disables resale actions until that result is ready. A missing event projection
+  must not hide an owned ticket.
 - Convert generated `bigint`/tagged-union values at adapter boundaries, not in UI components.
 - Keep status values aligned across Rust enums, generated bindings, app types, Supabase rows, and UI conditions.
 - The current `i128 → Number` conversion is an accepted testnet limitation; changing it requires an end-to-end `bigint` migration.
@@ -264,6 +280,10 @@ reconciliation.
 
 - `lib/qr.ts`, `QRDisplayPage`, and `ScannerPage` must agree on payload order and expiry.
 - Signature verification is local; ownership/status verification is on-chain.
+- The QR page rechecks authoritative owner and `Active` status before every
+  initial, focus, manual, and 30-second signing attempt; a failed check clears
+  the QR. The scanner verifies Freighter and event authority before camera
+  start, allocation, and resume, and pauses on an invalid visible gate.
 - Do not replace the absolute 45-second age check with `floor(unix / 30)` windowing.
 
 ### Navigation
@@ -275,6 +295,12 @@ Adding or renaming a route usually requires coordinated changes in:
 - `AppHeader` and `BottomNav`;
 - hosting SPA fallback behavior;
 - direct-link, refresh, and Back/Forward tests.
+
+Organizer editors use the shared unsaved-work guard. Preserve its supported
+React Router blocker and `beforeunload` behavior rather than adding custom
+history or `popstate` code. Ordinary draft saves must omit organizer binding;
+only an unbound prepared draft may deliberately bind its verified Freighter
+wallet, and a bound draft is never reassigned.
 
 ---
 

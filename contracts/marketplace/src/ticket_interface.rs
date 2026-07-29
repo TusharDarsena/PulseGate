@@ -76,5 +76,11 @@ pub trait TicketInterface {
     fn purchase(env: Env, event_id: String, buyer: Address, ticket_id: String);
     fn cancel_event(env: Env, event_id: String, organizer: Address);
     fn release_funds(env: Env, event_id: String, organizer: Address);
-    fn mark_used(env: Env, ticket_id: String, organizer: Address);
+    fn mark_used(
+        env: Env,
+        event_id: String,
+        ticket_id: String,
+        expected_owner: Address,
+        organizer: Address,
+    );
 }

@@ -179,9 +179,23 @@ how a ticket is redeemed at the door.
   challenges, and audit records are service-role-only.
 - Freighter is a separate organizer connection. It never replaces the
   attendee wallet or human session.
+- Attendee restoration is driven by Supabase auth-state changes. The captured
+  session is passed into restoration, and a monotonically increasing request
+  ID plus user-ID comparison discards stale results. `walletRestoring` is
+  separate from authentication readiness: only attendee-wallet routes wait
+  for it, while receipts, tickets, account, and organizer routes remain
+  usable for their own owner-scoped reads.
+- Authoritative sign-out invalidates outstanding attendee restoration and
+  clears attendee state immediately. Small auth-intent and purchase-operation
+  browser-storage conveniences are fail-soft; storage denial must not break
+  authentication, signing, transaction resolution, or recovery cleanup.
 - Restoration failure becomes `recovery_required`; no browser flow creates a
   replacement wallet. Raw wallet secrets never enter browser storage,
   Zustand, Supabase, logs, or application code.
+- The persisted organizer-wallet value is only an untrusted address hint.
+  Rehydration begins disconnected and installs an address, balance, and signer
+  only after Freighter confirms both connection and the same current address.
+  The signer repeats that address check immediately before each signature.
 - Recovery challenges are application-bound, expire after five minutes, are
   consumed before Dfns recovery is attempted, and are protected by an atomic
   per-user rate limit (five initiations or ten completions per fifteen-minute
@@ -208,6 +222,14 @@ action. Invalid, external, or expired destinations are rejected, and consuming
 an intent never submits a transaction. Zustand keeps `txState`,
 `attendeeWallet`, and `organizerWallet` independent; signing functions are
 reconstructed in memory and are not persisted.
+
+The router uses a minimal data-router host (`createBrowserRouter` and
+`RouterProvider`) around the existing declarative route tree so organizer
+editing can use React Router's supported navigation blocker. The shared
+organizer guard blocks SPA navigation, Back/Forward, refresh, and tab close
+when work is unsaved, failed, offline, conflicted, or superseded by newer local
+edits. Its single dialog offers only **Stay** or **Discard and leave**; it does
+not implement custom `popstate` handling.
 
 ### Transaction submission and purchase flow (D-007, D-036)
 
@@ -257,6 +279,15 @@ interrupted-publication recovery use the private `event_publication_drafts`
 table. Multiple incomplete drafts are allowed. Atomic expected-revision saves
 preserve newer work when two tabs edit the same draft, and published draft
 rows remain as the owner-derived link to organizer event management.
+
+Ordinary draft-content saves omit `intended_organizer_address`. A prepared
+draft with no organizer exposes an explicit one-time bind action, which first
+verifies the connected Freighter wallet; a database guard prevents reassignment
+after binding. Both the draft editor and organizer metadata editor retain a
+local edit revision while saving. They always accept the returned server
+revision, but overwrite visible fields and mark saved only when no edit occurred
+since submission; otherwise local fields remain unsaved against that newer
+server revision.
 
 #### Purchase-operation privacy
 
@@ -319,6 +350,17 @@ explicit reconfirmation after price, supply, status, or time changes.
 
 The authenticated ticket route is owner-checked by `get_my_ticket()`, with a
 single current-chain fallback requiring the restored attendee wallet.
+`get_my_tickets()` left-joins event projections, so a ticket remains visible
+when its event projection is absent. Such tickets are shown in a distinct
+fallback group ordered by purchase time then ticket ID, with their ID, status,
+purchase date, ticket route, and receipt route when available.
+
+My Tickets resolves resale state with one owner-scoped
+`fetchOpenListingsByTicketIds(ticketIds)` request rather than one lookup per
+ticket. Listing and cancellation controls fail closed until that batch reaches
+`ready`: mapped tickets offer cancellation, confirmed absences can be listed,
+and an error exposes one resale-status retry. Refund and resale mutations stay
+on the trusted ticket-operation adapter.
 
 #### Check-in flow
 
@@ -334,9 +376,12 @@ runtime scan that produces this submission is described next, in QR entry.
 
 ### QR entry (D-005/D-006/D-027)
 
-Every 30 seconds the attendee signs
+The QR page reads authoritative ticket ownership and `Active` status before
+every initial, manual, focus, or 30-second signing attempt. It then signs
 `{wallet_address}:{ticket_id}:{timestamp}` and encodes the message and Ed25519
-signature as a QR payload. The organizer scanner:
+signature as a QR payload. A failed validation or signing attempt clears the
+displayed QR; development screenshot data does not bypass this lifecycle. The
+organizer scanner:
 
 1. Validates the payload format and rejects `|now - timestamp| >= 45s`.
 2. Verifies the signature locally with the wallet address.
@@ -348,6 +393,14 @@ signature as a QR payload. The organizer scanner:
    valid. A mirror failure produces a synchronization warning; it does not
    invalidate successful on-chain entry.
 
+Before camera activation, operation allocation, and scan resume, the scanner
+rechecks the authoritative event, active check-in window, exact organizer
+wallet, and live Freighter signer. It keeps the current gate and processing
+handler in refs behind one stable html5-qrcode callback, and pauses the camera
+whenever the visible authorization gate becomes invalid. Disconnect or account
+mismatch clears event-sensitive scanning authority; there is no global wallet
+polling layer.
+
 Local validation is necessary for responsive scanning, but only the
 authoritative on-chain owner/status check and successful `mark_used()` call
 authorize entry. See [`frontend/src/lib/qr.ts`](../frontend/src/lib/qr.ts) and
@@ -355,6 +408,22 @@ authorize entry. See [`frontend/src/lib/qr.ts`](../frontend/src/lib/qr.ts) and
 Door statistics count only verified check-in operations in chain-success states;
 legacy mirror rows with `tickets.status = Used` and no check-in proof are not
 trusted attendance counts.
+
+### Route-scoped reads and refresh behavior
+
+`MyTicketsRoute` owns `useTickets()` and `MarketplaceRoute` owns
+`useListings()`. They poll only while their routes are mounted; the scanner no
+longer maintains an invisible ticket subscription. Resale activity refreshes
+the mounted marketplace listing read, while visiting My Tickets starts a fresh
+owner-scoped ticket read and its purchase-sync recovery. Event, listing, and
+ticket hooks retain request-ID race protection and their 30-second polling
+cadence.
+
+Browse free-text search and city input are debounced by roughly 300 ms. Category
+and date filters remain immediate. Public event loading starts the Supabase
+preview and Soroban read concurrently, but returns no public event when the
+published row is absent and discards that chain result; identity mismatches and
+unavailable authority remain explicit states.
 
 ## Deployment sequence
 
@@ -367,8 +436,11 @@ trusted attendance counts.
    token.
 6. Initialize `MarketplaceContract` with admin, ticket address, and royalty
    rate.
-7. Update the frontend and Supabase deployment configuration together, then
-   deploy the compatible services before enabling organizer writes.
+7. Update the frontend and Supabase deployment configuration together. Trusted
+   services require both `TICKET_CONTRACT_ID` and
+   `MARKETPLACE_CONTRACT_ID`; `scripts/deploy.ps1 -SetSupabaseSecrets` writes
+   both alongside the network and RPC values. Then deploy the compatible
+   services before enabling organizer writes.
 
 Contract IDs, network values, generated bindings, and both contracts' stored
 peer addresses must remain synchronized. The deployment script is

@@ -82,7 +82,8 @@ graph TD
 1.  **Sign In**: Use Google or a six-digit email OTP, then prepare or recover the delegated attendee wallet.
 2.  **Browse**: Explore upcoming events on the Stellar network.
 3.  **Purchase**: Buy tickets with XLM. Funds are held in escrow until the event.
-4.  **Enter**: Show your dynamic, rotating QR code at the venue.
+4.  **Enter**: Show a dynamic QR code at the venue. It is revalidated against
+    current on-chain ownership and status before every signature.
 
 See the full [User Guide](docs/architecture.md) for more technical details.
 
@@ -157,7 +158,11 @@ Event and ticket lists are discovered via **Supabase** (read-cache layer). On-ch
 - **Event Discovery**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts` (queries `public.events` table).
 - **Ticket Library**: `useTickets` calls the owner-derived `get_my_tickets()` RPC from `lib/supabase.ts`; it repairs up to ten pending purchase synchronizations through the private purchase-operation service.
 - **Durable Ticket Routes**: `/tickets/:ticketId` first uses the owner-derived ticket RPC, repairs that ticket's caller-owned confirmed operation once when needed, and uses one current Soroban ownership read only as the final fallback.
-- **Polling**: Both hooks refresh every 30s. Purchases, refunds, listings, cancellations, resales, and check-in do not write economic projections from the browser; trusted operation services reconcile confirmed chain state.
+- **Polling**: Event reads refresh every 30s, while ticket and listing reads
+  refresh only while their My Tickets or Marketplace route is mounted.
+  Purchases, refunds, listings, cancellations, resales, and check-in do not
+  write economic projections from the browser; trusted operation services
+  reconcile confirmed chain state.
 - **Purchase Receipt**: `/purchases/:operationId` reads the buyer-owned durable operation and immutable chain-confirmed receipt snapshot.
 - **Refund and Resale Recovery**: The private `ticket-operation` service resolves signed refund and marketplace transactions, verifies exact contract events, and supports mirror-only retry without repeating the chain action.
 - **On-chain Authority**: The scanner calls `get_ticket(ticketId)` on-chain to verify ownership and status before every `mark_used` call.
@@ -184,7 +189,9 @@ All state changes emit Soroban events using `symbol_short!` (9-char max). Use th
 ## 🛡️ Technical Deep Dive
 
 ### Rotating QR Codes (D-027)
-To prevent ticket duplication, our platform uses rotating QR codes. Every 30 seconds, a new payload is generated containing:
+To prevent ticket duplication, the QR page validates the current on-chain owner
+and `Active` status before every initial, focus, manual, and 30-second signing
+attempt. A rejected validation clears the displayed code. Each payload contains:
 1. `ticket_id`
 2. `current_timestamp`
 3. `signature` (authorized by the attendee's delegated wallet)

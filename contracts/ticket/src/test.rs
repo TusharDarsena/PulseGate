@@ -3,7 +3,7 @@
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events as _, Ledger},
-    token, Address, Env, IntoVal, String, Symbol,
+    token, Address, Env, IntoVal, String,
 };
 use token::Client as TokenClient;
 use token::StellarAssetClient as TokenAdminClient;
@@ -93,10 +93,6 @@ impl<'a> TestSetup<'a> {
 
     fn str(&self, s: &str) -> String {
         String::from_str(&self.env, s)
-    }
-
-    fn sym(&self, s: &str) -> Symbol {
-        Symbol::new(&self.env, s)
     }
 }
 

@@ -11,8 +11,11 @@ export function useOrganizerUnsavedWorkGuard({
   onDiscard,
 }: OrganizerUnsavedWorkGuardOptions) {
   const discardRef = useRef(onDiscard);
-  discardRef.current = onDiscard;
   const blocker = useBlocker(shouldBlock);
+
+  useEffect(() => {
+    discardRef.current = onDiscard;
+  }, [onDiscard]);
 
   useEffect(() => {
     if (!shouldBlock && blocker.state === 'blocked') blocker.reset();

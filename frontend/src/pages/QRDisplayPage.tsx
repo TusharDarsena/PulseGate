@@ -24,13 +24,18 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   useEffect(() => {
     const address = wallet.address;
     const signMessage = wallet.signMessage;
-    if (wallet.readiness !== 'ready' || !address || !signMessage) {
-      setPayload(null);
-      setValidated(false);
-      setValidating(false);
-      return;
-    }
     let cancelled = false;
+    if (wallet.readiness !== 'ready' || !address || !signMessage) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setPayload(null);
+        setValidated(false);
+        setValidating(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
     let refreshing = false;
 
     const refresh = async () => {
