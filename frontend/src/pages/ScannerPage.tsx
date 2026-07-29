@@ -15,6 +15,7 @@ import {
 } from '../lib/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { truncateKey, xlmToStroops, type Event } from '../types';
+import { AuthorityStatus } from '../components/ui/AuthorityStatus';
 
 type CameraState = 'idle' | 'starting' | 'running' | 'paused' | 'blocked' | 'unavailable';
 
@@ -515,6 +516,15 @@ export function ScannerPage() {
 
         <aside className="space-y-4">
           <Panel title="Door Status">
+            <AuthorityStatus
+              state={event.authority === 'confirmed' ? 'confirmed' : 'unavailable'}
+              message={
+                event.authority === 'confirmed'
+                  ? 'Current event, organizer, and door-window inputs were read from Stellar. Camera access follows the checks below.'
+                  : 'Current event state could not be verified. Check-in is disabled.'
+              }
+              className="mb-4"
+            />
             <p className="text-sm text-slate-300">{gate.title}</p>
             <p className="mt-2 text-xs text-slate-500">{gate.detail}</p>
             <dl className="mt-4 space-y-2 text-sm">
@@ -650,6 +660,28 @@ function ResultOverlay({
           {content.title}
         </h2>
         <p className="mt-2 text-sm text-slate-300">{content.detail}</p>
+        {(result.kind === 'confirmed' || result.kind === 'sync_warning') && (
+          <AuthorityStatus
+            state="historical"
+            message={
+              result.kind === 'sync_warning'
+                ? 'The mark_used transaction is confirmed on Stellar; only the app mirror still needs synchronization.'
+                : 'A recorded mark_used transaction confirms this ticket was consumed by the organizer.'
+            }
+            className="mt-5 text-left"
+          />
+        )}
+        {(result.kind === 'status_unavailable' || result.kind === 'status_unknown') && (
+          <AuthorityStatus
+            state="unavailable"
+            message={
+              result.kind === 'status_unknown'
+                ? 'A signed check-in may exist. Resolve it before scanning or admitting again.'
+                : 'Current ticket ownership or status could not be verified. Do not admit.'
+            }
+            className="mt-5 text-left"
+          />
+        )}
         {result.ticketId && (
           <p className="mt-4 break-all font-mono text-xs text-slate-500">{result.ticketId}</p>
         )}

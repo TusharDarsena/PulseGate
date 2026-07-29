@@ -2,13 +2,11 @@ import {
   isTicketOperationSyncRecovery,
   type TicketOperation,
 } from '../../lib/ticketOperations';
-
-const LABELS: Record<TicketOperation['operation_type'], string> = {
-  refund: 'Refund',
-  create_listing: 'Create listing',
-  cancel_listing: 'Cancel listing',
-  buy_listing: 'Marketplace purchase',
-};
+import {
+  TICKET_OPERATION_LABELS,
+  ticketOperationAuthorityPresentation,
+} from '../../lib/ticketOperationPresentation';
+import { AuthorityStatus } from '../ui/AuthorityStatus';
 
 export function TicketOperationRecovery({
   operations,
@@ -35,29 +33,35 @@ export function TicketOperationRecovery({
         {operations.map((operation) => (
           <div
             key={operation.operation_id}
-            className="flex flex-col gap-3 rounded-lg border border-amber-300/20 bg-black/10 p-3 sm:flex-row sm:items-center sm:justify-between"
+            className="rounded-lg border border-amber-300/20 bg-black/10 p-3"
           >
-            <div>
-              <p className="text-sm font-semibold">{LABELS[operation.operation_type]}</p>
-              <p className="mt-1 break-all font-mono text-xs text-amber-200/70">
-                {operation.ticket_id}
-              </p>
-              {operation.failure_detail && (
-                <p className="mt-1 text-xs text-amber-100/80">{operation.failure_detail}</p>
-              )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">{TICKET_OPERATION_LABELS[operation.operation_type]}</p>
+                <p className="mt-1 break-all font-mono text-xs text-amber-200/70">
+                  {operation.ticket_id}
+                </p>
+                {operation.failure_detail && (
+                  <p className="mt-1 text-xs text-amber-100/80">{operation.failure_detail}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onRecover(operation)}
+                disabled={busyOperationId !== null}
+                className="rounded-lg border border-amber-300/40 px-3 py-2 text-sm font-semibold disabled:opacity-50"
+              >
+                {busyOperationId === operation.operation_id
+                  ? 'Working…'
+                  : isTicketOperationSyncRecovery(operation)
+                    ? 'Retry synchronization'
+                    : 'Resolve status'}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => onRecover(operation)}
-              disabled={busyOperationId !== null}
-              className="rounded-lg border border-amber-300/40 px-3 py-2 text-sm font-semibold disabled:opacity-50"
-            >
-              {busyOperationId === operation.operation_id
-                ? 'Working…'
-                : isTicketOperationSyncRecovery(operation)
-                  ? 'Retry synchronization'
-                  : 'Resolve status'}
-            </button>
+            <AuthorityStatus
+              {...ticketOperationAuthorityPresentation(operation)}
+              className="mt-3"
+            />
           </div>
         ))}
       </div>

@@ -24,6 +24,7 @@ export function AppHeader() {
           <NavLink to="/events" className="text-xl font-bold text-white">PulseGate</NavLink>
           <nav className="hidden md:flex items-center gap-4 h-full">
             <NavLink to="/events" className={navClass}>Discover</NavLink>
+            <NavLink to="/how-it-works" className={navClass}>How it works</NavLink>
             <NavLink to="/marketplace" className={navClass}>Marketplace</NavLink>
             <NavLink to="/tickets" className={navClass}>My Tickets</NavLink>
             <NavLink to="/account" className={navClass}>Account</NavLink>

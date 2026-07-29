@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { EventActions } from '../components/events/EventActions';
 import { Button } from '../components/ui/Button';
+import { AuthorityStatus } from '../components/ui/AuthorityStatus';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 import {
   getPurchaseOperation,
@@ -58,7 +59,11 @@ export function PurchaseReceiptPage() {
   }, [load, operation]);
 
   if (loading) {
-    return <main className="pt-28 min-h-screen text-center text-slate-400">Loading receipt…</main>;
+    return (
+      <main className="mx-auto min-h-screen max-w-xl px-4 pt-28">
+        <AuthorityStatus state="checking" message="Loading the durable purchase operation…" />
+      </main>
+    );
   }
   if (error || !operation) {
     return (
@@ -84,6 +89,24 @@ export function PurchaseReceiptPage() {
           ? 'Contract provenance and confirmation details are included below.'
           : 'A second payment is disabled while this operation is unresolved.'}
       </p>
+
+      <AuthorityStatus
+        state={
+          confirmed
+            ? 'historical'
+            : operation.state === 'status_unknown'
+              ? 'unavailable'
+              : 'checking'
+        }
+        message={
+          confirmed
+            ? 'This receipt is backed by the recorded TicketContract purchase event and transaction confirmation.'
+            : operation.state === 'status_unknown'
+              ? 'The signed transaction may exist, but its current result is unknown. A second payment remains disabled.'
+              : 'PulseGate is resolving the signed purchase before allowing any retry.'
+        }
+        className="mt-6"
+      />
 
       <section className="mt-8 border border-[#272C33] bg-[#15181C] rounded-lg overflow-hidden">
         <div className="p-6 border-b border-[#272C33]">

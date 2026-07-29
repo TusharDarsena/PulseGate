@@ -20,6 +20,7 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { AuthPage } from './pages/AuthPage';
 import { BrowsePage } from './pages/BrowsePage';
 import { EventDetailPage } from './pages/EventDetailPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
 import { MarketplacePage } from './pages/MarketplacePage';
 import { MyTicketsPage } from './pages/MyTicketsPage';
 import { PurchasePage } from './pages/PurchasePage';
@@ -158,6 +159,7 @@ function App() {
         <Route path="/events" element={
           <BrowsePage onEventClick={(id) => navigate(`/events/${id}`)} />
         } />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/events/:eventId" element={<EventRoute />} />
         <Route path="/events/:eventId/checkout" element={
           <RequireAuth action="open_checkout" attendeeWallet>

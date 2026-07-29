@@ -1,5 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { cloneElement, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { REFUND_POLICY, RESALE_POLICY, zonedDateTimeToUnix } from '../../lib/eventModel';
 import { prepareCreateEvent } from '../../lib/soroban';
@@ -856,14 +856,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, required = false, children }: { label: string; required?: boolean; children: React.ReactElement }) {
+function Field({
+  label,
+  required = false,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactElement<{ 'aria-label'?: string }>;
+}) {
   return (
     <label className="block">
       <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-[#c9c4d8]">
         {label}{required && <span className="ml-1 text-[#b39cff]" aria-hidden="true">*</span>}
       </span>
       <div className="[&>input]:w-full [&>input]:rounded-lg [&>input]:border [&>input]:border-[#272C33] [&>input]:bg-[#0E1113] [&>input]:p-3 [&>textarea]:w-full [&>textarea]:rounded-lg [&>textarea]:border [&>textarea]:border-[#272C33] [&>textarea]:bg-[#0E1113] [&>textarea]:p-3 [&>select]:w-full [&>select]:rounded-lg [&>select]:border [&>select]:border-[#272C33] [&>select]:bg-[#0E1113] [&>select]:p-3 [&_input:disabled]:opacity-60 [&_textarea:disabled]:opacity-60 [&_select:disabled]:opacity-60">
-        {children}
+        {cloneElement(children, { 'aria-label': children.props['aria-label'] ?? label })}
       </div>
     </label>
   );

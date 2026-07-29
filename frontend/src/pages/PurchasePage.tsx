@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
+import { AuthorityStatus } from '../components/ui/AuthorityStatus';
 import { userFacingError } from '../lib/utils';
 import { useEvent } from '../hooks/useEvent';
 import { useXlmPrice } from '../hooks/useXlmPrice';
@@ -272,7 +273,11 @@ export function PurchasePage({
   }, [operation]);
 
   if (loading && !event) {
-    return <div className="p-20 text-center text-slate-400">Checking current sale conditions…</div>;
+    return (
+      <main className="mx-auto min-h-screen max-w-xl px-4 pt-28">
+        <AuthorityStatus state="checking" />
+      </main>
+    );
   }
   if (error) return <div className="p-20 text-center text-red-400">{error}</div>;
   if (!event) return <div className="p-20 text-center text-slate-400">Published event not found.</div>;
@@ -407,6 +412,16 @@ export function PurchasePage({
             Sale conditions shown here were read from the TicketContract.
           </p>
         </div>
+
+        <AuthorityStatus
+          state={salesState === 'unavailable' ? 'unavailable' : 'confirmed'}
+          message={
+            salesState === 'unavailable'
+              ? 'Current sale conditions could not be verified. Payment is disabled.'
+              : 'Current availability, price, and lifecycle are confirmed by the TicketContract. PulseGate will also simulate the purchase before signing.'
+          }
+          className="mb-6"
+        />
 
         <section className="bg-[#15181C] border border-[#272C33] rounded-lg overflow-hidden">
           <div className="grid md:grid-cols-[220px_1fr]">

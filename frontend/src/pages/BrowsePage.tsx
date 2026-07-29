@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { stroopsToXlm, formatEventDate } from '../types';
 import { useEvents } from '../hooks/useEvents';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -18,6 +19,7 @@ const CATEGORIES = ['All', 'Music', 'Sports', 'Theater', 'Comedy', 'Festivals', 
 /* ── Skeleton ─────────────────────────────────────────────────────────────── */
 /* ── BrowsePage ───────────────────────────────────────────────────────────── */
 export function BrowsePage({ onEventClick }: BrowsePageProps) {
+  const catalogueRef = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [city, setCity] = useState('');
@@ -57,17 +59,36 @@ export function BrowsePage({ onEventClick }: BrowsePageProps) {
       <main className="pt-20 md:pt-24 pb-24 md:pb-20 max-w-7xl mx-auto px-4 md:px-8 min-h-screen w-full overflow-x-hidden">
 
         {/* ── Hero ── */}
-        <div className="mb-8 md:mb-10">
-          <h1 className="text-page-title text-on-surface mb-2">
-            Explore Experiences
-          </h1>
-          <p className="text-on-surface-variant text-sm md:text-base max-w-2xl">
-            Find upcoming events with secure digital tickets, protected resale, and verified entry.
+        <section className="mb-8 rounded-2xl border border-[#272C33] bg-[radial-gradient(circle_at_top_right,rgba(124,92,255,0.22),transparent_45%),#15181C] px-5 py-8 md:mb-10 md:px-10 md:py-12">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#cabeff]">
+            Contract-backed ticketing on Stellar
           </p>
-        </div>
+          <h1 className="max-w-4xl text-4xl font-bold tracking-tight text-on-surface md:text-6xl">
+            Event tickets people can trust.
+          </h1>
+          <p className="mt-4 max-w-3xl text-base leading-relaxed text-on-surface-variant md:text-lg">
+            Discover events with contract-verified purchases, protected resale, recoverable
+            payments, and secure venue entry.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => catalogueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="min-h-11 rounded-lg bg-[#7C5CFF] px-5 py-3 text-sm font-semibold text-white"
+            >
+              Browse events
+            </button>
+            <Link
+              to="/how-it-works"
+              className="inline-flex min-h-11 items-center rounded-lg border border-[#484555] px-5 py-3 text-sm font-semibold text-[#e6e0ee]"
+            >
+              How PulseGate works
+            </Link>
+          </div>
+        </section>
 
         {/* ── Search + Category bar ── */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_180px] gap-3 mb-4">
+        <div ref={catalogueRef} id="event-catalogue" className="grid scroll-mt-24 grid-cols-1 md:grid-cols-[1fr_180px_180px] gap-3 mb-4">
 
           {/* Search — full-width on mobile, fixed-width on sm+ */}
           <div className="flex items-center bg-[#15181C] border border-[#272C33] rounded-lg px-3 py-2 focus-within:border-[#7C5CFF] transition-all w-full sm:w-64 flex-shrink-0">

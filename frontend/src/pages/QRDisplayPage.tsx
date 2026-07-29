@@ -7,13 +7,14 @@ import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 import { formatEventRange } from '../lib/eventModel';
 import { truncateKey, type Ticket } from '../types';
 import { userFacingError } from '../lib/utils';
+import { AuthorityStatus } from '../components/ui/AuthorityStatus';
 
 export function QRDisplayPage({ ticketId }: { ticketId: string }) {
   const [countdown, setCountdown] = useState(30);
   const [payload, setPayload] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validated, setValidated] = useState(false);
-  const [validating, setValidating] = useState(false);
+  const [validating, setValidating] = useState(true);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const wallet = useAppStore((state) => state.attendeeWallet);
@@ -67,7 +68,11 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
           setCountdown(30);
         }
       } catch (caught) {
-        if (!cancelled) setError(userFacingError(caught, 'Ticket validity could not be verified.'));
+        const detail = caught instanceof Error ? caught.message : '';
+        const safeDetail = /not owned by the restored attendee wallet|ticket is (used|refunded) and cannot generate entry qr/i.test(detail)
+          ? detail
+          : userFacingError(caught, 'Ticket validity could not be verified.');
+        if (!cancelled) setError(safeDetail);
         if (!cancelled) { setPayload(null); setValidated(false); }
       } finally {
         if (!cancelled) setValidating(false);
@@ -96,6 +101,17 @@ export function QRDisplayPage({ ticketId }: { ticketId: string }) {
         {event && <><p className="mt-1 text-[#c9c4d8]">{formatEventRange(event)}</p><p className="mt-1 text-[#c9c4d8]">{event.venue}</p></>}
         <p className="mt-3 text-[#cabeff]">General Admission · {validated ? 'Currently valid' : 'Validity is being checked'}</p>
       </section>
+      <AuthorityStatus
+        state={validating ? 'checking' : validated ? 'confirmed' : 'unavailable'}
+        message={
+          validating
+            ? undefined
+            : validated
+              ? 'Current ticket owner and Active status are confirmed on Stellar. This QR was signed only after that check.'
+              : 'Current owner and Active status could not be verified. No entry QR is available.'
+        }
+        className="mb-6 w-full max-w-sm"
+      />
       <div
         aria-label={payload && validated ? 'Active entry QR' : 'Ticket QR validation'}
         className="w-full max-w-sm aspect-square bg-white rounded-xl p-8 flex items-center justify-center"

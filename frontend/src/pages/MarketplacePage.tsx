@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { saveAuthIntent } from '../lib/authIntent';
 import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
+import { AuthorityStatus } from '../components/ui/AuthorityStatus';
 import { TicketOperationRecovery } from '../components/tickets/TicketOperationRecovery';
 import { formatStroops } from '../lib/stellar';
 import { userFacingError } from '../lib/utils';
@@ -158,6 +159,11 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
               <ReviewLine label="Estimated total debit" value={`${formatStroops(review.listing.askPriceStroops + review.prepared.transaction.estimatedFeeStroops)} XLM`} strong />
             </dl>
             <p className="mt-5 text-sm text-[#c9c4d8]">Ownership transfers on-chain only after your wallet approves this transaction.</p>
+            <AuthorityStatus
+              state="confirmed"
+              message="The current listing, ticket owner, event, and ask price passed MarketplaceContract simulation."
+              className="mt-5"
+            />
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setReview(null)} className="flex-1 rounded-lg border border-[#36333e] px-4 py-3 text-sm">Cancel</button>
               <button type="button" autoFocus onClick={() => void confirmBuy()} className="flex-1 rounded-lg bg-[#7C5CFF] px-4 py-3 text-sm font-bold">Approve in wallet</button>
