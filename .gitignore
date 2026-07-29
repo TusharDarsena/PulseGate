@@ -20,6 +20,8 @@ build/
 
 # Stellar CLI
 .stellar/
+scripts/testnet-user-worker/.state/
+proofs/testnet-users-*/
 
 # OS
 .DS_Store
