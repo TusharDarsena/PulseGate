@@ -77,11 +77,11 @@ export function PurchaseReceiptPage() {
     <main className="pt-28 pb-28 px-4 max-w-3xl mx-auto min-h-screen">
       <p className="text-sm font-semibold text-[#7C5CFF]">Purchase receipt</p>
       <h1 className="mt-2 text-3xl md:text-4xl font-bold">
-        {confirmed ? (operation.state === 'complete' ? 'Your ticket is ready' : 'Your purchase is confirmed') : receiptStateHeading(operation.state)}
+        {confirmed ? 'Your purchase was confirmed on Stellar' : receiptStateHeading(operation.state)}
       </h1>
       <p className="mt-3 text-[#c9c4d8]">
         {confirmed
-          ? 'This receipt is backed by the immutable TicketContract purchase event.'
+          ? 'Contract provenance and confirmation details are included below.'
           : 'A second payment is disabled while this operation is unresolved.'}
       </p>
 
@@ -105,7 +105,7 @@ export function PurchaseReceiptPage() {
         </div>
         <dl className="p-6 grid gap-5 sm:grid-cols-2 text-sm">
           <ReceiptFact label="Ticket" value="1 × General Admission" />
-          <ReceiptFact label="Amount paid" value={`${formatStroops(amount)} XLM`} />
+          <ReceiptFact label="Ticket price" value={`${formatStroops(amount)} XLM`} />
           <ReceiptFact
             label={operation.confirmed_fee_stroops !== null ? 'Network fee' : 'Estimated network fee'}
             value={`${formatStroops(fee)} XLM`}

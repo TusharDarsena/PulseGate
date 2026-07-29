@@ -148,7 +148,7 @@ export function MyTicketsPage({
 
       setTxState({
         status: 'success',
-        message: ticketOperationMessage(operation, 'Refund processed successfully'),
+        message: ticketOperationMessage(operation, 'Refund confirmed on Stellar'),
       });
       setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e: unknown) {

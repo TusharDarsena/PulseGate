@@ -4,7 +4,7 @@ import { loadEnv } from 'vite';
 import { BROWSE_READY_EVENTS } from '../fixtures/browse-ready';
 
 const DRAFT_ID = 'draft-seed-a-07';
-const EVENT_ID = 'event-seed-a-01';
+const EVENT_ID = 'event-draft-private-a-01';
 const USER_ID = '00000000-0000-4000-8000-000000000707';
 const USER_EMAIL = 'organizer@example.test';
 const ORGANIZER_ADDRESS = 'GBBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEFZSP';
@@ -92,8 +92,12 @@ export async function installEventDraftReadyMocks(page: Page): Promise<void> {
     throw new Error('VITE_SUPABASE_URL and VITE_TICKET_CONTRACT_ID are required for draft capture.');
   }
 
-  const event = BROWSE_READY_EVENTS.find((candidate) => candidate.event_id === EVENT_ID);
-  if (!event) throw new Error(`Browse seed event not found: ${EVENT_ID}`);
+  const event = {
+    ...BROWSE_READY_EVENTS[0],
+    event_id: EVENT_ID,
+    name: 'Private Lantern Sessions',
+    summary: 'A private organizer draft, not yet published.',
+  };
 
   const session = screenshotSession();
   const draft = {

@@ -97,7 +97,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
       if (operation.state === 'chain_failed') throw new Error(operation.failure_detail || 'Stellar rejected the marketplace purchase.');
       if (operation.state === 'complete') await invalidateListings();
       setReview(null);
-      setTxState({ status: 'success', message: ticketOperationMessage(operation, 'Ticket purchased successfully!') });
+      setTxState({ status: 'success', message: ticketOperationMessage(operation, 'Ownership transferred on Stellar') });
       setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
     } catch (e) {
       console.error('Buy listing failed:', e);
@@ -155,7 +155,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
               <ReviewLine label="Seller" value={`${review.listing.seller.slice(0, 6)}…${review.listing.seller.slice(-4)}`} />
               <ReviewLine label="Ask price" value={`${formatStroops(review.listing.askPriceStroops)} XLM`} />
               <ReviewLine label="Estimated network fee" value={`${formatStroops(review.prepared.transaction.estimatedFeeStroops)} XLM`} />
-              <ReviewLine label="Total expected debit" value={`${formatStroops(review.listing.askPriceStroops + review.prepared.transaction.estimatedFeeStroops)} XLM`} strong />
+              <ReviewLine label="Estimated total debit" value={`${formatStroops(review.listing.askPriceStroops + review.prepared.transaction.estimatedFeeStroops)} XLM`} strong />
             </dl>
             <p className="mt-5 text-sm text-[#c9c4d8]">Ownership transfers on-chain only after your wallet approves this transaction.</p>
             <div className="mt-6 flex gap-3">
@@ -263,6 +263,8 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
                     <span className="text-sm">{formatEventDate(listing.eventDateUnix)}</span>
                   </div>
 
+                  <p className="mb-3 text-sm text-[#c9c4d8]">1 × General Admission</p>
+
                   {/* Seller row */}
                   <div className="flex items-center justify-between mb-4 bg-[#0f0d16]/60 px-3 py-2.5 rounded-lg border border-[#272C33]/60">
                     <div className="flex items-center gap-2">
@@ -273,6 +275,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
                       {listing.seller.substring(0, 6)}...{listing.seller.substring(listing.seller.length - 4)}
                     </span>
                   </div>
+                  <p className="mb-4 text-xs text-[#938ea1]">Eligibility rechecked before signing.</p>
 
                   {/* Price + CTA */}
                   <div className="flex items-center justify-between mt-auto pt-3 border-t border-[#272C33]/50">

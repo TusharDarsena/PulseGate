@@ -97,8 +97,12 @@ export async function installScannerReadyMocks(page: Page): Promise<void> {
   const seedEvent = BROWSE_READY_EVENTS.find((candidate) => candidate.event_id === EVENT_ID);
   if (!seedEvent) throw new Error(`Browse seed event not found: ${EVENT_ID}`);
 
-  // Reuse the existing deterministic published-event and Soroban read fixture.
-  await installEventDetailReadyMocks(page);
+  // Reuse the deterministic published-event and Soroban read fixture with the
+  // scanner's valid organizer key; synthetic fixture keys are not valid StrKeys.
+  await installEventDetailReadyMocks(page, {
+    ...seedEvent,
+    organizer_address: ORGANIZER_ADDRESS,
+  });
 
   const session = screenshotSession();
   const ownedEvent = {

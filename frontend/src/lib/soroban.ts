@@ -475,7 +475,8 @@ export async function prepareCancelListing(
 
 // Uses a dummy public key for read-only calls — the SDK requires one for the
 // client constructor, but simulation-only calls don't submit a transaction.
-const READ_ONLY_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+// A valid public key is required even for simulated, read-only contract calls.
+const READ_ONLY_KEY = 'GBBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEFZSP';
 
 /**
  * Fetch a single ticket's current on-chain state by ID.

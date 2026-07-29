@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EventActions } from '../components/events/EventActions';
 import { usePublishedEventsByIds } from '../hooks/useScopedEvents';
 import { formatEventRange } from '../lib/eventModel';
@@ -36,6 +36,7 @@ export function TicketDetailPage() {
   const [receipt, setReceipt] = useState<PurchaseOperationResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     if (!hasTicketId) return;
@@ -45,6 +46,7 @@ export function TicketDetailPage() {
       if (!cancelled) {
         setLoading(true);
         setError(null);
+        setMissing(false);
       }
 
       const local = await fetchMyTicket(ticketId).catch(() => null);
@@ -77,7 +79,11 @@ export function TicketDetailPage() {
         throw new Error('Restore the attendee wallet to verify current on-chain ownership.');
       }
       const chainTicket = await getTicket(ticketId);
-      if (!chainTicket || chainTicket.owner !== wallet.address) {
+      if (!chainTicket) {
+        if (!cancelled) setMissing(true);
+        return;
+      }
+      if (chainTicket.owner !== wallet.address) {
         throw new Error('The restored attendee wallet does not currently own this ticket.');
       }
       if (!cancelled) {
@@ -123,6 +129,7 @@ export function TicketDetailPage() {
     return (
       <main className="pt-28 min-h-screen text-center text-slate-300">
         {error || 'Ticket not found for this account.'}
+        {missing && <Link to="/tickets" className="mt-5 block text-[#cabeff]">My Tickets</Link>}
       </main>
     );
   }

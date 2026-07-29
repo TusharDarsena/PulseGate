@@ -344,21 +344,22 @@ export function OrganizerEventPage() {
   };
 
   if (ownershipLoading) {
-    return <main className="min-h-screen pt-28 text-center text-slate-400">Verifying organizer access…</main>;
+    return <main className="min-h-screen pt-28 text-center text-slate-400"><p>Organizer Hub · Manage event</p><p className="mt-3">Verifying organizer access…</p></main>;
   }
   if (!owned) {
     return (
       <main className="min-h-screen pt-28 px-4 text-center">
-        <h1 className="text-3xl font-bold">Event unavailable</h1>
+        <p className="text-sm text-[#cabeff]">Organizer Hub · Manage event</p><h1 className="mt-2 text-3xl font-bold">Event unavailable</h1>
         <p className="mt-3 text-slate-400">
           {ownershipError ?? 'This event does not exist or is not owned by your signed-in account.'}
         </p>
+        {!ownershipError && <Link to="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</Link>}
       </main>
     );
   }
-  if (chainState.loading) return <main className="min-h-screen pt-28 text-center">Loading authoritative event state…</main>;
+  if (chainState.loading) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Manage event</p><p className="mt-3">Loading authoritative event state…</p></main>;
   if (!event) {
-    return <main className="min-h-screen pt-28 text-center">{chainState.error ?? 'Published event unavailable.'}</main>;
+    return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Manage event</p><p className="mt-3">{chainState.error ?? 'Published event unavailable.'}</p>{!chainState.error && <Link to="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</Link>}</main>;
   }
 
   const exactWalletConnected = wallet.isConnected && wallet.publicKey === event.organizer;
@@ -381,13 +382,13 @@ export function OrganizerEventPage() {
             {event.authority === 'confirmed' ? 'Confirmed from Stellar' : 'Authoritative read unavailable'}
           </span>
         </div>
-        <h1 className="mt-3 text-4xl font-bold">{event.name}</h1>
+        <p className="mt-3 text-sm text-[#cabeff]">Organizer Hub · Manage event</p><h1 className="mt-2 text-4xl font-bold">{event.name}</h1>
         <p className="mt-2 text-slate-400">{formatEventRange(event)} · {event.venue}</p>
       </header>
 
       {walletMismatch && (
         <section className="mb-8 rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-amber-100">
-          This event belongs to {shortKey(event.organizer)}. Switch to the correct organizer wallet to continue.
+          Intended: {shortKey(event.organizer)} · Connected: {wallet.publicKey ? shortKey(wallet.publicKey) : 'Not connected'}. Switch to the correct organizer wallet to continue.
           <button type="button" onClick={() => void connectOrganizer()} className="ml-3 underline">Switch wallet</button>
         </section>
       )}

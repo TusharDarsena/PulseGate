@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { EventActions } from '../components/events/EventActions';
 import { Button } from '../components/ui/Button';
 import { useEvent } from '../hooks/useEvent';
@@ -34,7 +35,7 @@ export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
     return <div className="p-20 text-center text-slate-400">Loading event…</div>;
   }
   if (error) return <div className="p-20 text-center text-red-400">{error}</div>;
-  if (!event) return <div className="p-20 text-center text-slate-400">Published event not found.</div>;
+  if (!event) return <div className="p-20 text-center text-slate-400"><p>Published event not found.</p><Link to="/events" className="mt-5 inline-block rounded-lg bg-[#7C5CFF] px-4 py-2 text-white">Browse events</Link></div>;
 
   const salesState = deriveEventSalesState(event, undefined, true);
   const ticketsLeft = remainingTickets(event);

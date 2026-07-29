@@ -459,20 +459,21 @@ export function ScannerPage() {
   };
 
   if (ownershipLoading) {
-    return <main className="min-h-screen pt-28 text-center text-slate-400">Verifying organizer access...</main>;
+    return <main className="min-h-screen pt-28 text-center text-slate-400"><p>Organizer Hub · Check-in</p><p className="mt-3">Verifying organizer access...</p></main>;
   }
   if (!owned) {
     return (
       <main className="min-h-screen pt-28 px-4 text-center">
-        <h1 className="text-3xl font-bold">Event unavailable</h1>
+        <p className="text-sm text-[#cabeff]">Organizer Hub · Check-in</p><h1 className="mt-2 text-3xl font-bold">Event unavailable</h1>
         <p className="mt-3 text-slate-400">
           {ownershipError ?? 'This event does not exist or is not owned by your signed-in account.'}
         </p>
+        {!ownershipError && <a href="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</a>}
       </main>
     );
   }
-  if (chainState.loading) return <main className="min-h-screen pt-28 text-center">Loading authoritative event state...</main>;
-  if (!event) return <main className="min-h-screen pt-28 text-center">{chainState.error ?? 'Event status unavailable.'}</main>;
+  if (chainState.loading) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">Loading authoritative event state...</p></main>;
+  if (!event) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">{chainState.error ?? 'Event status unavailable.'}</p>{!chainState.error && <a href="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</a>}</main>;
 
   const gate = scannerGate({
     event,
@@ -485,6 +486,7 @@ export function ScannerPage() {
 
   return (
     <main className="min-h-screen bg-[#0E1113] pt-24 pb-28 text-[#e6e0ee]">
+      <div className="mx-auto mb-4 max-w-6xl px-4 text-sm text-[#cabeff]">Organizer Hub · {event.name} · Check-in</div>
       <section className="mx-auto grid max-w-6xl gap-6 px-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-h-[70vh] overflow-hidden rounded-xl border border-[#272C33] bg-black">
           <div className="relative h-[68vh] min-h-[34rem]">

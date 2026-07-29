@@ -11,7 +11,7 @@ import {
 import { BROWSE_READY_EVENTS, type DiscoverableEventFixture } from '../fixtures/browse-ready';
 
 const EVENT_ID = 'event-seed-a-01';
-const READ_ONLY_KEY = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+const READ_ONLY_KEY = 'GBBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEFZSP';
 const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
 const LATEST_LEDGER = 900_000;
 
@@ -131,16 +131,16 @@ function rpcResult(
 ): unknown {
   if (rpcRequest.method === 'getLedgerEntries') {
     const keys = rpcRequest.params?.keys;
-    if (!Array.isArray(keys) || keys.length !== 1 || typeof keys[0] !== 'string') {
-      throw new Error('getLedgerEntries screenshot fixture expected one account key.');
+    if (!Array.isArray(keys) || keys.some((key) => typeof key !== 'string')) {
+      throw new Error('getLedgerEntries screenshot fixture expected ledger keys.');
     }
     return {
       latestLedger: LATEST_LEDGER,
-      entries: [{
-        key: keys[0],
+      entries: keys.map((key) => ({
+        key,
         xdr: accountLedgerEntryData(),
         lastModifiedLedgerSeq: LATEST_LEDGER - 1,
-      }],
+      })),
     };
   }
 
@@ -168,7 +168,10 @@ function rpcResult(
  * Keeps the public Event detail capture deterministic while preserving the real
  * published-event -> authoritative Soroban read path used by the application.
  */
-export async function installEventDetailReadyMocks(page: Page): Promise<void> {
+export async function installEventDetailReadyMocks(
+  page: Page,
+  fixtureEvent: DiscoverableEventFixture = eventDetailFixture(),
+): Promise<void> {
   const environment = screenshotEnvironment();
   const rpcUrl = environment.VITE_RPC_URL;
   const ticketContractId = environment.VITE_TICKET_CONTRACT_ID;
@@ -176,7 +179,7 @@ export async function installEventDetailReadyMocks(page: Page): Promise<void> {
     throw new Error('VITE_RPC_URL and VITE_TICKET_CONTRACT_ID are required for screenshot capture.');
   }
 
-  const event = eventDetailFixture();
+  const event = fixtureEvent;
   const ticketClient = new TicketClient({
     contractId: ticketContractId,
     networkPassphrase: NETWORK_PASSPHRASE,
@@ -208,19 +211,34 @@ export async function installEventDetailReadyMocks(page: Page): Promise<void> {
     throw new Error(`Unexpected Supabase REST request: ${request.method()} ${url.pathname}`);
   });
 
-  await page.route(
-    (url) => url.toString().startsWith(rpcUrl),
-    async (route) => {
+  // Intercept JSON-RPC by payload rather than URL. The SDK normalizes RPC
+  // endpoint URLs, so a string URL match can otherwise fall through to live
+  // RPC and make this fixture depend on a funded source account.
+  await page.route('**/*', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.fallback();
+        return;
+      }
+      const body = route.request().postData();
+      if (!body) {
+        await route.fallback();
+        return;
+      }
+      let request: JsonRpcRequest;
+      try {
+        request = parseJsonRpcRequest(route.request());
+      } catch {
+        await route.fallback();
+        return;
+      }
       if (route.request().method() === 'OPTIONS') {
         await fulfillJson(route, null, 204);
         return;
       }
-      const rpcRequest = parseJsonRpcRequest(route.request());
       await fulfillJson(route, {
         jsonrpc: '2.0',
-        id: rpcRequest.id,
-        result: rpcResult(rpcRequest, event, ticketClient),
+        id: request.id,
+        result: rpcResult(request, event, ticketClient),
       });
-    },
-  );
+    });
 }

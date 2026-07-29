@@ -429,12 +429,12 @@ export function PurchasePage({
 
         <section className="mt-6 bg-[#15181C] border border-[#272C33] rounded-lg p-6">
           <dl className="space-y-4 text-sm">
-            <Line label="1 × General Admission ticket" value={`${formatStroops(priceStroops)} XLM`} />
+            <Line label="Ticket price" value={`${formatStroops(priceStroops)} XLM`} />
             <Line
               label="Estimated network fee"
               value={prepared ? `${formatStroops(estimatedFeeStroops)} XLM` : 'Simulating…'}
             />
-            <Line label="Total required" value={`${formatStroops(totalRequired)} XLM`} strong />
+            <Line label="Estimated total debit" value={`${formatStroops(totalRequired)} XLM`} strong />
             <Line
               label="Available balance"
               value={balanceLoading ? 'Checking…' : `${formatStroops(balance)} XLM`}

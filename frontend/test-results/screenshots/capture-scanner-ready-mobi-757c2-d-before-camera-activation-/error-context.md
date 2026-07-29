@@ -6,7 +6,7 @@
 
 # Test info
 
-- Name: capture.spec.ts >> account-wallet-ready-mobile: Represents the authenticated mobile account surface with a restored attendee wallet and separate organizer-wallet connection controls.
+- Name: capture.spec.ts >> scanner-ready-mobile: Represents the authenticated organizer mobile check-in surface after ownership, authoritative event status, the door window, and the matching wallet are confirmed, before camera activation.
 - Location: e2e\screenshots\capture.spec.ts:32:3
 
 # Error details
@@ -14,16 +14,47 @@
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: getByRole('heading', { name: 'Account' })
+Locator: getByText('Ready for check-in').first()
 Expected: visible
-Error: strict mode violation: getByRole('heading', { name: 'Account' }) resolved to 2 elements:
-    1) <h1 class="text-4xl font-bold mb-8">Account</h1> aka getByRole('heading', { name: 'Account', exact: true })
-    2) <h2 class="text-xl font-semibold mb-3">Signed-in account</h2> aka getByRole('heading', { name: 'Signed-in account' })
+Timeout: 5000ms
+Error: element(s) not found
 
 Call log:
   - Expect "toBeVisible" with timeout 5000ms
-  - waiting for getByRole('heading', { name: 'Account' })
+  - waiting for getByText('Ready for check-in').first()
 
+```
+
+```yaml
+- banner:
+  - button "Go back": arrow_back
+  - link "StellarTickets":
+    - /url: /events
+  - button "Account"
+- main:
+  - text: Organizer Hub · Midnight Frequency · Check-in qr_code_scanner
+  - paragraph: Event status unavailable
+  - paragraph: This event belongs to a different TicketContract deployment.
+  - paragraph: Midnight Frequency
+  - paragraph: The Foundry · Sat, Sep 12 · 7:30 PM – Sat, Sep 12 · 11:00 PM GMT+5:30
+  - complementary:
+    - heading "Door Status" [level=2]
+    - paragraph: Event status unavailable
+    - paragraph: This event belongs to a different TicketContract deployment.
+    - term: Sold
+    - definition: "214"
+    - term: Checked in
+    - definition: "37"
+    - term: Remaining
+    - definition: "177"
+    - term: Unresolved
+    - definition: "0"
+    - heading "Organizer Wallet" [level=2]
+    - paragraph: GBBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEEQSCIJBEFZSP
+    - button "Connect Freighter"
+    - heading "Scanner" [level=2]
+    - button "Enable camera" [disabled]
+- text: Stellar Testnet — balances and payments have no monetary value.
 ```
 
 # Test source
@@ -110,10 +141,10 @@ Call log:
   79  | 
   80  |       : page.getByRole('heading', { name: capture.readyText });
   81  | 
-> 82  |     await expect(readyState).toBeVisible();
-      |                              ^ Error: expect(locator).toBeVisible() failed
+  82  |     await expect(readyState).toBeVisible();
   83  |     for (const text of capture.visibleTexts) {
-  84  |       await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
+> 84  |       await expect(page.getByText(text, { exact: false }).first()).toBeVisible();
+      |                                                                    ^ Error: expect(locator).toBeVisible() failed
   85  |     }
   86  |     for (const label of capture.visibleLabels ?? []) {
   87  |       await expect(page.getByLabel(label)).toBeVisible();
