@@ -4,8 +4,8 @@ This folder is the canonical home for UI refinement screenshots.
 
 ## Current run
 
-- Run date: 2026-07-27
-- Active folder: screenshots/ui-refinement/2026-07-27/
+- Run date: 2026-07-29
+- Active folder: screenshots/ui-refinement/2026-07-29/
 - Planning doc: docs/product/ui-refinement-screenshot-plan.md
 
 ## Naming rule
