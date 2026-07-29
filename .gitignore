@@ -35,3 +35,16 @@ desktop.ini
 # AI/repository packing outputs
 repomix-output.*
 .repomix/
+
+# Local agent tooling, work plans, and generated review artifacts
+/.agents/
+/.codex/
+/frontend/test-results/
+/zip for e2e, not relevant/
+/browsepage.html
+/image.png
+/screenshot-step2-context.txt
+/source_library_workspace.html.html
+/stellar-tickets-ai-implementation-handoff-evidence-grounded.md
+/stellartickets-frontend-implementation-findings.md
+/skills-lock.json

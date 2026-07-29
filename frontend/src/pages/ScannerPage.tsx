@@ -48,7 +48,12 @@ export function ScannerPage() {
   const { eventId = '' } = useParams();
   const wallet = useAppStore((state) => state.organizerWallet);
   const { connectOrganizer, verifyOrganizer } = useWallet();
-  const chainState = useEvent(eventId);
+  const {
+    event,
+    loading: chainLoading,
+    error: chainError,
+    reload: reloadChainState,
+  } = useEvent(eventId);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const processingRef = useRef(false);
   const processScanRef = useRef<(raw: string) => void>(() => undefined);
@@ -67,7 +72,6 @@ export function ScannerPage() {
   const [operations, setOperations] = useState<CheckInOperation[]>([]);
   const [nowUnix, setNowUnix] = useState(() => Math.floor(Date.now() / 1000));
 
-  const event = chainState.event;
   const opensAt = event ? event.dateUnix - 7_200 : null;
   const withinWindow = Boolean(event && opensAt !== null && nowUnix >= opensAt && nowUnix < event.endUnix);
   const walletMatches = Boolean(event && wallet.publicKey && wallet.publicKey === event.organizer);
@@ -105,7 +109,7 @@ export function ScannerPage() {
   }, [eventId, owned]);
 
   const recheckScannerAuthority = React.useCallback(async () => {
-    const nextEvent = await chainState.reload();
+    const nextEvent = await reloadChainState();
     const currentUnix = Math.floor(Date.now() / 1000);
     if (
       !owned ||
@@ -125,7 +129,7 @@ export function ScannerPage() {
       throw new Error('Freighter signing is not ready for this organizer wallet.');
     }
     return { event: nextEvent, organizerWallet };
-  }, [chainState.reload, eventId, owned, verifyOrganizer]);
+  }, [eventId, owned, reloadChainState, verifyOrganizer]);
 
   useEffect(() => {
     let active = true;
@@ -178,10 +182,10 @@ export function ScannerPage() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       setNowUnix(Math.floor(Date.now() / 1000));
-      void chainState.reload();
+      void reloadChainState();
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, [chainState.reload]);
+  }, [reloadChainState]);
 
   const stopCamera = async () => {
     if (scannerRef.current?.isScanning) {
@@ -345,7 +349,7 @@ export function ScannerPage() {
           ticketId: parsed.ticketId,
           walletAddress: parsed.walletAddress,
         });
-        await Promise.all([chainState.reload(), refreshStats()]);
+        await Promise.all([reloadChainState(), refreshStats()]);
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : 'Check-in failed.';
@@ -383,15 +387,14 @@ export function ScannerPage() {
       setBusy(false);
     }
   }, [
-    chainState.reload,
     event,
     eventId,
     refreshStats,
     recheckScannerAuthority,
+    reloadChainState,
     scannerReady,
     wallet.publicKey,
     wallet.signFn,
-    wallet.xlmBalance,
     walletMatches,
   ]);
 
@@ -472,8 +475,8 @@ export function ScannerPage() {
       </main>
     );
   }
-  if (chainState.loading) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">Loading authoritative event state...</p></main>;
-  if (!event) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">{chainState.error ?? 'Event status unavailable.'}</p>{!chainState.error && <a href="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</a>}</main>;
+  if (chainLoading) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">Loading authoritative event state...</p></main>;
+  if (!event) return <main className="min-h-screen pt-28 text-center"><p>Organizer Hub · Check-in</p><p className="mt-3">{chainError ?? 'Event status unavailable.'}</p>{!chainError && <a href="/organizer/events" className="mt-5 inline-block text-[#cabeff]">Organizer Hub</a>}</main>;
 
   const gate = scannerGate({
     event,

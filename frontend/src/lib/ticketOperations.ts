@@ -184,7 +184,7 @@ export async function executeTicketOperation(input: {
   onChange?: (operation: TicketOperation) => void;
 }): Promise<TicketOperation> {
   const allocated = await allocateTicketOperation(input.allocation);
-  let operation = allocated.operation;
+  const operation = allocated.operation;
   input.onChange?.(operation);
   if (operation.state === 'complete') return operation;
   if (SYNCHRONIZABLE_STATES.has(operation.state)) {
@@ -197,7 +197,7 @@ export async function executeTicketOperation(input: {
     input.onChange?.(resolved.operation);
     return resolved.operation;
   }
-  const prepared = await prepareTicketOperationFromAllocated(operation, input.prepare, input.onChange);
+  const prepared = await prepareTicketOperationFromAllocated(operation, input.prepare);
   return submitPreparedTicketOperation(prepared, input.signFn, input.onChange);
 }
 
@@ -212,7 +212,7 @@ export async function prepareTicketOperation(input: {
   onChange?: (operation: TicketOperation) => void;
 }): Promise<PreparedTicketOperation> {
   const allocated = await allocateTicketOperation(input.allocation);
-  let operation = allocated.operation;
+  const operation = allocated.operation;
   input.onChange?.(operation);
 
   if (operation.state === 'complete') throw new Error('This operation is already complete.');
@@ -229,13 +229,12 @@ export async function prepareTicketOperation(input: {
     throw new Error(ticketOperationMessage(resolved.operation, 'This operation is still being checked.'));
   }
 
-  return prepareTicketOperationFromAllocated(operation, input.prepare, input.onChange);
+  return prepareTicketOperationFromAllocated(operation, input.prepare);
 }
 
 async function prepareTicketOperationFromAllocated(
   operation: TicketOperation,
   prepare: (operation: TicketOperation) => Promise<PreparedContractTransaction>,
-  onChange?: (operation: TicketOperation) => void,
 ): Promise<PreparedTicketOperation> {
   try {
     const transaction = await prepare(operation);
