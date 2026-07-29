@@ -75,14 +75,21 @@ export function TicketCard({
               VIEW RECEIPT
             </button>
           )}
-          {hasOpenListing && onCancelListing ? (
-            <button 
-              onClick={() => onCancelListing(ticket.ticketId)}
-              className="w-full py-3 bg-[#272C33] text-[#ffb4ab] font-semibold text-xs rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[20px]">cancel</span>
-              CANCEL LISTING
-            </button>
+          {hasOpenListing && (
+            <p className="text-center text-xs text-amber-200">Listed for sale — remains valid until sold</p>
+          )}
+          {hasOpenListing ? (
+            <>
+              <button
+                onClick={() => onShowQR(ticket.ticketId)}
+                disabled={ticket.status !== 'Active'}
+                className="w-full py-3 bg-[#7C5CFF] text-[#EAEFF4] font-semibold text-xs rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[20px]">qr_code_2</span>
+                {ticket.status !== 'Active' ? 'TICKET USED' : 'SHOW QR'}
+              </button>
+              {onCancelListing && <button onClick={() => onCancelListing(ticket.ticketId)} className="w-full py-3 bg-[#272C33] text-[#ffb4ab] font-semibold text-xs rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"><span className="material-symbols-outlined text-[20px]">cancel</span>CANCEL LISTING</button>}
+            </>
           ) : event.status === 'Cancelled' && onRefund ? (
             <button 
               onClick={() => onRefund(ticket.ticketId)}

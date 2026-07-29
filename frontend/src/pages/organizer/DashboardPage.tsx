@@ -92,12 +92,13 @@ export function DashboardPage({
                           </p>
                         </div>
                         <span className="rounded-full bg-[#272C33] px-3 py-1 text-xs">
-                          {draft.state.replaceAll('_', ' ')}
+                          {draft.state === 'prepared' ? 'Ready to edit' : draft.state.replaceAll('_', ' ')}
                         </span>
                       </div>
                       <p className="mt-4 truncate font-mono text-xs text-slate-500">
                         Event ID {draft.event_id}
                       </p>
+                      <span className="mt-4 inline-block text-sm font-semibold text-[#cabeff]">Continue editing →</span>
                     </button>
                   ))}
                 </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
+import { userFacingError } from '../lib/utils';
 import { useEvent } from '../hooks/useEvent';
 import { useXlmPrice } from '../hooks/useXlmPrice';
 import {
@@ -328,7 +329,7 @@ export function PurchasePage({
     try {
       const refreshed = await reload();
       if (!refreshed) {
-        setNotice('Current sale conditions could not be verified. No payment was submitted.');
+        setNotice('Live sale status could not be verified. No payment was submitted.');
         return;
       }
       const nextState = deriveEventSalesState(refreshed, undefined, true);
@@ -460,7 +461,7 @@ export function PurchasePage({
           <section aria-live="polite" className="mt-6 rounded-lg border border-[#7C5CFF]/30 bg-[#7C5CFF]/10 p-4">
             <p className="font-semibold">{stateMessage}</p>
             {operation.failure_detail && (
-              <p className="mt-1 text-sm text-[#c9c4d8]">{operation.failure_detail}</p>
+              <p className="mt-1 text-sm text-[#c9c4d8]">{userFacingError(operation.failure_detail, 'Transaction status is still being checked.')}</p>
             )}
           </section>
         )}
@@ -471,11 +472,11 @@ export function PurchasePage({
         )}
         {salesState !== 'on_sale' && (
           <div className="mt-6 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-red-100">
-            This event is {EVENT_SALES_LABELS[salesState].toLowerCase()}; primary payment is disabled.
+            {salesState === 'unavailable' ? 'Live sale status could not be verified; primary payment is disabled.' : `This event is ${EVENT_SALES_LABELS[salesState].toLowerCase()}; primary payment is disabled.`}
           </div>
         )}
 
-        <p className="mt-6 text-xs text-[#938ea1]">
+        <p className="hidden mt-6 text-xs text-[#938ea1]">
           Stellar Testnet — balances and payments have no monetary value.
         </p>
 

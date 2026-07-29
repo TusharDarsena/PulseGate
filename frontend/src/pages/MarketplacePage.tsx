@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { prepareBuyListing } from '../lib/soroban';
 import {
-  executeTicketOperation,
+  prepareTicketOperation,
+  submitPreparedTicketOperation,
   ticketOperationMessage,
+  type PreparedTicketOperation,
 } from '../lib/ticketOperations';
 import { formatEventDate, stroopsToXlm } from '../types';
 import type { ListingWithEvent } from '../hooks/useListings';
@@ -13,6 +15,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { saveAuthIntent } from '../lib/authIntent';
 import { CollectionSkeleton } from '../components/ui/LoadingSkeleton';
 import { TicketOperationRecovery } from '../components/tickets/TicketOperationRecovery';
+import { formatStroops } from '../lib/stellar';
+import { userFacingError } from '../lib/utils';
 
 interface MarketplacePageProps {
   listings: ListingWithEvent[];
@@ -27,6 +31,7 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [review, setReview] = useState<{ listing: ListingWithEvent; prepared: PreparedTicketOperation } | null>(null);
   const ticketOperationRecovery = useTicketOperationRecovery();
   const selectedListingId = searchParams.get('listing');
   const selectedSeller = searchParams.get('seller');
@@ -57,14 +62,13 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
     setTxState({ status: 'building' });
 
     try {
-      const operation = await executeTicketOperation({
+      const prepared = await prepareTicketOperation({
         allocation: {
           operationType: 'buy_listing',
           sellerAddress: listing.seller,
           listingId: listing.listingId,
           idempotencyKey: crypto.randomUUID(),
         },
-        signFn: wallet.signFn,
         prepare: (current) => prepareBuyListing(
           current.seller_address!,
           current.listing_id!,
@@ -72,22 +76,32 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
         ),
         onChange: ticketOperationRecovery.remember,
       });
-      if (operation.state === 'chain_failed') {
-        throw new Error(operation.failure_detail || 'Stellar rejected the marketplace purchase.');
-      }
-      if (operation.state === 'complete') {
-        await invalidateListings();
-      }
-
-      setTxState({
-        status: 'success',
-        message: ticketOperationMessage(operation, 'Ticket purchased successfully!'),
-      });
-      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
+      setReview({ listing, prepared });
+      setTxState({ status: 'idle' });
     } catch (e: unknown) {
       console.error('Buy listing failed:', e);
-      const msg = e instanceof Error ? e.message : 'Purchase failed.';
+      const msg = userFacingError(e, 'Could not prepare this listing purchase.');
       setTxState({ status: 'error', errorMessage: msg });
+      setTimeout(() => setTxState({ status: 'idle' }), 3000);
+    } finally {
+      setBuyingId(null);
+    }
+  };
+
+  const confirmBuy = async () => {
+    if (!review || !wallet.signFn) return;
+    setBuyingId(`${review.listing.seller}:${review.listing.listingId}`);
+    setTxState({ status: 'signing' });
+    try {
+      const operation = await submitPreparedTicketOperation(review.prepared, wallet.signFn, ticketOperationRecovery.remember);
+      if (operation.state === 'chain_failed') throw new Error(operation.failure_detail || 'Stellar rejected the marketplace purchase.');
+      if (operation.state === 'complete') await invalidateListings();
+      setReview(null);
+      setTxState({ status: 'success', message: ticketOperationMessage(operation, 'Ticket purchased successfully!') });
+      setTimeout(() => setTxState({ status: 'idle' }), operation.state === 'complete' ? 3000 : 7000);
+    } catch (e) {
+      console.error('Buy listing failed:', e);
+      setTxState({ status: 'error', errorMessage: userFacingError(e, 'The marketplace purchase could not be completed.') });
       setTimeout(() => setTxState({ status: 'idle' }), 3000);
     } finally {
       setBuyingId(null);
@@ -129,6 +143,28 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
           }).catch(() => undefined);
         }}
       />
+
+      {review && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="presentation" onKeyDown={(event) => { if (event.key === 'Escape') setReview(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="marketplace-review-title" onKeyDown={(event) => { if (event.key === 'Escape') setReview(null); }} className="w-full max-w-md rounded-xl border border-[#272C33] bg-[#15181C] p-6 shadow-2xl">
+            <p className="text-sm font-semibold text-[#cabeff]">Review purchase</p>
+            <h2 id="marketplace-review-title" className="mt-1 text-2xl font-bold">{review.listing.eventName}</h2>
+            <p className="mt-1 text-sm text-[#c9c4d8]">{formatEventDate(review.listing.eventDateUnix)}</p>
+            <dl className="mt-6 space-y-3 text-sm">
+              <ReviewLine label="Ticket" value="1 × General Admission" />
+              <ReviewLine label="Seller" value={`${review.listing.seller.slice(0, 6)}…${review.listing.seller.slice(-4)}`} />
+              <ReviewLine label="Ask price" value={`${formatStroops(review.listing.askPriceStroops)} XLM`} />
+              <ReviewLine label="Estimated network fee" value={`${formatStroops(review.prepared.transaction.estimatedFeeStroops)} XLM`} />
+              <ReviewLine label="Total expected debit" value={`${formatStroops(review.listing.askPriceStroops + review.prepared.transaction.estimatedFeeStroops)} XLM`} strong />
+            </dl>
+            <p className="mt-5 text-sm text-[#c9c4d8]">Ownership transfers on-chain only after your wallet approves this transaction.</p>
+            <div className="mt-6 flex gap-3">
+              <button type="button" onClick={() => setReview(null)} className="flex-1 rounded-lg border border-[#36333e] px-4 py-3 text-sm">Cancel</button>
+              <button type="button" autoFocus onClick={() => void confirmBuy()} className="flex-1 rounded-lg bg-[#7C5CFF] px-4 py-3 text-sm font-bold">Approve in wallet</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* ── Stats bar ── */}
       {!loading && !error && listings.length > 0 && (
@@ -290,4 +326,8 @@ export function MarketplacePage({ listings, loading, error, invalidateListings }
       )}
     </main>
   );
+}
+
+function ReviewLine({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return <div className="flex justify-between gap-4"><dt className="text-[#938ea1]">{label}</dt><dd className={strong ? 'font-semibold text-white' : ''}>{value}</dd></div>;
 }

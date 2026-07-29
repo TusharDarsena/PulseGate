@@ -503,15 +503,16 @@ export function MyTicketsPage({
       )}
 
       {showListingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[#15181C] border border-[#272C33] rounded-xl p-6 w-full max-w-sm">
-            <h3 className="text-xl font-bold text-white mb-4">List Ticket for Sale</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onKeyDown={(event) => { if (event.key === 'Escape') setShowListingModal(null); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="listing-dialog-title" className="bg-[#15181C] border border-[#272C33] rounded-xl p-6 w-full max-w-sm">
+            <h3 id="listing-dialog-title" className="text-xl font-bold text-white mb-4">List Ticket for Sale</h3>
             <p className="text-sm text-slate-400 mb-6">
               Enter your ask price in XLM. A royalty fee may be automatically deducted by the event organizer upon sale.
             </p>
             <div className="mb-6">
               <label className="block text-xs font-semibold text-[#c9c4d8] uppercase tracking-widest mb-2">Price (XLM)</label>
               <input
+                autoFocus
                 type="number"
                 value={askPrice}
                 onChange={e => setAskPrice(e.target.value)}

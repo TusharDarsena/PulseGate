@@ -578,6 +578,7 @@ export function EventDraftPage() {
     <>
       <main className="min-h-screen pt-24 pb-28 px-4 max-w-5xl mx-auto">
       <header className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <Link to="/organizer/events" className="text-sm font-semibold text-[#cabeff]">← Organizer Hub</Link>
         <div>
           <p className="text-sm font-semibold text-[#9f8cff]">Private event workspace</p>
           <h1 className="mt-2 text-4xl font-bold">{form.name || 'Untitled event'}</h1>
@@ -659,6 +660,7 @@ export function EventDraftPage() {
       {walletMismatch && (
         <div className="mb-6 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-red-100">
           This draft belongs to {shortKey(draft.intended_organizer_address!)}. Switch to the correct organizer wallet before publishing.
+          <button type="button" onClick={() => void run(connectOrganizer)} className="ml-3 underline">Switch wallet</button>
         </div>
       )}
 
@@ -751,7 +753,7 @@ export function EventDraftPage() {
                   </button>
                 </>
               ) : walletMismatch ? (
-                <p>Switch Freighter to the wallet reserved by this draft before publishing.</p>
+                <><p>Switch Freighter to the wallet reserved by this draft before publishing.</p><button type="button" onClick={() => void run(connectOrganizer)} className="mt-3 rounded-lg border border-[#7C5CFF]/60 px-4 py-2 font-semibold text-white">Switch wallet</button></>
               ) : !draft.intended_organizer_address ? (
                 <>
                   <p>Bind this unassigned draft to the connected organizer wallet before publishing.</p>

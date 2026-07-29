@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { consumeAuthIntent, peekAuthIntent, saveAuthIntent } from '../lib/authIntent';
+import { userFacingError } from '../lib/utils';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,7 @@ export function AuthPage() {
 
   const intent = peekAuthIntent();
   const ensureIntent = () => intent ?? saveAuthIntent('/account', 'open_account');
+  const intentLabel = intent?.action === 'buy_listing' ? 'return to the marketplace purchase' : intent?.action === 'open_checkout' ? 'continue to checkout' : intent ? 'return to your saved destination' : 'continue to your account';
 
   const sendOtp = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -40,7 +42,8 @@ export function AuthPage() {
     <main className="min-h-screen pt-28 px-4 flex justify-center">
       <section className="w-full max-w-md bg-[#15181C] border border-[#272C33] rounded-2xl p-8 h-fit">
         <h1 className="text-3xl font-bold mb-2">Sign in</h1>
-        <p className="text-slate-400 mb-6">Continue with Google or a six-digit email code.</p>
+        <p className="text-slate-400 mb-2">Continue with Google or a six-digit email code.</p>
+        <p className="mb-6 text-sm text-[#cabeff]">After sign-in, you’ll {intentLabel}.</p>
         <button
           onClick={() => void signInWithGoogle(ensureIntent().nonce)}
           className="w-full py-3 rounded-lg bg-white text-black font-semibold mb-5"
@@ -66,7 +69,7 @@ export function AuthPage() {
             </button>
           </form>
         )}
-        {authError && <p role="alert" className="mt-4 text-red-400 text-sm">{authError}</p>}
+        {authError && <p role="alert" className="mt-4 text-red-400 text-sm">{userFacingError(authError, 'Sign-in could not be completed.')}</p>}
       </section>
     </main>
   );

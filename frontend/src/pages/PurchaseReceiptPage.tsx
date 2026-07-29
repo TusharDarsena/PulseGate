@@ -12,6 +12,7 @@ import {
 } from '../lib/purchaseOperations';
 import { STELLAR_EXPLORER_URL } from '../lib/constants';
 import { formatStroops } from '../lib/stellar';
+import { userFacingError } from '../lib/utils';
 
 const UNRESOLVED = new Set([
   'signed_submission_pending',
@@ -39,7 +40,7 @@ export function PurchaseReceiptPage() {
       setResponse(next);
       savePurchaseRecovery(next.operation);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Receipt unavailable.');
+      setError(userFacingError(nextError, 'Receipt unavailable.'));
     } finally {
       setLoading(false);
     }
@@ -76,7 +77,7 @@ export function PurchaseReceiptPage() {
     <main className="pt-28 pb-28 px-4 max-w-3xl mx-auto min-h-screen">
       <p className="text-sm font-semibold text-[#7C5CFF]">Purchase receipt</p>
       <h1 className="mt-2 text-3xl md:text-4xl font-bold">
-        {confirmed ? 'Your ticket is confirmed' : receiptStateHeading(operation.state)}
+        {confirmed ? (operation.state === 'complete' ? 'Your ticket is ready' : 'Your purchase is confirmed') : receiptStateHeading(operation.state)}
       </h1>
       <p className="mt-3 text-[#c9c4d8]">
         {confirmed
@@ -109,6 +110,7 @@ export function PurchaseReceiptPage() {
             label={operation.confirmed_fee_stroops !== null ? 'Network fee' : 'Estimated network fee'}
             value={`${formatStroops(fee)} XLM`}
           />
+          <ReceiptFact label="Total debited" value={`${formatStroops(amount + fee)} XLM`} />
           <ReceiptFact label="Network" value="Stellar Testnet" />
           <ReceiptFact label="Ticket ID" value={operation.ticket_id} mono />
           <ReceiptFact
@@ -137,7 +139,7 @@ export function PurchaseReceiptPage() {
 
       {operation.failure_detail && !confirmed && (
         <div className="mt-6 rounded-lg border border-amber-400/30 bg-amber-400/10 p-4 text-amber-100">
-          {operation.failure_detail}
+          {userFacingError(operation.failure_detail, 'Transaction status is still being checked.')}
         </div>
       )}
 
@@ -146,7 +148,7 @@ export function PurchaseReceiptPage() {
           <Button onClick={() => void load(true)}>Check status</Button>
         )}
         {SYNC_PENDING.has(operation.state) && (
-          <Button onClick={() => void retryPurchaseSync(operation.operation_id).then(setResponse).catch((e) => setError(e instanceof Error ? e.message : 'Synchronization retry failed.'))}>
+          <Button onClick={() => void retryPurchaseSync(operation.operation_id).then(setResponse).catch((e) => setError(userFacingError(e, 'Ticket synchronization is delayed.')))}>
             Retry ticket sync
           </Button>
         )}

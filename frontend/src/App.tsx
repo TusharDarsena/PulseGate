@@ -218,6 +218,8 @@ function App() {
         <Route path="*" element={
           <main className="min-h-screen pt-28 px-6 text-center">
             <h1 className="text-3xl font-bold">Page not found</h1>
+            <p className="mt-3 text-slate-400">The page may have moved or the address may be incorrect.</p>
+            <div className="mt-6 flex justify-center gap-3"><button type="button" onClick={() => navigate(-1)} className="rounded-lg border border-[#36333e] px-4 py-2">Go back</button><button type="button" onClick={() => navigate('/events')} className="rounded-lg bg-[#7C5CFF] px-4 py-2">Browse events</button></div>
           </main>
         } />
       </Routes>

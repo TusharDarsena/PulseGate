@@ -172,6 +172,7 @@ export function BrowsePage({ onEventClick }: BrowsePageProps) {
                     >
                       {EVENT_SALES_LABELS[salesState]}
                     </div>
+                    {event.authority !== 'confirmed' && <div className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-[10px] text-white">Preview availability — confirm on event page</div>}
                     {/* Tickets left badge */}
                     <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white px-2 py-1 rounded text-[10px] font-bold">
                       {ticketsLeftLabel(left)}

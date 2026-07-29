@@ -186,12 +186,9 @@ export async function executeTicketOperation(input: {
   const allocated = await allocateTicketOperation(input.allocation);
   let operation = allocated.operation;
   input.onChange?.(operation);
-
   if (operation.state === 'complete') return operation;
   if (SYNCHRONIZABLE_STATES.has(operation.state)) {
-    const synchronized = operation.state === 'sync_warning'
-      ? await retryTicketOperationSync(operation.operation_id)
-      : await resolveTicketOperation(operation.operation_id);
+    const synchronized = operation.state === 'sync_warning' ? await retryTicketOperationSync(operation.operation_id) : await resolveTicketOperation(operation.operation_id);
     input.onChange?.(synchronized.operation);
     return synchronized.operation;
   }
@@ -200,18 +197,75 @@ export async function executeTicketOperation(input: {
     input.onChange?.(resolved.operation);
     return resolved.operation;
   }
+  const prepared = await prepareTicketOperationFromAllocated(operation, input.prepare, input.onChange);
+  return submitPreparedTicketOperation(prepared, input.signFn, input.onChange);
+}
 
-  let transaction: PreparedContractTransaction | null = null;
+export interface PreparedTicketOperation {
+  operation: TicketOperation;
+  transaction: PreparedContractTransaction;
+}
+
+export async function prepareTicketOperation(input: {
+  allocation: AllocateTicketOperationInput;
+  prepare: (operation: TicketOperation) => Promise<PreparedContractTransaction>;
+  onChange?: (operation: TicketOperation) => void;
+}): Promise<PreparedTicketOperation> {
+  const allocated = await allocateTicketOperation(input.allocation);
+  let operation = allocated.operation;
+  input.onChange?.(operation);
+
+  if (operation.state === 'complete') throw new Error('This operation is already complete.');
+  if (SYNCHRONIZABLE_STATES.has(operation.state)) {
+    const synchronized = operation.state === 'sync_warning'
+      ? await retryTicketOperationSync(operation.operation_id)
+      : await resolveTicketOperation(operation.operation_id);
+    input.onChange?.(synchronized.operation);
+    throw new Error(ticketOperationMessage(synchronized.operation, 'This operation is already being finalized.'));
+  }
+  if (PENDING_STATES.has(operation.state)) {
+    const resolved = await resolveTicketOperation(operation.operation_id);
+    input.onChange?.(resolved.operation);
+    throw new Error(ticketOperationMessage(resolved.operation, 'This operation is still being checked.'));
+  }
+
+  return prepareTicketOperationFromAllocated(operation, input.prepare, input.onChange);
+}
+
+async function prepareTicketOperationFromAllocated(
+  operation: TicketOperation,
+  prepare: (operation: TicketOperation) => Promise<PreparedContractTransaction>,
+  onChange?: (operation: TicketOperation) => void,
+): Promise<PreparedTicketOperation> {
+  try {
+    const transaction = await prepare(operation);
+    return { operation, transaction };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Ticket operation failed.';
+    await recordPreSubmissionFailure(
+      operation.operation_id,
+      'preparation_failed',
+      detail,
+    ).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function submitPreparedTicketOperation(
+  prepared: PreparedTicketOperation,
+  signFn: SignFn,
+  onChange?: (operation: TicketOperation) => void,
+): Promise<TicketOperation> {
+  let operation = prepared.operation;
   let signedHashPersisted = false;
   try {
-    transaction = await input.prepare(operation);
+    const { transaction } = prepared;
     const begun = await beginTicketOperation(operation.operation_id, transaction);
     operation = begun.operation;
-    input.onChange?.(operation);
-
-    const operationBoundSigner: SignFn = (xdr, options) => input.signFn(xdr, {
+    onChange?.(operation);
+    const operationBoundSigner: SignFn = (xdr, options) => signFn(xdr, {
       ...options,
-      externalId: `ticket-operation:${operation.operation_id}:${transaction!.identity.unsignedEnvelopeHash}`,
+      externalId: `ticket-operation:${operation.operation_id}:${transaction.identity.unsignedEnvelopeHash}`,
     });
     await transaction.submit(operationBoundSigner, async ({ signedTransactionHash }) => {
       const signed = await recordSignedTicketOperation(
@@ -220,30 +274,28 @@ export async function executeTicketOperation(input: {
       );
       signedHashPersisted = true;
       operation = signed.operation;
-      input.onChange?.(operation);
+      onChange?.(operation);
     });
 
     const resolved = await resolveTicketOperation(operation.operation_id);
-    input.onChange?.(resolved.operation);
+    onChange?.(resolved.operation);
     return resolved.operation;
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Ticket operation failed.';
     if (signedHashPersisted) {
       try {
         const resolved = await resolveTicketOperation(operation.operation_id);
-        input.onChange?.(resolved.operation);
+        onChange?.(resolved.operation);
         return resolved.operation;
       } catch {
         const current = await getTicketOperation(operation.operation_id);
-        input.onChange?.(current.operation);
+        onChange?.(current.operation);
         return current.operation;
       }
     }
     await recordPreSubmissionFailure(
       operation.operation_id,
-      transaction === null
-        ? 'preparation_failed'
-        : /reject|declin|cancel/i.test(detail)
+      /reject|declin|cancel/i.test(detail)
           ? 'approval_rejected'
           : 'signing_provider_failed',
       detail,

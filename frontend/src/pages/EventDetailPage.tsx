@@ -22,7 +22,7 @@ const DISABLED_REASON = {
   sales_closed: 'Primary sales closed when the event started.',
   cancelled: 'This event was cancelled.',
   completed: 'This event has completed.',
-  unavailable: 'Current sale conditions could not be verified on Stellar.',
+  unavailable: 'Live sale status could not be verified.',
   on_sale: '',
 } as const;
 
@@ -137,7 +137,7 @@ export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
               {salesState !== 'on_sale' && (
                 <p className="mt-3 text-sm text-[#c9c4d8]">
                   {salesState === 'unavailable'
-                    ? event.authorityError ?? DISABLED_REASON.unavailable
+                    ? DISABLED_REASON.unavailable
                     : DISABLED_REASON[salesState]}
                 </p>
               )}

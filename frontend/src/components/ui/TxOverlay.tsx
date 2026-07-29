@@ -1,15 +1,25 @@
+import { useEffect, useRef } from 'react';
 import { TxState } from '../../types';
+import { userFacingError } from '../../lib/utils';
 
 interface TxOverlayProps {
   txState: TxState;
 }
 
 export function TxOverlay({ txState }: TxOverlayProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (txState.status === 'idle') return;
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => previousFocus.current?.focus();
+  }, [txState.status]);
   if (txState.status === 'idle') return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm">
-      <div className="bg-surface-container border border-outline-dim rounded-2xl p-5 sm:p-8 max-w-sm sm:max-w-md w-full mx-4 flex flex-col items-center text-center shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="transaction-overlay-title" tabIndex={-1} className="bg-surface-container border border-outline-dim rounded-2xl p-5 sm:p-8 max-w-sm sm:max-w-md w-full mx-4 flex flex-col items-center text-center shadow-2xl">
         
         {txState.status === 'success' ? (
           <div className="w-16 h-16 rounded-full bg-green-500/10 text-green-400 flex items-center justify-center mb-6">
@@ -26,7 +36,7 @@ export function TxOverlay({ txState }: TxOverlayProps) {
           </div>
         )}
 
-        <h3 className="text-base sm:text-xl font-bold text-white mb-2">
+        <h3 id="transaction-overlay-title" className="text-base sm:text-xl font-bold text-white mb-2">
           {txState.status === 'building' && 'Building Transaction...'}
           {txState.status === 'signing' && 'Waiting for Signature...'}
           {txState.status === 'submitting' && 'Submitting to Network...'}
@@ -48,7 +58,7 @@ export function TxOverlay({ txState }: TxOverlayProps) {
 
         {txState.errorMessage && (
           <div className="bg-red-500/10 text-red-400 text-xs p-3 rounded-lg w-full text-left font-mono whitespace-pre-wrap break-all overflow-y-auto max-h-48">
-            {txState.errorMessage}
+            {userFacingError(txState.errorMessage, 'The transaction could not be completed.')}
           </div>
         )}
       </div>

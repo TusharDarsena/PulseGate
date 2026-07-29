@@ -372,6 +372,7 @@ export function OrganizerEventPage() {
     <>
       <main className="min-h-screen pt-24 pb-28 px-4 max-w-6xl mx-auto">
       <header className="mb-8">
+        <Link to="/organizer/events" className="text-sm font-semibold text-[#cabeff]">← Organizer Hub</Link>
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full bg-[#7C5CFF]/15 px-3 py-1 text-sm text-[#b6a8ff]">
             {ORGANIZER_LIFECYCLE_LABELS[lifecycle]}
@@ -387,6 +388,7 @@ export function OrganizerEventPage() {
       {walletMismatch && (
         <section className="mb-8 rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-amber-100">
           This event belongs to {shortKey(event.organizer)}. Switch to the correct organizer wallet to continue.
+          <button type="button" onClick={() => void connectOrganizer()} className="ml-3 underline">Switch wallet</button>
         </section>
       )}
 
