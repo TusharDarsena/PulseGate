@@ -1,15 +1,15 @@
-# 🎟️ Stellar Ticketing
+# 🎟️ PulseGate
 
-NFT event ticketing on Stellar. Built with Soroban.
+On-chain event ticketing on Stellar. Built with Soroban.
 
-[![Stellar Ticketing CI/CD](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml/badge.svg)](https://github.com/TusharDarsena/stellar_ticket/actions)
+[![PulseGate CI/CD](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml/badge.svg)](https://github.com/TusharDarsena/stellar_ticket/actions)
 
-Stellar Ticketing is a decentralized platform for event management and NFT ticketing. It leverages Soroban smart contracts to handle event creation, ticket minting, escrowed payments, and restricted resales with automatic royalty enforcement. Attendees use Supabase Auth and a recoverable delegated Dfns wallet; organizers connect Freighter separately.
+PulseGate is a decentralized platform for event management and on-chain ticketing. It leverages Soroban smart contracts to handle event creation, ticket minting, escrowed payments, and restricted resales with automatic royalty enforcement. Attendees use Supabase Auth and a recoverable delegated Dfns wallet; organizers connect Freighter separately.
 
 ---
 
 ## Demo Video
-[![Stellar Ticketing Demo](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
+[![PulseGate Demo](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
 
 ## 🚀 Live Demo 
 
@@ -45,7 +45,7 @@ graph TD
         V[Venue Staff]
     end
 
-    subgraph Stellar Ticketing Platform
+    subgraph PulseGate Platform
         subgraph Contracts
             TC[Ticket Contract]
             MC[Marketplace Contract]
@@ -93,12 +93,12 @@ See the full [User Guide](docs/architecture.md) for more technical details.
 
 ### Ticket Contract
 - `create_event`: Initializes a new event with metadata and pricing.
-- `purchase`: Mints a ticket NFT to the buyer and holds XLM in escrow.
+- `purchase`: Mints an on-chain ticket to the buyer and holds XLM in escrow.
 - `mark_used`: Validates a signed QR payload client-side, then marks the ticket Used on-chain. Called by the organizer after door verification.
 - `cancel_event`: Marks the event Cancelled. Refunds are pull-based — attendees call `refund()` individually (D-002).
 
 ### Marketplace Contract
-- `list_ticket`: Creates a resale listing for a ticket NFT.
+- `list_ticket`: Creates a resale listing for an on-chain ticket.
 - `buy_listing`: Executes the transfer, ensuring royalties are paid to the organizer.
 - `cancel_listing`: Removes a ticket from the marketplace.
 

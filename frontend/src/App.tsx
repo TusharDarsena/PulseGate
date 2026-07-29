@@ -66,7 +66,7 @@ function RequireAuth({
         <h1 className="text-2xl font-bold mb-3">Ticket wallet required</h1>
         {wallet.readiness === 'recovery_required' ? (
           <p className="text-amber-300">
-            Your recorded wallet could not be restored. Recovery is required; StellarTickets will
+            Your recorded wallet could not be restored. Recovery is required; PulseGate will
             not create a replacement wallet.
           </p>
         ) : wallet.readiness === 'not_provisioned' ? (

@@ -1,4 +1,4 @@
-# StellarTickets architecture and decisions
+# PulseGate architecture and decisions
 
 This is the single source of truth for the intended system architecture and
 the significant decisions that constrain it. It describes current behavior,

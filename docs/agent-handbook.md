@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Project intelligence for **StellarTickets**. Read this before editing the repository.
+Project intelligence for **PulseGate**. Read this before editing the repository.
 
 This file defines where behavior lives, which boundaries are security-critical, and which downstream files must change together. It is not a generic coding guide and does not replace reading the code being modified.
 
@@ -8,7 +8,7 @@ This file defines where behavior lives, which boundaries are security-critical, 
 
 ## 1. System model
 
-StellarTickets is a Stellar testnet ticketing application with five layers:
+PulseGate is a Stellar testnet ticketing application with five layers:
 
 1. **TicketContract (Soroban/Rust)** — authoritative event, ticket, escrow, refund, cancellation, and check-in state.
 2. **MarketplaceContract (Soroban/Rust)** — authoritative resale listing state, royalty payout, and the only permitted resale transfer path.

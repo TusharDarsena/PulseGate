@@ -75,9 +75,9 @@ export function downloadIcs(event: Event): void {
     location: location(event),
     url: eventUrl(event),
     categories: [event.category],
-    uid: `${event.eventId}@stellartickets`,
+    uid: `${event.eventId}@pulsegate`,
     status: event.status === 'Cancelled' ? 'CANCELLED' : 'CONFIRMED',
-    productId: 'StellarTickets/Phase2',
+    productId: 'PulseGate/Phase2',
   });
   if (result.error || !result.value) {
     throw result.error || new Error('Calendar file could not be generated.');

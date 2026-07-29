@@ -1,4 +1,4 @@
-export const CAPTURE_DATE = '2026-07-27';
+export const CAPTURE_DATE = '2026-07-29';
 
 export type ScreenshotRole = 'guest' | 'attendee' | 'organizer';
 export type ScreenshotViewportName = 'mobile-390x844' | 'desktop-1440x900';
@@ -393,7 +393,7 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     folder: ['03-tier-3-edge-flow', 'not-found'],
     readyText: 'Page not found',
     visibleTexts: [
-      'StellarTickets',
+      'PulseGate',
       'Discover',
       'Marketplace',
       'My Tickets',
@@ -415,10 +415,12 @@ export const SCREENSHOT_CAPTURES: readonly ScreenshotCapture[] = [
     viewportName: 'mobile-390x844',
     viewport: { width: 390, height: 844 },
     folder: ['03-tier-3-edge-flow', 'auth-callback'],
-    readyText: 'The sign-in link is invalid or has expired.',
+    readyText: 'Sign-in could not be completed.',
     readyRole: 'alert',
     visibleTexts: [
-      'The sign-in link is invalid or has expired.',
+      'Sign-in could not be completed.',
+      'It is safe to return and request a new sign-in link.',
+      'Return to sign in',
       'Stellar Testnet',
     ],
     purpose: 'Represents the public mobile authentication callback when the provider returns a visible, recoverable sign-in error.',

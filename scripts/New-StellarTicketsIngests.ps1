@@ -24,7 +24,7 @@ $resolvedRoot = @(
 )
 
 if ($LASTEXITCODE -ne 0 -or $resolvedRoot.Count -eq 0) {
-    throw "Run this script inside the StellarTickets Git repository."
+    throw "Run this script inside the PulseGate Git repository."
 }
 
 $RepoRoot = $resolvedRoot[0].Trim()

@@ -1,4 +1,4 @@
-# StellarTickets Agent Guide
+# PulseGate Agent Guide
 
 Use this file for rules that must be present in every task. Load more detailed
 guidance only for the part of the repository being changed:
@@ -13,7 +13,7 @@ guidance only for the part of the repository being changed:
 
 ## System Model
 
-StellarTickets has two authoritative Soroban contracts, generated TypeScript
+PulseGate has two authoritative Soroban contracts, generated TypeScript
 bindings, a React/Vite frontend, and a Supabase read model.
 
 > Soroban owns truth. Supabase makes that truth discoverable.

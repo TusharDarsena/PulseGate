@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { ScreenshotCapture } from '../capture-manifest';
 import { captureRootPath, screenshotFilename } from './output-path';
@@ -26,5 +26,7 @@ export async function writeCaptureCatalog(
     '',
   ].join('\n');
 
-  await writeFile(path.join(captureRootPath(), 'CAPTURE-CATALOG.md'), content, 'utf8');
+  const rootPath = captureRootPath();
+  await mkdir(rootPath, { recursive: true });
+  await writeFile(path.join(rootPath, 'CAPTURE-CATALOG.md'), content, 'utf8');
 }

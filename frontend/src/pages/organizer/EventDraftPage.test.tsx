@@ -64,7 +64,7 @@ function draft(
     venue: 'Stellar Hall',
     address: '1 Testnet Way',
     city: 'Bengaluru',
-    organizer_display_name: 'StellarTickets',
+    organizer_display_name: 'PulseGate',
     support_contact: 'support@example.test',
     refund_policy_code: 'cancelled_event_original_price',
     resale_policy_code: 'stellar_marketplace_unlocked',

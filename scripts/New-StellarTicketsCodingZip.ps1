@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-Creates a compact, coding-focused ZIP of the StellarTickets repository.
+Creates a compact, coding-focused ZIP of the PulseGate repository.
 
 .DESCRIPTION
 Includes:

@@ -77,7 +77,7 @@ for (const capture of SCREENSHOT_CAPTURES) {
 
       ? page.getByRole('alert').filter({ hasText: capture.readyText })
 
-      : page.getByRole('heading', { name: capture.readyText });
+      : page.getByRole('heading', { name: capture.readyText, exact: true });
 
     await expect(readyState).toBeVisible();
     for (const text of capture.visibleTexts) {

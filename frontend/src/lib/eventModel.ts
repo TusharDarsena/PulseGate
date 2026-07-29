@@ -15,7 +15,7 @@ export const REFUND_POLICY: Record<RefundPolicyCode, string> = {
 
 export const RESALE_POLICY: Record<ResalePolicyCode, string> = {
   stellar_marketplace_unlocked:
-    'Eligible tickets may be listed through the StellarTickets marketplace. Listings do not reserve or lock a ticket.',
+    'Eligible tickets may be listed through the PulseGate marketplace. Listings do not reserve or lock a ticket.',
 };
 
 export function normalizeEvent(row: EventMetadata): Event {

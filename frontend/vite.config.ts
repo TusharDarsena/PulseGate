@@ -19,6 +19,7 @@ export default defineConfig({
     }),
   ],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       ticket: path.resolve(__dirname, 'src/contracts/ticket/src/index.ts'),
       marketplace: path.resolve(__dirname, 'src/contracts/marketplace/src/index.ts'),

@@ -12,7 +12,7 @@ type AttestationChallenge = Parameters<WebAuthnSigner['create']>[0];
 function getSigner() {
   const rpId = import.meta.env.VITE_DFNS_RP_ID || window.location.hostname;
   return new WebAuthnSigner({
-    relyingParty: { id: rpId, name: 'StellarTickets' },
+    relyingParty: { id: rpId, name: 'PulseGate' },
   });
 }
 

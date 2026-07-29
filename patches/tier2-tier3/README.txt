@@ -1,4 +1,4 @@
-StellarTickets combined screenshot patch
+PulseGate combined screenshot patch
 
 Adds four captures without replacing the existing manifest or runner:
 - Tier 2 organizer dashboard, populated, desktop

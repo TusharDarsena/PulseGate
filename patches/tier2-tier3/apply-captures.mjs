@@ -103,7 +103,7 @@ const entries = [
     folder: ['03-tier-3-edge-flow', 'not-found'],
     readyText: 'Page not found',
     visibleTexts: [
-      'StellarTickets',
+      'PulseGate',
       'Discover',
       'Marketplace',
       'My Tickets',

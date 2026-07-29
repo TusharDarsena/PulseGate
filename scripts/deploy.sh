@@ -12,7 +12,7 @@ elif [ "${OS:-}" = "Windows_NT" ] && command -v rustup >/dev/null 2>&1 && rustup
 fi
 
 echo "======================================================="
-echo "Deploying Soroban NFT Ticketing Contracts to Testnet"
+echo "Deploying PulseGate on-chain ticketing contracts to Testnet"
 echo "======================================================="
 
 # ── Required environment variables ────────────────────────────────────────────

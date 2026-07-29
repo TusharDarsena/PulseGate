@@ -89,9 +89,12 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
 export async function installScannerReadyMocks(page: Page): Promise<void> {
   const environment = screenshotEnvironment();
   const supabaseUrl = environment.VITE_SUPABASE_URL;
+  const horizonUrl = environment.VITE_HORIZON_URL;
   const ticketContractId = environment.VITE_TICKET_CONTRACT_ID;
-  if (!supabaseUrl || !ticketContractId) {
-    throw new Error('VITE_SUPABASE_URL and VITE_TICKET_CONTRACT_ID are required for Scanner capture.');
+  if (!supabaseUrl || !horizonUrl || !ticketContractId) {
+    throw new Error(
+      'VITE_SUPABASE_URL, VITE_HORIZON_URL, and VITE_TICKET_CONTRACT_ID are required for Scanner capture.',
+    );
   }
 
   const seedEvent = BROWSE_READY_EVENTS.find((candidate) => candidate.event_id === EVENT_ID);
@@ -102,6 +105,7 @@ export async function installScannerReadyMocks(page: Page): Promise<void> {
   await installEventDetailReadyMocks(page, {
     ...seedEvent,
     organizer_address: ORGANIZER_ADDRESS,
+    ticket_contract_id: ticketContractId,
   });
 
   const session = screenshotSession();
@@ -116,6 +120,25 @@ export async function installScannerReadyMocks(page: Page): Promise<void> {
 
   await page.addInitScript(
     ({ authKey, sessionValue, organizerAddress }) => {
+      (window as Window & { freighter?: boolean }).freighter = true;
+      window.addEventListener('message', (event) => {
+        const request = event.data as {
+          source?: string;
+          messageId?: number;
+          type?: string;
+        } | null;
+        if (
+          event.source === window &&
+          request?.source === 'FREIGHTER_EXTERNAL_MSG_REQUEST' &&
+          request.type === 'REQUEST_PUBLIC_KEY'
+        ) {
+          window.postMessage({
+            source: 'FREIGHTER_EXTERNAL_MSG_RESPONSE',
+            messagedId: request.messageId,
+            publicKey: organizerAddress,
+          }, window.location.origin);
+        }
+      });
       localStorage.setItem(authKey, JSON.stringify(sessionValue));
       localStorage.setItem('stellar-tickets-store-v2', JSON.stringify({
         state: {
@@ -133,6 +156,15 @@ export async function installScannerReadyMocks(page: Page): Promise<void> {
       authKey: authStorageKey(supabaseUrl),
       sessionValue: session,
       organizerAddress: ORGANIZER_ADDRESS,
+    },
+  );
+
+  await page.route(
+    (url) => url.toString().startsWith(`${horizonUrl.replace(/\/+$/, '')}/accounts/`),
+    async (route) => {
+      await fulfillJson(route, {
+        balances: [{ asset_type: 'native', balance: '50.0000000' }],
+      });
     },
   );
 

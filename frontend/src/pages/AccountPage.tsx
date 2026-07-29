@@ -57,7 +57,7 @@ export function AccountPage() {
               {showRecoveryCode ? recoveryCode : '••••••••••••••••••••••••••••••••'}
             </p>
             <p className="text-xs text-slate-300">
-              Store it in a password manager. StellarTickets does not retain this code and cannot
+              Store it in a password manager. PulseGate does not retain this code and cannot
               silently replace your wallet if it is lost.
             </p>
             <div className="mt-3 flex gap-4 text-sm">
