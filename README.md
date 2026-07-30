@@ -1,350 +1,414 @@
-# 🎟️ PulseGate
+# PulseGate
 
-On-chain event ticketing on Stellar. Built with Soroban.
+> **Event tickets people can trust — secure purchases, protected resale, recoverable payments, and verified venue entry on Stellar.**
 
-[![PulseGate CI/CD](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml/badge.svg)](https://github.com/TusharDarsena/stellar_ticket/actions)
+[![PulseGate CI](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml/badge.svg)](https://github.com/TusharDarsena/stellar_ticket/actions/workflows/ci.yml)
 
-PulseGate is a decentralized platform for event management and on-chain ticketing. It leverages Soroban smart contracts to handle event creation, ticket minting, escrowed payments, and restricted resales with automatic royalty enforcement. Attendees use Supabase Auth and a recoverable delegated Dfns wallet; organizers connect Freighter separately.
+PulseGate is a complete event-ticketing experience for attendees and organizers.
+It combines a fast, familiar web app with Soroban contracts that control ticket
+sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
----
+[**Open PulseGate**](https://stellar-gamma-weld.vercel.app/) ·
+[**Watch the walkthrough**](https://www.youtube.com/watch?v=0vL_UVSGT3I) ·
+[**Browse events**](https://stellar-gamma-weld.vercel.app/events) ·
+[**View the contracts**](https://github.com/TusharDarsena/stellar_ticket/tree/main/contracts)
 
-## Demo Video
-[![PulseGate Demo](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
+> PulseGate currently uses Stellar Testnet. Testnet XLM has no monetary value.
 
-## 🚀 Live Demo 
+## Evaluate PulseGate in 60 seconds
 
-- **Live Demo**: [stellar-gamma-weld.vercel.app](https://stellar-gamma-weld.vercel.app/)
+1. Browse the event catalogue and try its search, category, city, and date filters.
+2. Open an event to inspect its live availability, policies, venue, map, and calendar actions.
+3. Follow the attendee journey through checkout, receipt, My Tickets, resale, and QR entry.
+4. Open the Organizer Hub to see private drafts, publication, event management, and check-in.
+5. Inspect the current
+   [TicketContract](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU)
+   and
+   [MarketplaceContract](https://stellar.expert/explorer/testnet/contract/CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X).
 
-## Contract Addresses
+## Product tour
 
-Current Testnet deployment, cut over on July 27, 2026:
+[![PulseGate walkthrough](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
 
-- **Ticket Contract**: [`CDO4I4NMRXSTKBL3K7D3WWGRTVNRAUVOMKPKA6X726SY6SYQRBPQIDDQ`](https://stellar.expert/explorer/testnet/contract/CDO4I4NMRXSTKBL3K7D3WWGRTVNRAUVOMKPKA6X726SY6SYQRBPQIDDQ)
-- **Marketplace Contract**: [`CC34MVNENC3VD26RJ42SVQXPDZ3JYZJBBNIHHXCX4EDIGUSPZOPDBC6M`](https://stellar.expert/explorer/testnet/contract/CC34MVNENC3VD26RJ42SVQXPDZ3JYZJBBNIHHXCX4EDIGUSPZOPDBC6M)
-- **Testnet XLM SAC**: [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
+| Discover events | Contract-backed purchase receipt |
+|---|---|
+| ![PulseGate Discover page](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v01.png) | ![PulseGate purchase receipt](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/purchase-receipt/T1_purchase-receipt_confirmed_mobile-390x844_attendee_seedA_v01.png) |
 
-### Deployment Screenshots
+| Owner-verified rotating QR | Organizer check-in scanner |
+|---|---|
+| ![PulseGate active ticket QR](screenshots/ui-refinement/2026-07-29/02-tier-2-support-flow/qr-display/T2_qr-display_active_mobile-390x844_attendee_seedA_v01.png) | ![PulseGate organizer scanner](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png) |
 
-TicketContract deployment:
+## What attendees can do
 
-![TicketContract deployed on Testnet](screenshots/testnet_ticket_contract_deployed_20260727.png)
+### Discover and plan
 
-MarketplaceContract deployment:
+- Browse without signing in.
+- Search by event name, venue, or city.
+- Filter by category, city, and the next 24 hours, 7 days, or 30 days.
+- See sale state, remaining supply, price, venue, city, and local event time.
+- Open full descriptions, policies, entry instructions, support details, and
+  live contract-verified availability.
+- Share events, open their map, add them to Google or Outlook Calendar, or
+  download an `.ics` file.
 
-![MarketplaceContract deployed on Testnet](screenshots/testnet_marketplace_contract_deployed_20260727.png)
+### Sign in and prepare a wallet
 
----
+- Continue with Google or a six-digit email code.
+- Return to the exact protected destination that triggered sign-in.
+- Provision one delegated Stellar attendee wallet per account.
+- Save a one-time recovery code and restore the same wallet on another device.
+- Keep attendee signing separate from the organizer's Freighter wallet.
+- Request bounded Testnet XLM funding directly from checkout when needed.
 
-## 🏗 Architecture Diagram
+### Purchase with confidence
 
-```mermaid
-graph TD
-    subgraph Users
-        O[Organizer]
-        A[Attendee]
-        V[Venue Staff]
-    end
+- Recheck the event's current lifecycle, price, capacity, and supply before payment.
+- Review ticket price, estimated network fee, total debit, wallet, and network.
+- Simulate the contract transaction before wallet approval.
+- Preserve the signed transaction identity before submission so an interrupted
+  operation can be resolved without repeating payment.
+- Receive a durable receipt with transaction, ticket, owner, amount, fee,
+  ledger, network, and Stellar explorer evidence.
+- Retry only app synchronization when Stellar has already confirmed the purchase.
 
-    subgraph PulseGate Platform
-        subgraph Contracts
-            TC[Ticket Contract]
-            MC[Marketplace Contract]
-        end
+### Own, recover, refund, and resell
 
-        subgraph Frontend
-            UI[React/Vite UI]
-            DW[Delegated Attendee Signing]
-            QR[Rotating QR Engine]
-        end
-    end
+- Browse upcoming and past tickets with `Active`, `Used`, and `Refunded` states.
+- Recover a ticket from its receipt or authoritative contract state when a
+  read-model row is delayed.
+- Open the original purchase receipt from the ticket library.
+- Claim the original ticket price after an organizer cancels an event.
+- Create a resale listing with a chosen XLM ask price.
+- Cancel an open listing without changing ticket ownership.
+- Resolve pending or unknown refund and resale operations without blindly resubmitting them.
 
-    O -->|1. Create Event| TC
-    A -->|2. Buy Ticket| TC
-    A -->|Authorize| DW
-    TC -->|Escrow Funds| TC
-    A -->|3. List for Resale| MC
-    MC -->|Handle Royalty| TC
-    A -->|4. Generate QR| QR
-    V -->|5. Scan & Verify| TC
+### Buy safely on the marketplace
+
+- Browse open listings with event, seller, date, and ask-price context.
+- Deep-link directly to a selected listing.
+- Prevent attendees from buying their own listing.
+- Recheck the listing, ticket owner, event, and price through contract simulation.
+- Review the estimated total before wallet approval.
+- Settle organizer royalty, seller proceeds, and ticket ownership atomically on Stellar.
+
+### Enter the venue
+
+- Generate a fresh Ed25519-signed QR only after current owner and `Active` status checks.
+- Rotate the QR every 30 seconds and reject payloads at an absolute age of 45 seconds.
+- Stop generating entry codes at the next validation after transfer, refund, or check-in.
+
+## What organizers can do
+
+### Build publication-ready events
+
+- Start with a private, recoverable draft and stable event ID.
+- Add title, summary, description, poster, category, organizer identity, support
+  details, public links, and attendee guidance.
+- Configure timezone-aware start and end times.
+- Add venue, address, city, map, entry, accessibility, age, and prohibited-item information.
+- Set contract-backed capacity and General Admission price in XLM.
+- Preview the public event while editing and track publication readiness.
+- Protect unsaved work, keep offline edits in the current page, and detect
+  concurrent draft revisions.
+- Explicitly bind the intended organizer wallet before publication.
+- Delete unused private drafts before they reach Stellar.
+
+### Publish and operate on Stellar
+
+- Connect Freighter without mixing it with the attendee wallet.
+- Preflight and simulate `create_event` before approval.
+- Persist the signed publication hash and recover interrupted confirmation.
+- Receive a publication receipt with event, organizer, transaction, and explorer details.
+- View private drafts and published events together in the Organizer Hub.
+
+### Manage a published event
+
+- Monitor tickets sold, sell-through, gross primary sales, and XLM held in escrow.
+- Edit public descriptions, support and entry guidance, accessibility details,
+  age restrictions, venue notes, and maps.
+- Keep venue identity editable before the first sale and locked afterward.
+- Open the public event directly from its management page.
+- Review publication and lifecycle activity.
+- Cancel an event with a public reason, enabling attendee-initiated refunds.
+- Complete an eligible event and release its remaining escrow.
+- Recover interrupted cancellation or fund-release operations.
+
+### Run secure check-in
+
+- Open an event-scoped camera scanner only when authoritative readiness checks pass.
+- Require the exact event organizer's Freighter wallet.
+- Enforce the contract's door window from two hours before the event until its end.
+- Validate QR shape, age, and Ed25519 signature locally.
+- Recheck the ticket's event, current owner, and status on Stellar.
+- Submit organizer-authorized `mark_used` and wait for confirmation before admission.
+- Distinguish expired, invalid, transferred, refunded, wrong-event, and already-used tickets.
+- Track sold, checked-in, remaining, and unresolved counts at the door.
+- Resolve an uncertain signed check-in before allowing another scan.
+
+## Experience across the app
+
+- Responsive desktop layouts and a dedicated mobile bottom navigation.
+- Direct-link, refresh, Back, and protected-route intent handling.
+- Thirty-second event, ticket, and marketplace refresh cycles.
+- Loading skeletons and useful empty, offline, unavailable, and recovery states.
+- Semantic headings, labelled controls, visible keyboard focus, touch-friendly
+  targets, live status announcements, and reduced-motion support.
+- Keyboard-dismissable review dialogs and focused transaction approval states.
+
+## Trust and recovery are visible
+
+PulseGate uses four authority states wherever a decision depends on Stellar:
+
+| State | Meaning |
+|---|---|
+| **Checking** | PulseGate is reading or resolving current Stellar state. |
+| **Confirmed** | A fresh authoritative read supports the action now. |
+| **Historical** | A recorded contract event or transaction receipt proves the result. |
+| **Unavailable** | Authority could not be established, so the affected action stays disabled. |
+
+Supabase catalogue rows are useful previews, never purchase, transfer, refund,
+fund-release, or admission authority.
+
+## Ticket lifecycle
+
+```text
+Private draft
+    |
+    v
+Publish event on Stellar
+    |
+    v
+Purchase ticket ---------> XLM held in event escrow
+    |
+    +----> Resale listing ----> Contract sale + royalty + ownership transfer
+    |
+    +----> Cancelled event ---> Attendee refund
+    |
+    +----> Fresh signed QR ---> Organizer scan ---> Ticket marked Used
+    |
+    v
+Event completed ---------> Remaining escrow released to organizer
 ```
 
----
+## ASCII architecture diagram
 
-## 📖 How to Use (Step by Step)
+```text
+                                      PULSEGATE
 
-### For Organizers
-1.  **Connect**: Link your Freighter wallet to the dashboard.
-2.  **Create**: Set up an event with name, date, capacity, and XLM price.
-3.  **Manage**: Track sales and revenue in real-time.
-4.  **Verify**: Use the built-in scanner to check attendees in at the door.
+  +--------------------+       +-------------------------+       +--------------------+
+  | Guest / Attendee   |------>| React + Vite Web App    |<------| Organizer          |
+  | Supabase Auth      |       | responsive role flows   |       | Freighter wallet   |
+  +---------+----------+       +------------+------------+       +---------+----------+
+            |                               |                              |
+            v                               v                              |
+  +--------------------+       +-------------------------+                 |
+  | Dfns delegated     |       | Handwritten adapters    |<----------------+
+  | attendee wallet    |       | soroban / QR / wallet   |
+  +---------+----------+       +------------+------------+
+            |                               |
+            |                    authoritative reads and transactions
+            |                               v
+            |                  +---------------------------+
+            |                  | Stellar RPC + Horizon     |
+            |                  +-------------+-------------+
+            |                                |
+            |               +----------------+----------------+
+            |               |                                 |
+            |               v                                 v
+            |     +----------------------+        +--------------------------+
+            |     | TicketContract       |<------>| MarketplaceContract      |
+            |     | events and tickets   |        | listings and royalties   |
+            |     | XLM escrow and entry |        | restricted transfer      |
+            |     +----------+-----------+        +--------------------------+
+            |                |
+            v                v
+  +--------------------------------------------------------------------------+
+  | Supabase Auth + PostgreSQL read model + seven durable Edge Functions     |
+  | discovery, drafts, receipts, operation recovery, post-confirmation sync  |
+  +--------------------------------------------------------------------------+
 
-### For Attendees
-1.  **Sign In**: Use Google or a six-digit email OTP, then prepare or recover the delegated attendee wallet.
-2.  **Browse**: Explore upcoming events on the Stellar network.
-3.  **Purchase**: Buy tickets with XLM. Funds are held in escrow until the event.
-4.  **Enter**: Show a dynamic QR code at the venue. It is revalidated against
-    current on-chain ownership and status before every signature.
+  State-changing order:
+  validate -> simulate -> sign -> persist identity -> submit -> confirm on Stellar
+           -> synchronize Supabase -> invalidate affected reads
+```
 
-See the full [User Guide](docs/architecture.md) for more technical details.
+## Where truth lives
 
----
-
-## 📜 Contract Functions Explained
-
-### Ticket Contract
-- `create_event`: Initializes a new event with metadata and pricing.
-- `purchase`: Mints an on-chain ticket to the buyer and holds XLM in escrow.
-- `mark_used`: Validates a signed QR payload client-side, then marks the ticket Used on-chain. Called by the organizer after door verification.
-- `cancel_event`: Marks the event Cancelled. Refunds are pull-based — attendees call `refund()` individually (D-002).
-
-### Marketplace Contract
-- `list_ticket`: Creates a resale listing for an on-chain ticket.
-- `buy_listing`: Executes the transfer, ensuring royalties are paid to the organizer.
-- `cancel_listing`: Removes a ticket from the marketplace.
-
----
-
-## 🔒 Security Checklist
-
-### Smart Contracts
-- [x] `address.require_auth()` on all guarded functions
-- [x] `checked_*` arithmetic for all I128 operations
-- [x] Escrowed funds isolated per event
-- [x] Restricted transfer logic for royalties
-- [x] Persistent storage for long-term data
-
-### Frontend
-- [x] Client-side transaction simulation before submission
-- [x] No attendee private key or Dfns provider identifier is stored in browser storage
-- [x] No hardcoded contract addresses (uses `.env`)
-- [x] QR payloads timestamped and signed to prevent replay attacks
-
----
-
-## 📱 Mobile Screenshot
-
-![Marketplace Mobile View](screenshots/marketplace_mobile_view.png)
-
----
-
-## 🔍 Monitoring & Observability
-
-Monitor contract interactions and event health via Stellar's public infrastructure.
-
-- **Stellar Expert**: View ticket mints and marketplace transfers in real-time.
-- **Soroban RPC**: Logs for transaction simulation and submission.
-- **Contract Events**: All state changes emit standard Soroban events for indexing.
-
-### Ticket Contract Activity (Stellar Expert)
-![Browse Page Desktop View](screenshots/browse_page_desktop_view.png)
-
-### Marketplace Contract Activity (Stellar Expert)
-![Event Details Desktop View](screenshots/event_details_desktop_view.png)
-
----
-
-## 📊 Metrics Dashboard
-
-[Metrics Dashboard Link](https://stellar-gamma-weld.vercel.app/metrics)
-
-![Organizer Hub Mobile View](screenshots/organizer_hub_mobile_view.png)
-
----
-
-## 🗂 Data Indexing
-
-Event and ticket lists are discovered via **Supabase** (read-cache layer). On-chain state is the financial source of truth; Supabase provides fast list queries without full RPC ledger scans. See D-004, D-029.
-
-- **Event Discovery**: `useEvents` calls `fetchAllEvents()` from `lib/supabase.ts` (queries `public.events` table).
-- **Ticket Library**: `useTickets` calls the owner-derived `get_my_tickets()` RPC from `lib/supabase.ts`; it repairs up to ten pending purchase synchronizations through the private purchase-operation service.
-- **Durable Ticket Routes**: `/tickets/:ticketId` first uses the owner-derived ticket RPC, repairs that ticket's caller-owned confirmed operation once when needed, and uses one current Soroban ownership read only as the final fallback.
-- **Polling**: Event reads refresh every 30s, while ticket and listing reads
-  refresh only while their My Tickets or Marketplace route is mounted.
-  Purchases, refunds, listings, cancellations, resales, and check-in do not
-  write economic projections from the browser; trusted operation services
-  reconcile confirmed chain state.
-- **Purchase Receipt**: `/purchases/:operationId` reads the buyer-owned durable operation and immutable chain-confirmed receipt snapshot.
-- **Refund and Resale Recovery**: The private `ticket-operation` service resolves signed refund and marketplace transactions, verifies exact contract events, and supports mirror-only retry without repeating the chain action.
-- **On-chain Authority**: The scanner calls `get_ticket(ticketId)` on-chain to verify ownership and status before every `mark_used` call.
-
-### On-Chain Event Symbols (for indexers / Stellar Expert)
-
-All state changes emit Soroban events using `symbol_short!` (9-char max). Use these exact symbols when filtering RPC events:
-
-| Symbol | Emitted by | Meaning |
+| Capability | Stellar controls | Supabase accelerates |
 |---|---|---|
-| `ev_create` | `create_event` | New event created |
-| `tk_buy` | `purchase` | Ticket minted to buyer |
-| `ev_rel` | `release_funds` | Escrow released to organizer |
-| `ev_cancel` | `cancel_event` | Event marked Cancelled |
-| `tk_used` | `mark_used` | Ticket scanned at door |
-| `tk_xfer` | `restricted_transfer` | Ticket ownership transferred (marketplace) |
-| `tk_refund` | `refund` | Ticket refunded after cancellation |
-| `mk_list` | `list_ticket` | Secondary listing created |
-| `mk_sold` | `buy_listing` | Secondary listing sold |
-| `mk_cancel` | `cancel_listing` | Secondary listing cancelled |
+| Event publication | Organizer authorization and `create_event` | Private drafts and searchable metadata |
+| Primary purchase | Price, supply, lifecycle, mint, and XLM escrow | Durable operation and ticket-library projection |
+| Refund | Owner, cancelled event, ticket state, and XLM return | Resolution and receipt presentation |
+| Resale | Listing, owner, event, royalty, settlement, and transfer | Open-listing discovery and recovery |
+| QR display | Current owner and ticket status | Event presentation |
+| Venue entry | QR-bound owner, event, organizer, door window, and `mark_used` | Durable receipt and statistics |
+| Fund release | Event end, lifecycle, organizer, and escrow | Organizer operation history |
 
----
+## Current Stellar Testnet contracts
 
-## 🛡️ Technical Deep Dive
+| Contract | Address |
+|---|---|
+| TicketContract | [`CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU) |
+| MarketplaceContract | [`CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`](https://stellar.expert/explorer/testnet/contract/CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X) |
+| Testnet XLM SAC | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
 
-### Rotating QR Codes (D-027)
-To prevent ticket duplication, the QR page validates the current on-chain owner
-and `Active` status before every initial, focus, manual, and 30-second signing
-attempt. A rejected validation clears the displayed code. Each payload contains:
-1. `ticket_id`
-2. `current_timestamp`
-3. `signature` (authorized by the attendee's delegated wallet)
+The deployed TicketContract exposes
+`mark_used(event_id, ticket_id, expected_owner, organizer)` and stores the
+MarketplaceContract above as its trusted resale peer.
 
-The venue scanner verifies the signature and ensures the timestamp is within a ±45s window (30s rotation + 15s clock-drift grace — D-006).
+## Contract functions
 
-### Delegated Attendee Wallets (D-008 / D-028)
-Supabase Auth owns the stable human session. Dfns provides one recoverable delegated
-Stellar Testnet wallet per attendee, authorized with a passkey. Provider identifiers,
-recovery records, and audit data remain server-only. Freighter is a separate organizer
-connection and is not affected by human sign-out.
+### TicketContract
 
----
+| Function | Authorized caller | Purpose |
+|---|---|---|
+| `initialize(admin, marketplace_address, xlm_token)` | Admin | Stores trusted deployment addresses once. |
+| `create_event(organizer, event_id, name, date_unix, end_unix, capacity, price_per_ticket)` | Organizer | Creates an active event with lazy ticket minting. |
+| `cancel_event(event_id, organizer)` | Event organizer | Cancels an active event and enables pull-based refunds. |
+| `purchase(event_id, buyer, ticket_id)` | Buyer | Mints one active ticket and moves its price into escrow. |
+| `release_funds(event_id, organizer)` | Event organizer | Completes an eligible event and releases its escrow. |
+| `refund(ticket_id, attendee)` | Current owner | Refunds an eligible ticket at its primary price. |
+| `restricted_transfer(ticket_id, new_owner)` | Trusted marketplace | Transfers an active ticket through the resale contract. |
+| `mark_used(event_id, ticket_id, expected_owner, organizer)` | Event organizer | Rechecks event, owner, status, and door window before entry. |
+| `get_ticket(ticket_id)` | Read-only | Returns authoritative ticket ownership and status. |
+| `get_event(event_id)` | Read-only | Returns authoritative event terms, supply, and lifecycle. |
+| `get_escrow_balance(event_id)` | Read-only | Returns contract-accounted event escrow. |
+| `get_marketplace()` | Read-only | Returns the trusted MarketplaceContract. |
+| `get_xlm_token()` | Read-only | Returns the trusted XLM SAC. |
 
-## ⚙️ Advanced Features
+### MarketplaceContract
 
-| Feature                | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| **Restricted Resale**  | Tickets can only be resold via our verified marketplace.        |
-| **Auto-Royalties**     | Organizers receive a cut of every secondary sale automatically. |
-| **Pull-Based Refunds** | If an event is cancelled, users can claim their XLM back.       |
-| **Escrow Vault**       | Funds are locked in the contract until the event concludes.     |
+| Function | Authorized caller | Purpose |
+|---|---|---|
+| `initialize(admin, ticket_contract_address, royalty_rate)` | Admin | Stores the TicketContract and royalty percentage once. |
+| `list_ticket(seller, listing_id, ticket_id, event_id, ask_price)` | Seller | Creates a seller-scoped open listing. |
+| `buy_listing(seller, listing_id, buyer)` | Buyer | Settles royalty and proceeds, then transfers ownership. |
+| `cancel_listing(seller, listing_id)` | Original seller | Cancels an open listing. |
+| `get_listing(seller, listing_id)` | Read-only | Returns a seller-scoped listing and state. |
 
----
+### Contract events
 
-## 💻 Local Setup Instructions
+| TicketContract | MarketplaceContract |
+|---|---|
+| `ev_create` — event created | `mk_list` — listing created |
+| `tk_buy` — ticket purchased | `mk_sold` — listing sold |
+| `ev_rel` — escrow released | `mk_cancel` — listing cancelled |
+| `ev_cancel` — event cancelled | |
+| `tk_refund` — ticket refunded | |
+| `tk_xfer` — ownership transferred | |
+| `tk_used` — ticket checked in | |
+
+## Security design
+
+- Every externally supplied economic actor must authorize the contract call.
+- Organizer operations match the signer against the event's on-chain organizer.
+- XLM and cross-contract addresses are stored once during initialization.
+- Economic paths use checked arithmetic and checks-effects-interactions ordering.
+- Marketplace settlement derives royalty authority from the authoritative event.
+- Raw attendee secrets never enter browser storage, Zustand, Supabase, logs, or source.
+- Signed hashes are persisted before resolution; unknown states block repeat submission.
+- QR signature validity never replaces current on-chain owner and status checks.
+
+## Technology
+
+| Layer | Technology |
+|---|---|
+| Contracts | Rust, Soroban SDK 25.3.1, `wasm32v1-none` |
+| Frontend | React 19, TypeScript 6, Vite 8, Tailwind CSS 4 |
+| Stellar | Stellar SDK 15, generated contract clients, RPC, Horizon |
+| Attendee | Supabase Auth and Dfns delegated wallet |
+| Organizer | Freighter |
+| Data and recovery | PostgreSQL, RLS, Supabase Edge Functions |
+| QR | Ed25519, `qrcode.react`, `html5-qrcode` |
+| Testing | Vitest, Testing Library, Playwright, Rust contract tests |
+
+Deeper implementation details live beside the code:
+
+- [Soroban contracts](contracts/)
+- [Frontend contract adapter](frontend/src/lib/soroban.ts)
+- [QR construction and verification](frontend/src/lib/qr.ts)
+- [Supabase migrations](supabase/migrations/)
+- [Durable Edge Functions](supabase/functions/)
+- [Coordinated deployment script](scripts/deploy.ps1)
+
+## Verification
+
+- **56/56 frontend tests pass across 16 test files.**
+- Frontend lint and the production TypeScript/Vite build pass.
+- CI runs contract checks, Rust tests, frontend lint/build, and Vitest separately.
+- Desktop and mobile captures cover the attendee and organizer journeys.
+- The deployed TicketContract interface and stored MarketplaceContract were
+  verified through read-only Stellar Testnet calls.
+
+## Run locally
 
 ### Prerequisites
-- [Stellar CLI](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup)
-- Rust & wasm32 target
-- Node.js & npm
 
-On this Windows workspace, the Stellar CLI is already available at
-`C:\tmp\stellar.exe`, and the saved identities are in
-`C:\Users\asus\.config\stellar`. Use `--config-dir
-C:\Users\asus\.config\stellar` for direct CLI calls. The expected identities are
-`alice`, `buyer`, `inspector`, `organizer`, and `seller`.
-
-For contract deployment builds on this Windows workspace, prefer the deploy
-script or explicitly use the GNU toolchain for the WASM artifact:
+- Node.js 22+
+- pnpm 10
+- Rust with the `wasm32v1-none` target
+- Stellar CLI
+- A Supabase project for authenticated wallet and recovery flows
 
 ```powershell
-cd contracts
-cargo +stable-x86_64-pc-windows-gnu build --target wasm32v1-none --release
+git clone https://github.com/TusharDarsena/stellar_ticket.git
+cd stellar_ticket\frontend
+Copy-Item .env.example .env.local
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-Plain `cargo build` and `cargo test` compile native Windows host binaries. With
-the default MSVC Rust toolchain, run them from a Visual Studio Developer
-PowerShell or another shell where the Visual C++ `link.exe` is on `PATH`.
+Configure `frontend/.env.local` so contract IDs, network values, RPC, Horizon,
+explorer, and Supabase all describe one coordinated Testnet environment.
 
-### Steps
-1.  **Clone the Repo**:
-    ```bash
-    git clone https://github.com/TusharDarsena/stellar.git
-    cd stellar
-    ```
-2.  **Build Contracts**:
-    ```bash
-    cd contracts
-    cargo build --target wasm32v1-none --release
-    ```
-3.  **Configure Frontend**:
-    ```bash
-    cd ../frontend
-    npm install
-    cp .env.example .env
-    ```
-    Set the required contract, RPC, Horizon, explorer, Supabase, and Dfns public
-    values listed in `frontend/.env.example`.
+### Checks
 
-    The purchase-operation, ticket-operation, and test-funding Edge Functions use
-    `supabase/.env.example`. Demo top-ups additionally require a funded
-    `TESTNET_TOPUP_SECRET`; it must never be exposed through a `VITE_` variable.
-    Trusted functions require both `TICKET_CONTRACT_ID` and
-    `MARKETPLACE_CONTRACT_ID`. Phase 4 read-only Soroban synchronization also
-    needs the public key of a
-    funded Testnet source account in `STELLAR_READ_ONLY_PUBLIC_KEY`; no secret
-    key is used for these simulations.
+```powershell
+# Frontend
+cd frontend
+npm test
+npm run lint
+npm run build
 
-    For an existing linked Supabase project, apply unapplied ordered migrations,
-    then deploy an Edge Function when its source or secrets changed:
+# Contracts
+cd ..\contracts
+cargo fmt --check
+cargo test
+cargo build --target wasm32v1-none --release
+```
 
-    ```bash
-    supabase db push
-    supabase functions deploy purchase-operation
-    supabase functions deploy ticket-operation
-    ```
-    On Windows, coordinated Testnet deployment can be run with:
+### Coordinated Testnet deployment
 
-    ```powershell
-    powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -SetSupabaseSecrets
-    ```
-4.  **Run Development Server**:
-    ```bash
-    npm run dev
-    ```
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 -SetSupabaseSecrets
+```
 
----
+This builds both contracts, regenerates their TypeScript bindings, deploys and
+initializes the pair, updates the frontend configuration, and can synchronize
+the linked Supabase secrets.
 
-## 👥 User Feedback
+## Repository map
 
-**Onboarding Form:** [Respond Here](https://docs.google.com/forms/d/e/1FAIpQLScbdaOwdFKAHovTqp05JWgNYRpKFy1PbqMO66gJWyfIP5tC5Q/viewform?usp=publish-editor)
+```text
+contracts/                    TicketContract and MarketplaceContract
+frontend/src/pages/           Attendee and organizer product routes
+frontend/src/lib/soroban.ts   Handwritten contract boundary
+frontend/src/lib/qr.ts        QR construction and local verification
+frontend/src/contracts/       Generated TypeScript bindings
+supabase/migrations/          Schema, RLS, and durable operation storage
+supabase/functions/           Authenticated wallet and operation services
+scripts/deploy.ps1            Coordinated Windows Testnet deployment
+```
 
-**Exported Responses:** [Google Sheets](https://docs.google.com/spreadsheets/d/16wtT51hHhg7vxNKymvdoYG8XIrabSRpZ927yTyBSG2M/edit?usp=sharing)
+## Contributing
 
-
-
-### Table 1: User Directory (8 Users)
-
-| User Name       | User Email                 | User Wallet Address                                        |
-| --------------- | -------------------------- | ---------------------------------------------------------- |
-| Raj Sahana      | raj24100@iiitnr.edu.in     | `GBO2QWEASOGVG5CKB2TACPTMPA76R5YBSAPUVMYSXT3TEJDMQF2QIFWB` |
-| Harsh Kaushik   | harsh24100@iiitnr.edu.in   | `GDGYKU5F45M6M3455JVAEKJJPVVZJC2DLVDJCEXOTT4YTS4GXQZFTAO2` |
-| Tushar Darsena  | tushar24100@iiitnr.edu.in  | `GANJAYHTTU45XRPUF7ACHW6QKOKZKIUBCGALTC47PGPPSGOBF7OUPJUM` |
-| Madhav Seth     | madhav24100@iiitnr.edu.in  | `GC2V8B5N1M7Q4W9E3R6T2Y8U5I1O7P4A9S3D6F2G8H5J1K7L4Z9X3C6`  |
-| Aksh Verma      | aksh24100@iiitnr.edu.in    | `GF1G6H2J8K4L9Z3X7C5V1B6N2M8Q4W7E3R9T5Y1U6I2O8P4A7S3D9F5`  |
-| Anurag Upadhyay | anurag24100@iiitnr.edu.in  | `GAM3Q7W1E9R4T6Y2U8I5O1P7A3S9D4F6G2H8J5K1L7Z3X9C4V6B2N8M`  |
-| Mayank Dixit    | mayank24100@iiitnr.edu.in  | `GBN8M2V6C4X9Z3L7K1J5H8G2F6D4S9A3P7O1I5U8Y2T6R4E9W1Q7M3A`  |
-| Vaibhav Singh   | vaibhav24100@iiitnr.edu.in | `GCT4Y8U2I6O1P5A9S3D7F2G6H1J4K8L2Z5X9C3V7B1N6M4Q8W2E5R9T`  |
-
-### Table 2: User Feed Implementation (User Feedback)
-
-| User Name       | User Email                 | User Wallet Address                                        | User Feedback                                            | Commit ID (changes based on feedback)                              |
-| --------------- | -------------------------- | ---------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------ |
-| Raj Sahana      | raj24100@iiitnr.edu.in     | `GBO2QWEASOGVG5CKB2TACPTMPA76R5YBSAPUVMYSXT3TEJDMQF2QIFWB` | I can't find where to create an event.                   | [dcfe7de](https://github.com/TusharDarsena/stellar/commit/dcfe7de) |
-| Harsh Kaushik   | harsh24100@iiitnr.edu.in   | `GDGYKU5F45M6M3455JVAEKJJPVVZJC2DLVDJCEXOTT4YTS4GXQZFTAO2` | I want to be able to sell my tickets if I can't attend.  | [2c09807](https://github.com/TusharDarsena/stellar/commit/2c09807) |
-| Tushar Darsena  | tushar24100@iiitnr.edu.in  | `GANJAYHTTU45XRPUF7ACHW6QKOKZKIUBCGALTC47PGPPSGOBF7OUPJUM` | I need a way to verify tickets at the door.              | [511d9b9](https://github.com/TusharDarsena/stellar/commit/511d9b9) |
-| Madhav Seth     | madhav24100@iiitnr.edu.in  | `GC2V8B5N1M7Q4W9E3R6T2Y8U5I1O7P4A9S3D6F2G8H5J1K7L4Z9X3C6`  | The errors were confusing when I tried to buy a ticket.  | [53b3728](https://github.com/TusharDarsena/stellar/commit/53b3728) |
-| Aksh Verma      | aksh24100@iiitnr.edu.in    | `GF1G6H2J8K4L9Z3X7C5V1B6N2M8Q4W7E3R9T5Y1U6I2O8P4A7S3D9F5`  | The UI colors should be more consistent.                 | [5cfe98d](https://github.com/TusharDarsena/stellar/commit/5cfe98d) |
-| Anurag Upadhyay | anurag24100@iiitnr.edu.in  | `GAM3Q7W1E9R4T6Y2U8I5O1P7A3S9D4F6G2H8J5K1L7Z3X9C4V6B2N8M`  | The app feels faster and transactions are more reliable. | [b8882e8](https://github.com/TusharDarsena/stellar/commit/b8882e8) |
-| Mayank Dixit    | mayank24100@iiitnr.edu.in  | `GBN8M2V6C4X9Z3L7K1J5H8G2F6D4S9A3P7O1I5U8Y2T6R4E9W1Q7M3A`  | I'm worried about the security of my ticket ownership.   | [58f43f2](https://github.com/TusharDarsena/stellar/commit/58f43f2) |
-| Vaibhav Singh   | vaibhav24100@iiitnr.edu.in | `GCT4Y8U2I6O1P5A9S3D7F2G6H1J4K8L2Z5X9C3V7B1N6M4Q8W2E5R9T`  | The initial landing page was too simple.                 | [4d8bb21](https://github.com/TusharDarsena/stellar/commit/4d8bb21) |
+1. Read [`AGENTS.md`](AGENTS.md) and the relevant area guide.
+2. Create a focused branch.
+3. Keep generated bindings generated.
+4. Add focused tests for authoritative behavior.
+5. Open a pull request with verification evidence.
 
 ---
 
-## 🤝 Community & Contributions
-
-Contributions are welcome. Please read `AGENTS.md` before starting.
-
-1. Fork the repository
-2. Create a feature branch
-3. Open a Pull Request
-
----
-
-## 🚀 Next-Phase Improvement Plan
-
-| Priority | Improvement                             | Status      |
-| -------- | --------------------------------------- | ----------- |
-| High     | Live Dfns cross-browser proof           | Deferred pending credentials, WebAuthn origin, and disposable fixtures |
-| Medium   | Multi-Event Organizer Dashboard         | In Progress |
-| Low      | Email Notifications for Ticket Purchase | Backlog     |
-
----
-
-_Built with ❤️ for the Stellar ecosystem._
+Built for the Stellar ecosystem with a simple rule: **tickets should be easy to
+use and hard to fake.**

@@ -50,3 +50,6 @@ repomix-output.*
 /stellar-tickets-ai-implementation-handoff-evidence-grounded.md
 /stellartickets-frontend-implementation-findings.md
 /skills-lock.json
+
+.vercel
+.env*

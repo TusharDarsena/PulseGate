@@ -157,16 +157,14 @@ export function HowItWorksPage() {
         <section className="mt-12" aria-labelledby="evidence-heading">
           <h2 id="evidence-heading" className="text-2xl font-semibold">Inspect the evidence</h2>
           <p className="mt-2 max-w-3xl text-[#c9c4d8]">
-            Read the architecture boundary, inspect the current contract deployment, or follow
-            the repository’s public verification notes.
+            Explore the public product overview, inspect the current contract source, or watch
+            the complete product walkthrough.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <ExternalLink href={`${REPOSITORY_URL}/blob/main/docs/architecture.md`}>Architecture</ExternalLink>
+            <ExternalLink href={`${REPOSITORY_URL}#ascii-architecture-diagram`}>System architecture</ExternalLink>
             <ExternalLink href={`${REPOSITORY_URL}/tree/main/contracts`}>Contract source</ExternalLink>
             <ExternalLink href={DEMO_VIDEO_URL}>Walkthrough video</ExternalLink>
-            <ExternalLink href={`${REPOSITORY_URL}#evaluate-pulsegate-in-60-seconds`}>
-              Public evidence
-            </ExternalLink>
+            <ExternalLink href={`${REPOSITORY_URL}#what-attendees-can-do`}>Product features</ExternalLink>
           </div>
         </section>
       </div>

@@ -4,16 +4,44 @@ This is a privacy-safe operational audit. It records public identifiers,
 service names, and verification outcomes. It does not contain access tokens,
 secret values, participant identities, or raw form data.
 
+## Coordinated cutover update
+
+Later on 2026-07-30, the required coordinated contract cutover was completed:
+
+- TicketContract:
+  `CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`
+- MarketplaceContract:
+  `CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`
+- TicketContract initialization transaction:
+  `343a3e7f707055319503a2256859263563092415830ea6083886077436abb7e0`
+- MarketplaceContract initialization transaction:
+  `3ba74e55cbe0810f3d4fa500992cc025c1e79fdbccbdad6ab1052d21f20febfa`
+
+Both TypeScript binding packages were regenerated. The deployed/generated
+TicketContract interface exposes
+`mark_used(event_id, ticket_id, expected_owner, organizer)`, and a read-only
+contract call confirmed the replacement MarketplaceContract is stored as
+TicketContract's trusted peer. The MarketplaceContract initialization
+transaction supplied the replacement TicketContract as its trusted peer.
+`frontend/.env.local` and the linked Supabase contract/network secrets were
+synchronized to these IDs.
+
+The original audit below is retained as the historical finding that triggered
+the cutover. Production frontend environment synchronization, deployment of the
+current frontend source, and end-to-end user-flow demonstrations remain
+separate outstanding steps.
+
 ## Result
 
-The Supabase recovery/service boundary is synchronized to the current public
-Testnet contract IDs. The current TicketContract deployment is **not**
-synchronized to the repository’s four-argument check-in ABI, so the coordinated
-contract/frontend cutover and end-to-end demonstrations remain incomplete.
+At the time of the original audit, the Supabase recovery/service boundary was
+synchronized to the then-current public Testnet contract IDs, but that
+TicketContract deployment was **not** synchronized to the repository's
+four-argument check-in ABI. The coordinated contract cutover documented above
+supersedes that deployment.
 
 ## Stellar contract audit
 
-Configured frontend deployment:
+Frontend configuration at the time of the original audit:
 
 - Network: Stellar Testnet
 - TicketContract:
@@ -102,7 +130,7 @@ source has not been deployed, and no in-app browser was available for rendered
 visual verification. Therefore this audit does not claim that the new route or
 trust-state UI is live.
 
-## Required coordinated cutover
+## Original required coordinated cutover
 
 1. Obtain frontend production deployment access.
 2. Run `scripts/deploy.ps1 -SetSupabaseSecrets` to deploy and initialize both
@@ -114,4 +142,7 @@ trust-state UI is live.
    fund-release demonstrations where lifecycle timing permits;
 7. capture the fixed nine-image set and refresh the walkthrough video.
 
-Do not switch only one layer. A partial cutover would break authoritative flows.
+Steps 2 and 5 were completed in the coordinated cutover update above. The local
+frontend environment and Supabase secrets were also synchronized. Production
+frontend access, deployment, and the end-to-end demonstrations remain
+outstanding; do not switch only one production layer.

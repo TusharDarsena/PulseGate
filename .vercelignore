@@ -1,0 +1,27 @@
+# Local dependency and build output
+node_modules/
+frontend/node_modules/
+frontend/dist/
+contracts/target/
+target/
+
+# Development-only evidence and capture artifacts
+proofs/
+screenshots/
+frontend/test-results/
+frontend/playwright-report/
+zip for e2e, not relevant/
+
+# Local tooling, caches, and generated archives
+.agents/
+.codex/
+.repomix/
+.pnpm-store/
+repomix-output.*
+*.zip
+
+# Local secrets and project-link metadata
+.env
+.env.*
+.vercel/
+frontend/.vercel/

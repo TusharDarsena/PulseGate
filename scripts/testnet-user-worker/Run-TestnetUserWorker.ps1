@@ -581,7 +581,7 @@ function Initialize-State {
       "refund" { "Cancelled-event refund"; break }
       "listing-open" { "Marketplace listing created"; break }
       "listing-cancelled" { "Marketplace listing cancelled"; break }
-      "listing-sold" { "Marketplace listing created and later sold"; break }
+      "listing-sold" { "Marketplace listing created (paired resale purchase shown separately)"; break }
       "resale-buyer" { "Marketplace resale purchase"; break }
       default { "Primary ticket purchase" }
     }

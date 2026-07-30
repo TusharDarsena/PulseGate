@@ -33,39 +33,48 @@ boundary and proof in its row has been verified together.
 
 ## Current deployment audit
 
-As of 2026-07-30, the repository and `frontend/.env.local` point to:
+As of the coordinated 2026-07-30 cutover, the repository and
+`frontend/.env.local` point to:
 
 - TicketContract:
-  `CDO4I4NMRXSTKBL3K7D3WWGRTVNRAUVOMKPKA6X726SY6SYQRBPQIDDQ`
+  `CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`
 - MarketplaceContract:
-  `CC34MVNENC3VD26RJ42SVQXPDZ3JYZJBBNIHHXCX4EDIGUSPZOPDBC6M`
+  `CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`
 - Network: Stellar Testnet
 
-The checked-in Testnet worker documents that this deployed TicketContract
-exposes an older check-in argument shape than the current source. Therefore:
+The coordinated deployment rebuilt both contracts from current source,
+regenerated both TypeScript binding packages, deployed TicketContract before
+MarketplaceContract, initialized their peer relationship, synchronized local
+frontend values, and updated the linked Supabase secrets. Read-only inspection
+confirmed:
 
-- purchase activity may be described as automated Testnet evidence;
-- the three worker identities must not be described as PulseGate users;
-- current four-argument check-in must not be described as deployed or live;
-- durable refund/resale wording remains conditional on live service, migration,
-  secret, and end-to-end verification.
+- the deployed/generated TicketContract interface exposes
+  `mark_used(event_id, ticket_id, expected_owner, organizer)`;
+- TicketContract stores
+  `CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X` as its trusted
+  MarketplaceContract;
+- MarketplaceContract initialization was submitted with
+  `CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU` as its trusted
+  TicketContract.
 
 The [2026-07-30 deployment audit](deployment-audit-2026-07-30.md) additionally
-confirms that all local migrations are applied, all seven required Edge
-Functions are active, and the current ticket/marketplace IDs are present in
-service secrets. This makes the durable service boundary deployed, but it does
-not repair the older TicketContract check-in ABI or demonstrate the flows end
-to end.
+records the original mismatch and its later coordinated replacement. All local
+migrations remain applied, all seven required Edge Functions are active, and
+the replacement contract IDs are present in service secrets. This establishes
+the correct deployed ABI and service boundary; it does not by itself constitute
+an end-to-end purchase, refund, resale, check-in, or fund-release demonstration.
 
 ## Deployment readiness checklist
 
-- [ ] Deploy TicketContract and MarketplaceContract together from current source.
-- [ ] Regenerate both TypeScript binding packages from the deployed WASM.
-- [ ] Confirm `mark_used(event_id, ticket_id, expected_owner, organizer)`.
-- [ ] Confirm TicketContract’s stored marketplace address.
-- [ ] Confirm MarketplaceContract’s stored ticket address through deployment
-      initialization/ledger inspection.
-- [ ] Synchronize frontend environment values and Supabase secrets.
+- [x] Deploy TicketContract and MarketplaceContract together from current source.
+- [x] Regenerate both TypeScript binding packages from the deployed WASM.
+- [x] Confirm `mark_used(event_id, ticket_id, expected_owner, organizer)`.
+- [x] Confirm TicketContract’s stored marketplace address.
+- [x] Confirm MarketplaceContract’s stored ticket address through deployment
+      initialization.
+- [x] Synchronize local frontend environment values and Supabase secrets.
+- [ ] Synchronize the production frontend environment and deploy this exact
+      frontend source.
 - [x] Apply purchase, organizer, ticket-operation, listing-visibility, and
       check-in migrations (CLI-verified 2026-07-30).
 - [x] Deploy and inspect required Edge Functions (all active 2026-07-30).

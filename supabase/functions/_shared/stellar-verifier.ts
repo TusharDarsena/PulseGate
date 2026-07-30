@@ -3,6 +3,7 @@ import {
   rpc,
   scValToNative,
   TransactionBuilder,
+  xdr,
 } from 'npm:@stellar/stellar-sdk@16.1.0';
 
 export interface AuthoritativeEvent {
@@ -257,11 +258,19 @@ function transactionSource(
   envelopeXdr: unknown,
   networkPassphrase: string,
 ): string {
-  if (typeof envelopeXdr !== 'string') {
+  const envelope = typeof envelopeXdr === 'string'
+    ? envelopeXdr
+    : envelopeXdr &&
+        typeof envelopeXdr === 'object' &&
+        'toXDR' in envelopeXdr &&
+        typeof envelopeXdr.toXDR === 'function'
+      ? envelopeXdr as xdr.TransactionEnvelope
+      : null;
+  if (!envelope) {
     throw new Error('The transaction envelope is unavailable.');
   }
   const transaction = TransactionBuilder.fromXDR(
-    envelopeXdr,
+    envelope,
     networkPassphrase,
   );
   return transaction.source;
@@ -280,6 +289,20 @@ function decodeProofValue(
   }
   if (typeof native !== 'string') return null;
   return { organizer: native, releasedAmount: null };
+}
+
+function eventContractId(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (
+    value &&
+    typeof value === 'object' &&
+    'contractId' in value &&
+    typeof value.contractId === 'function'
+  ) {
+    const id = value.contractId();
+    return typeof id === 'string' ? id : null;
+  }
+  return null;
 }
 
 export async function resolveExactContractEvent(
@@ -319,7 +342,7 @@ export async function resolveExactContractEvent(
 
   for (const event of response.events) {
     if (
-      event.contractId !== contractId ||
+      eventContractId(event.contractId) !== contractId ||
       event.txHash.toLowerCase() !== transactionHash.toLowerCase() ||
       !event.inSuccessfulContractCall
     ) {
@@ -379,7 +402,7 @@ export async function resolveExactTicketUsedEvent(
 
   for (const event of response.events) {
     if (
-      event.contractId !== contractId ||
+      eventContractId(event.contractId) !== contractId ||
       event.txHash.toLowerCase() !== transactionHash.toLowerCase() ||
       !event.inSuccessfulContractCall
     ) {
@@ -454,7 +477,7 @@ export async function resolveExactTicketOperationEvent(
 
   for (const event of response.events) {
     if (
-      event.contractId !== contractId ||
+      eventContractId(event.contractId) !== contractId ||
       event.txHash.toLowerCase() !== transactionHash.toLowerCase() ||
       !event.inSuccessfulContractCall
     ) {

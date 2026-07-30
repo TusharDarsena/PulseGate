@@ -10,8 +10,7 @@ This directory contains one unattended Windows worker that:
    cancellation, and attendee refunds;
 5. resolves every proof transaction through Horizon and Stellar RPC;
 6. captures exactly two Stellar Expert screenshots per account; and
-7. writes a GitHub-ready `README.md` with the user sections in a deterministic
-   shuffled order.
+7. writes a GitHub-ready `README.md` with sequentially numbered user sections.
 
 It does not create Supabase Auth records, Dfns wallets, profiles, purchase
 operations, or Mainnet activity.
@@ -106,9 +105,8 @@ proofs/
         └── ...two images per account
 ```
 
-The generated README deliberately does not sort its user sections by account
-number, address, activation time, or transaction time. The shuffle seed is the
-run ID, so resuming the same run produces the same presentation order.
+The generated README sorts its sections by worker user number (`User 01`,
+`User 02`, and so on). Resuming the same run preserves that presentation order.
 
 For a 65-account run, the proof activity is distributed as follows:
 

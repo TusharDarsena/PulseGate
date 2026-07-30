@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-07-30 — Judge-facing experience and evidence
+
+- Added the trust-focused Discover hero, public `/how-it-works` route, and
+  consistent current, unavailable, checking, and historical Stellar states.
+- Added frontend CI tests and verified 56 Vitest tests, lint, and production build.
+- Applied the pending Supabase migrations, deployed the durable ticket/check-in
+  services, and synchronized the current contract ID secrets.
+- Rebuilt the README as a complete public feature showcase, restored the
+  hackathon architecture and contract references, corrected current Testnet
+  links, and kept internal working documents out of public navigation.
+
 ## 2026-07-27
 
 - Phase 4: recoverable owned-ticket synchronization after confirmed purchases,

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -24,28 +23,6 @@ function parseArguments(argv) {
     throw new Error("Usage: capture-proofs.mjs --state <state.json> --output <proof-directory>");
   }
   return parsed;
-}
-
-function seededRandom(seedText) {
-  const digest = createHash("sha256").update(seedText).digest();
-  let state = digest.readUInt32LE(0) || 0x6d2b79f5;
-  return () => {
-    state |= 0;
-    state = (state + 0x6d2b79f5) | 0;
-    let value = Math.imul(state ^ (state >>> 15), 1 | state);
-    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function shuffled(items, seedText) {
-  const copy = [...items];
-  const random = seededRandom(seedText);
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const other = Math.floor(random() * (index + 1));
-    [copy[index], copy[other]] = [copy[other], copy[index]];
-  }
-  return copy;
 }
 
 function sleep(milliseconds) {
@@ -157,16 +134,20 @@ function markdownFor(state, actors) {
     `- **TicketContract:** [\`${state.ticketContractId}\`](${state.explorerBaseUrl}/contract/${state.ticketContractId})`,
     `- **MarketplaceContract:** [\`${state.marketplaceContractId}\`](${state.explorerBaseUrl}/contract/${state.marketplaceContractId})`,
     "",
-    "The entries below intentionally use a deterministic shuffled presentation order. Account addresses, transactions, and network timestamps are unchanged.",
+    "The entries below are ordered by worker user number. Account addresses, transactions, and network timestamps are unchanged.",
     "",
   ];
 
   for (const actor of actors) {
+    const activityLabel =
+      actor.activityRole === "listing-sold"
+        ? "Marketplace listing created (paired resale purchase shown separately)"
+        : actor.proofActivityLabel || "Confirmed contract transaction";
     lines.push(
       `## User ${String(actor.index).padStart(2, "0")}`,
       "",
       `**Address:** \`${actor.address}\`  `,
-      `**Activity shown:** ${actor.proofActivityLabel || "Confirmed contract transaction"}  `,
+      `**Activity shown:** ${activityLabel}  `,
       `[Verify account](${actor.accountUrl}) | [Verify activity](${actor.transactionUrl})`,
       "",
       `![User ${String(actor.index).padStart(2, "0")} account proof](${actor.accountImage})`,
@@ -217,7 +198,9 @@ for (const actor of captured) {
   }
 }
 
-const presentationOrder = shuffled(captured, `${state.runId}:github-readme-order`);
+const presentationOrder = [...captured].sort(
+  (left, right) => Number(left.index) - Number(right.index),
+);
 const readme = markdownFor(state, presentationOrder);
 await writeFile(path.join(outputDirectory, "README.md"), readme, "utf8");
 

@@ -60,4 +60,18 @@ describe('HowItWorksPage', () => {
       '/organizer/events',
     );
   });
+
+  it('links public evidence to the README rather than internal working documents', () => {
+    render(
+      <MemoryRouter>
+        <HowItWorksPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'System architecture' })).toHaveAttribute(
+      'href',
+      'https://github.com/TusharDarsena/stellar_ticket#ascii-architecture-diagram',
+    );
+    expect(screen.queryByRole('link', { name: 'Architecture' })).not.toBeInTheDocument();
+  });
 });
