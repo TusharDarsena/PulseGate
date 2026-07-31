@@ -53,6 +53,20 @@ export function AccountPage() {
             Prepare ticket wallet
           </button>
         )}
+        {attendeeWallet.readiness === 'provisioning' && (
+          <div className="mt-5">
+            <p className="text-sm text-slate-400">
+              Wallet setup is waiting for a passkey. Retry if the prompt was cancelled or did not open.
+            </p>
+            <button onClick={() => void run(async () => {
+              const code = await provisionWallet();
+              setRecoveryCode(code);
+              setShowRecoveryCode(false);
+            })} className="mt-3 bg-[#7C5CFF] px-4 py-2 rounded-lg">
+              Retry wallet setup
+            </button>
+          </div>
+        )}
         {recoveryCode && (
           <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
             <p className="font-semibold text-emerald-300">Save this recovery code now</p>

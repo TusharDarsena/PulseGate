@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Navigate,
   Route,
@@ -34,7 +34,7 @@ import { EventDraftPage } from './pages/organizer/EventDraftPage';
 import { OrganizerEventPage } from './pages/organizer/OrganizerEventPage';
 import { useAppStore } from './store/useAppStore';
 
-function RequireAuth({
+export function RequireAuth({
   children,
   action,
   attendeeWallet = false,
@@ -46,6 +46,7 @@ function RequireAuth({
   const { user, loading, walletRestoring, provisionWallet } = useAuth();
   const wallet = useAppStore((state) => state.attendeeWallet);
   const location = useLocation();
+  const [provisioningError, setProvisioningError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -78,7 +79,25 @@ function RequireAuth({
             </button>
           </>
         ) : wallet.readiness === 'provisioning' ? (
-          <p className="text-slate-400">Preparing your ticket wallet...</p>
+          <>
+            <p className="text-slate-400 mb-5">
+              Preparing your ticket wallet. If the passkey prompt was cancelled or did not open, retry setup.
+            </p>
+            <button
+              onClick={() => {
+                setProvisioningError(null);
+                void provisionWallet().catch((error) => {
+                  setProvisioningError(
+                    error instanceof Error ? error.message : 'Wallet setup could not be completed.',
+                  );
+                });
+              }}
+              className="bg-[#7C5CFF] px-4 py-2 rounded-lg"
+            >
+              Retry wallet setup
+            </button>
+            {provisioningError && <p role="alert" className="mt-3 text-amber-300">{provisioningError}</p>}
+          </>
         ) : (
           <p className="text-amber-300">
             {wallet.errorMessage ?? 'Ticket wallet readiness could not be confirmed. Refresh to retry.'}
