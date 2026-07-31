@@ -15,6 +15,22 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 > PulseGate currently uses Stellar Testnet. Testnet XLM has no monetary value.
 
+## Current Stellar Testnet contracts
+
+| Wallet Integration | Transaction Signing | Contract Deployment |
+|---|---|---|
+| ![Wallet connection proof](screenshots/proofs/wallet-proof-1.png) | ![Transaction signing proof](screenshots/proofs/wallet-proof-2.png) | ![Contract deployment proof](screenshots/proofs/contract-proof.png) |
+
+| Contract | Address |
+|---|---|
+| TicketContract | [`CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU) |
+| MarketplaceContract | [`CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`](https://stellar.expert/explorer/testnet/contract/CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X) |
+| Testnet XLM SAC | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
+
+The deployed TicketContract exposes
+`mark_used(event_id, ticket_id, expected_owner, organizer)` and stores the
+MarketplaceContract above as its trusted resale peer.
+
 ## Evaluate PulseGate in 60 seconds
 
 1. Browse the event catalogue and try its search, category, city, and date filters.
@@ -30,13 +46,14 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 [![PulseGate walkthrough](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
 
-| Discover events | Contract-backed purchase receipt |
+| Discover events | Event detail |
 |---|---|
-| ![PulseGate Discover page](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v01.png) | ![PulseGate purchase receipt](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/purchase-receipt/T1_purchase-receipt_confirmed_mobile-390x844_attendee_seedA_v01.png) |
+| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Discover page" width="480"> | <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Event Detail desktop" width="480"> |
 
-| Owner-verified rotating QR | Organizer check-in scanner |
+| Event detail — mobile | Organizer check-in scanner |
 |---|---|
-| ![PulseGate active ticket QR](screenshots/ui-refinement/2026-07-29/02-tier-2-support-flow/qr-display/T2_qr-display_active_mobile-390x844_attendee_seedA_v01.png) | ![PulseGate organizer scanner](screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png) |
+| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v02.png" alt="PulseGate Event Detail mobile" width="260"> | <img src="screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png" alt="PulseGate organizer scanner" width="260"> |
+
 
 ## What attendees can do
 
@@ -244,17 +261,6 @@ Event completed ---------> Remaining escrow released to organizer
 | Venue entry | QR-bound owner, event, organizer, door window, and `mark_used` | Durable receipt and statistics |
 | Fund release | Event end, lifecycle, organizer, and escrow | Organizer operation history |
 
-## Current Stellar Testnet contracts
-
-| Contract | Address |
-|---|---|
-| TicketContract | [`CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU) |
-| MarketplaceContract | [`CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`](https://stellar.expert/explorer/testnet/contract/CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X) |
-| Testnet XLM SAC | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
-
-The deployed TicketContract exposes
-`mark_used(event_id, ticket_id, expected_owner, organizer)` and stores the
-MarketplaceContract above as its trusted resale peer.
 
 ## Contract functions
 

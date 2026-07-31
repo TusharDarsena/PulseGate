@@ -491,9 +491,7 @@ export function PurchasePage({
           </div>
         )}
 
-        <p className="hidden mt-6 text-xs text-[#938ea1]">
-          Stellar Testnet — balances and payments have no monetary value.
-        </p>
+
 
         <div className="mt-6 flex flex-col gap-3">
           {account && (!account.exists || shortfall > 0n) && (

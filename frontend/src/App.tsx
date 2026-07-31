@@ -244,9 +244,7 @@ function App() {
         } />
       </Routes>
       <BottomNav />
-      <div className="fixed bottom-16 md:bottom-0 inset-x-0 z-40 text-center text-[11px] bg-[#0E1113]/95 text-amber-200 py-1">
-        Stellar Testnet — balances and payments have no monetary value.
-      </div>
+
     </>
   );
 }
