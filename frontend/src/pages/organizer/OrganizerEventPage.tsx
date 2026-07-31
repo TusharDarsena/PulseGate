@@ -264,6 +264,11 @@ export function OrganizerEventPage() {
     let signedHashPersisted = false;
     let transactionPrepared = false;
     try {
+      if (wallet.accountExists !== true) {
+        throw new Error(
+          'The organizer Freighter account is not activated on Stellar Testnet. Fund it with Friendbot, then reconnect Freighter.',
+        );
+      }
       const allocated = await invokeOrganizerEventOperation('allocate', {
         idempotencyKey: crypto.randomUUID(),
         eventId,

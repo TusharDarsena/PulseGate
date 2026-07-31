@@ -46,6 +46,7 @@ export function RequireAuth({
   const { user, loading, walletRestoring, provisionWallet } = useAuth();
   const wallet = useAppStore((state) => state.attendeeWallet);
   const location = useLocation();
+  const navigate = useNavigate();
   const [provisioningError, setProvisioningError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,11 +67,37 @@ export function RequireAuth({
     <main className="min-h-screen pt-28 px-4 flex justify-center">
       <section className="max-w-lg h-fit rounded-xl border border-[#272C33] bg-[#15181C] p-8">
         <h1 className="text-2xl font-bold mb-3">Ticket wallet required</h1>
-        {wallet.readiness === 'recovery_required' ? (
-          <p className="text-amber-300">
-            Your recorded wallet could not be restored. Recovery is required; PulseGate will
-            not create a replacement wallet.
-          </p>
+        {wallet.readiness === 'recovery_required' && wallet.address ? (
+          <>
+            <p className="text-amber-300">
+              Your recorded wallet could not be restored. Recovery is required; PulseGate will
+              not create a replacement wallet.
+            </p>
+            <button onClick={() => navigate('/account')} className="mt-5 bg-amber-500 px-4 py-2 rounded-lg text-black">
+              Recover wallet
+            </button>
+          </>
+        ) : wallet.readiness === 'recovery_required' ? (
+          <>
+            <p className="text-slate-400 mb-5">
+              Wallet setup was interrupted before an address was recorded. Retry setup to safely
+              reconcile the unfinished Dfns registration.
+            </p>
+            <button
+              onClick={() => {
+                setProvisioningError(null);
+                void provisionWallet().catch((error) => {
+                  setProvisioningError(
+                    error instanceof Error ? error.message : 'Wallet setup could not be completed.',
+                  );
+                });
+              }}
+              className="bg-[#7C5CFF] px-4 py-2 rounded-lg"
+            >
+              Retry wallet setup
+            </button>
+            {provisioningError && <p role="alert" className="mt-3 text-amber-300">{provisioningError}</p>}
+          </>
         ) : wallet.readiness === 'not_provisioned' ? (
           <>
             <p className="text-slate-400 mb-5">Prepare or restore your delegated Stellar Testnet wallet to continue.</p>

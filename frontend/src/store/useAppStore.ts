@@ -22,6 +22,7 @@ export const EMPTY_ATTENDEE_WALLET: AttendeeWalletState = {
 export const EMPTY_ORGANIZER_WALLET: OrganizerWalletState = {
   isConnected: false,
   publicKey: null,
+  accountExists: null,
   xlmBalance: null,
   signFn: null,
 };
@@ -44,6 +45,7 @@ export const useAppStore = create<AppState>()(
         organizerWallet: {
           isConnected: false,
           publicKey: state.organizerWallet.publicKey,
+          accountExists: null,
           xlmBalance: null,
           signFn: null,
         },

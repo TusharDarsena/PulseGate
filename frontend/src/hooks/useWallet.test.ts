@@ -2,9 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createOrganizerSignFn, verifyFreighterOrganizerAddress } from './useWallet';
 
 const mocks = vi.hoisted(() => ({
+  fetchXlmBalance: vi.fn(),
   getAddress: vi.fn(),
   isConnected: vi.fn(),
   signTransaction: vi.fn(),
+}));
+
+vi.mock('../lib/stellar', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lib/stellar')>(),
+  fetchXlmBalance: mocks.fetchXlmBalance,
 }));
 
 vi.mock('@stellar/freighter-api', () => ({
@@ -21,6 +27,7 @@ describe('verified organizer Freighter access', () => {
     vi.clearAllMocks();
     mocks.isConnected.mockResolvedValue({ isConnected: true });
     mocks.getAddress.mockResolvedValue({ address: ORGANIZER });
+    mocks.fetchXlmBalance.mockResolvedValue({ exists: true, balanceStroops: 100_000_000n });
   });
 
   it('checks Freighter connectivity and its current address before returning organizer capability', async () => {

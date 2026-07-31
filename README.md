@@ -17,6 +17,10 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 ## Current Stellar Testnet contracts
 
+| Wallet Integration | Transaction Signing | Contract Deployment |
+|---|---|---|
+| ![Wallet connection proof](screenshots/proofs/wallet-proof-1.png) | ![Transaction signing proof](screenshots/proofs/wallet-proof-2.png) | ![Contract deployment proof](screenshots/proofs/contract-proof.png) |
+
 | Contract | Address |
 |---|---|
 | TicketContract | [`CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU) |
@@ -44,6 +48,14 @@ MarketplaceContract above as its trusted resale peer.
 
 The walkthrough covers discovery, event detail, checkout, ticket ownership,
 resale, organizer publishing, and QR check-in without requiring local setup.
+
+| Discover events | Event detail |
+|---|---|
+| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Discover page" width="480"> | <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Event Detail desktop" width="480"> |
+
+| Event detail — mobile | Organizer check-in scanner |
+|---|---|
+| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v02.png" alt="PulseGate Event Detail mobile" width="260"> | <img src="screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png" alt="PulseGate organizer scanner" width="260"> |
 
 
 ## What attendees can do

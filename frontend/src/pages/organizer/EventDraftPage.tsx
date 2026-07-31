@@ -398,6 +398,11 @@ export function EventDraftPage() {
       if (activeWallet.publicKey !== draft.intended_organizer_address) {
         throw new Error('Connect the exact organizer wallet reserved by this draft.');
       }
+      if (activeWallet.accountExists !== true) {
+        throw new Error(
+          'The organizer Freighter account is not activated on Stellar Testnet. Fund it with Friendbot, then reconnect Freighter.',
+        );
+      }
       if (draft.state === 'approval_required') {
         const reset = await recordPublicationPreSubmissionFailure(
           draft.draft_id,

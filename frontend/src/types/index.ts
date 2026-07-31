@@ -92,6 +92,7 @@ export interface AttendeeWalletState {
 export interface OrganizerWalletState {
   isConnected: boolean;
   publicKey: string | null;
+  accountExists: boolean | null;
   xlmBalance: string | null;
   signFn: SignFn | null;
   errorMessage?: string;

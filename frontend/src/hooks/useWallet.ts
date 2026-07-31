@@ -16,11 +16,12 @@ export function useWallet() {
 
   const verifyOrganizer = useCallback(async (expectedAddress: string): Promise<OrganizerWalletState> => {
     const address = await verifyFreighterOrganizerAddress(expectedAddress);
-    const existing = useAppStore.getState().organizerWallet;
+    const balance = await fetchXlmBalance(address);
     const organizerWallet: OrganizerWalletState = {
       isConnected: true,
       publicKey: address,
-      xlmBalance: existing.publicKey === address ? existing.xlmBalance : null,
+      accountExists: balance.exists,
+      xlmBalance: formatStroops(balance.balanceStroops),
       signFn: createOrganizerSignFn(address),
     };
     setOrganizerWallet(organizerWallet);
@@ -38,6 +39,7 @@ export function useWallet() {
           const restored = {
             isConnected: true,
             publicKey: address,
+            accountExists: balance.exists,
             xlmBalance: formatStroops(balance.balanceStroops),
             signFn: createOrganizerSignFn(address),
           };
@@ -68,6 +70,7 @@ export function useWallet() {
       const connectedWallet: OrganizerWalletState = {
         isConnected: true,
         publicKey: address,
+        accountExists: balance.exists,
         xlmBalance: formatStroops(balance.balanceStroops),
         signFn: createOrganizerSignFn(address),
       };

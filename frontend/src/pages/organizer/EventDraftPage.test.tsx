@@ -109,6 +109,7 @@ describe('EventDraftPage publication after refresh', () => {
     const reconnectedWallet: OrganizerWalletState = {
       isConnected: true,
       publicKey: ORGANIZER,
+      accountExists: true,
       xlmBalance: '10',
       signFn: signer,
     };
@@ -174,6 +175,7 @@ describe('EventDraftPage publication after refresh', () => {
     useAppStore.getState().setOrganizerWallet({
       isConnected: true,
       publicKey: ORGANIZER,
+      accountExists: true,
       xlmBalance: '10',
       signFn: vi.fn(),
     });
@@ -193,6 +195,26 @@ describe('EventDraftPage publication after refresh', () => {
       1,
       { intended_organizer_address: ORGANIZER },
     ));
+  });
+
+  it('blocks publication before Soroban preparation when the organizer account is not activated', async () => {
+    const initialDraft = draft();
+    useAppStore.getState().setOrganizerWallet({
+      isConnected: true,
+      publicKey: ORGANIZER,
+      accountExists: false,
+      xlmBalance: '0.00',
+      signFn: vi.fn(),
+    });
+    mocks.getMyEventDraft.mockResolvedValue(initialDraft);
+
+    renderDraftPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish on Stellar' }));
+
+    expect(await screen.findByText(/not activated on Stellar Testnet/)).toBeInTheDocument();
+    expect(mocks.preflightEventPublication).not.toHaveBeenCalled();
+    expect(mocks.prepareCreateEvent).not.toHaveBeenCalled();
   });
 
   it('keeps newer typing while accepting the server draft revision from an in-flight save', async () => {

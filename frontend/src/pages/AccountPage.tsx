@@ -67,6 +67,21 @@ export function AccountPage() {
             </button>
           </div>
         )}
+        {attendeeWallet.readiness === 'recovery_required' && !attendeeWallet.address && (
+          <div className="mt-5">
+            <p className="text-sm text-slate-400">
+              Wallet setup was interrupted before an address was recorded. Retry setup to safely
+              reconcile the unfinished Dfns registration.
+            </p>
+            <button onClick={() => void run(async () => {
+              const code = await provisionWallet();
+              setRecoveryCode(code);
+              setShowRecoveryCode(false);
+            })} className="mt-3 bg-[#7C5CFF] px-4 py-2 rounded-lg">
+              Retry wallet setup
+            </button>
+          </div>
+        )}
         {recoveryCode && (
           <div className="mt-5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
             <p className="font-semibold text-emerald-300">Save this recovery code now</p>
@@ -98,7 +113,7 @@ export function AccountPage() {
             Restore signing on this device
           </button>
         )}
-        {(attendeeWallet.readiness === 'recovery_required' || showRecovery) && (
+        {((attendeeWallet.readiness === 'recovery_required' && attendeeWallet.address) || showRecovery) && (
           <div className="mt-5 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-lg p-4">
             <p className="mb-3">Wallet recovery is required. A replacement wallet will not be created.</p>
             <input
@@ -155,6 +170,20 @@ export function AccountPage() {
           {organizerWallet.isConnected ? (
             <>
               <p className="font-mono text-sm text-slate-300 mb-4 break-all">{organizerWallet.publicKey}</p>
+              {organizerWallet.accountExists === false && organizerWallet.publicKey && (
+                <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+                  <p>This Freighter account is not activated on Stellar Testnet.</p>
+                  <a
+                    href={`https://friendbot.stellar.org?addr=${encodeURIComponent(organizerWallet.publicKey)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block underline"
+                  >
+                    Fund with Stellar Friendbot
+                  </a>
+                  <p className="mt-2 text-xs">Reconnect Freighter after Friendbot succeeds.</p>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button onClick={() => navigate('/organizer/events')} className="bg-[#7C5CFF] px-4 py-2 rounded-lg">
                   Manage events

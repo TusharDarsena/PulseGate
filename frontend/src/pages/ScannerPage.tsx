@@ -311,6 +311,12 @@ export function ScannerPage() {
         return;
       }
 
+      if (organizerWallet.accountExists !== true) {
+        throw new Error(
+          'The organizer Freighter account is not activated on Stellar Testnet. Fund it with Friendbot, then reconnect Freighter.',
+        );
+      }
+
       const transaction = await prepareMarkUsed(
         eventId,
         parsed.ticketId,
