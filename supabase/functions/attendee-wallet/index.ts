@@ -170,6 +170,28 @@ function validateSignatureRequest(value: unknown): Record<string, unknown> {
   return request;
 }
 
+// Dfns signs the exact JSON payload supplied during challenge creation. Keep
+// object key ordering deterministic because the request is persisted in a
+// Postgres jsonb column between signature-init and signature-complete.
+function canonicalizeJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeJson);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalizeJson(entry)]),
+  );
+}
+
+function isInvalidUserActionSignature(error: unknown): boolean {
+  const status = error && typeof error === 'object' && 'status' in error
+    ? (error as { status?: unknown }).status
+    : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  return status === 406 || /user action signature is invalid/i.test(message);
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
@@ -495,7 +517,7 @@ Deno.serve(async (request) => {
       const delegated = delegatedDfns(token);
       const providerRequest = {
         keyId: link.provider_signing_key_id,
-        body: signatureRequest,
+        body: canonicalizeJson(signatureRequest) as Record<string, unknown>,
       };
       const challenge = await delegated.keys.generateSignatureInit(providerRequest);
       const { challengeIdentifier, ...publicChallenge } = challenge;
@@ -534,13 +556,27 @@ Deno.serve(async (request) => {
         challengeIdentifier: string;
         publicChallenge?: unknown;
       };
-      const result = await delegatedDfns(stored.provider_auth_token).keys.generateSignatureComplete(
-        provider.request,
-        {
-          challengeIdentifier: provider.challengeIdentifier,
-          firstFactor: body.assertion,
-        },
-      );
+      let result;
+      try {
+        result = await delegatedDfns(stored.provider_auth_token).keys.generateSignatureComplete(
+          provider.request,
+          {
+            challengeIdentifier: provider.challengeIdentifier,
+            firstFactor: body.assertion,
+          },
+        );
+      } catch (error) {
+        // Do not keep reusing a challenge that Dfns rejected. The next attempt
+        // must receive a fresh challenge, especially after a payload-ordering
+        // mismatch from an older jsonb-persisted request.
+        if (isInvalidUserActionSignature(error)) {
+          await admin.from('wallet_action_challenges')
+            .update({ consumed_at: new Date().toISOString(), provider_auth_token: 'rejected' })
+            .eq('request_id', stored.request_id)
+            .is('consumed_at', null);
+        }
+        throw error;
+      }
       await admin.from('wallet_action_challenges')
         .update({ consumed_at: new Date().toISOString(), provider_auth_token: 'consumed' })
         .eq('request_id', stored.request_id);

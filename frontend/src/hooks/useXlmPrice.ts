@@ -10,7 +10,8 @@ export function useXlmPrice() {
         .from('app_cache')
         .select('value')
         .eq('key', 'xlm_usd_price')
-        .single();
+        .limit(1)
+        .maybeSingle();
       
       if (!error && data && data.value && typeof data.value.price === 'number') {
         setUsdPerXlm(data.value.price);

@@ -27,6 +27,28 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 | MarketplaceContract | [`CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X`](https://stellar.expert/explorer/testnet/contract/CDSUUUSWIKH3B4WMCKK77QIHVFG7YNDZHTYK5KRALJ6HFQL4P5BPGN6X) |
 | Testnet XLM SAC | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
 
+Verified TicketContract initialization transaction:
+[`343a3e7f707055319503a2256859263563092415830ea6083886077436abb7e0`](https://stellar.expert/explorer/testnet/tx/343a3e7f707055319503a2256859263563092415830ea6083886077436abb7e0).
+
+### First 12 user interactions
+
+The first 12 entries are listedbelow. [View the full list of 65 users and their verified activity here](proofs/proof/README.md).
+
+| User | Interaction | Account | Transaction |
+|---:|---|---|---|
+| 01 | Primary ticket purchase | [`GDL2YUJZZYZIMZ5GHLY36I2FSEMLJWGNV7VJLNDXW5BLQ4UEMOVDBY4F`](https://stellar.expert/explorer/testnet/account/GDL2YUJZZYZIMZ5GHLY36I2FSEMLJWGNV7VJLNDXW5BLQ4UEMOVDBY4F) | [`ba7651cff4cbc60ca76c4049cfb62aa646b1e0cacf1a7f771afeaeaae080b8db`](https://stellar.expert/explorer/testnet/tx/ba7651cff4cbc60ca76c4049cfb62aa646b1e0cacf1a7f771afeaeaae080b8db) |
+| 02 | Primary ticket purchase | [`GAKRN4CSIKQHJWYPZN42JBUGKK5VPOOH6NAHHD5HYU5DEB7JKTKJAC6I`](https://stellar.expert/explorer/testnet/account/GAKRN4CSIKQHJWYPZN42JBUGKK5VPOOH6NAHHD5HYU5DEB7JKTKJAC6I) | [`193b8368a44120794e956871a00add305b97452628e8c0ef61bc75eb0eebc0f5`](https://stellar.expert/explorer/testnet/tx/193b8368a44120794e956871a00add305b97452628e8c0ef61bc75eb0eebc0f5) |
+| 03 | Primary ticket purchase | [`GDIZXZGB7M4NMGMR3J6M3SKDHMBP5K65DV2KAHOY5ZRQDC6KIUUPBZDE`](https://stellar.expert/explorer/testnet/account/GDIZXZGB7M4NMGMR3J6M3SKDHMBP5K65DV2KAHOY5ZRQDC6KIUUPBZDE) | [`0c97cba95707a6b2356a1b3923ca55a137261e6d683db77a68f553877bf83912`](https://stellar.expert/explorer/testnet/tx/0c97cba95707a6b2356a1b3923ca55a137261e6d683db77a68f553877bf83912) |
+| 04 | Marketplace listing created | [`GCLHT7MDWBZ5G2S4YD3GR4ZAKS2LZDDBHSNKMOLVECGHFULMGRVFFK66`](https://stellar.expert/explorer/testnet/account/GCLHT7MDWBZ5G2S4YD3GR4ZAKS2LZDDBHSNKMOLVECGHFULMGRVFFK66) | [`7bf3c59b15b04735253f4d05c38b8968e2484ddd36a179227cde7aa7812e8235`](https://stellar.expert/explorer/testnet/tx/7bf3c59b15b04735253f4d05c38b8968e2484ddd36a179227cde7aa7812e8235) |
+| 05 | Primary ticket purchase | [`GDCJWA6ZQR3UQDKM6JJJJ3E7XUITPRMJMU5RTFALHTY5O43V7EZ2B24Z`](https://stellar.expert/explorer/testnet/account/GDCJWA6ZQR3UQDKM6JJJJ3E7XUITPRMJMU5RTFALHTY5O43V7EZ2B24Z) | [`0033fcdd7a922a219a0e5cd345031af492b2e5f9323f810cb9adbaeac0ce973a`](https://stellar.expert/explorer/testnet/tx/0033fcdd7a922a219a0e5cd345031af492b2e5f9323f810cb9adbaeac0ce973a) |
+| 06 | Primary ticket purchase | [`GBN5PXXOEAYH454ZI4MTSKVY4EK3A25FGBSKMBSZ64XXKX7OVM6PWQOZ`](https://stellar.expert/explorer/testnet/account/GBN5PXXOEAYH454ZI4MTSKVY4EK3A25FGBSKMBSZ64XXKX7OVM6PWQOZ) | [`9141fab8e411002662ecfb123a5c7bfda2b5088c410cfdd206782e2d37d67e11`](https://stellar.expert/explorer/testnet/tx/9141fab8e411002662ecfb123a5c7bfda2b5088c410cfdd206782e2d37d67e11) |
+| 07 | Marketplace listing created | [`GDKAWM5JRBK3ITDU7LBU5EQZQ26EL4JRDCEOYG3PCXPZSILBUJXVC6JE`](https://stellar.expert/explorer/testnet/account/GDKAWM5JRBK3ITDU7LBU5EQZQ26EL4JRDCEOYG3PCXPZSILBUJXVC6JE) | [`f61a5206899305e2abc616091674634e78d4414cfe9c2f6ace9880b0693352c5`](https://stellar.expert/explorer/testnet/tx/f61a5206899305e2abc616091674634e78d4414cfe9c2f6ace9880b0693352c5) |
+| 08 | Cancelled-event refund | [`GCFAGDPA6DEV67RCKPSXMGP46H4WJ7BIEPUV7DQGIFJ5DEPODWN3UPYB`](https://stellar.expert/explorer/testnet/account/GCFAGDPA6DEV67RCKPSXMGP46H4WJ7BIEPUV7DQGIFJ5DEPODWN3UPYB) | [`a79f49297d7a2c328e36fb469be814d8ddb9a64ead178e3b0a77d50e16bee28a`](https://stellar.expert/explorer/testnet/tx/a79f49297d7a2c328e36fb469be814d8ddb9a64ead178e3b0a77d50e16bee28a) |
+| 09 | Marketplace resale purchase | [`GALAJ5AHO7FB5VCAF7BHQBLPC2GPBOQMQH2CPQQQRASM7URGVK3PRR2D`](https://stellar.expert/explorer/testnet/account/GALAJ5AHO7FB5VCAF7BHQBLPC2GPBOQMQH2CPQQQRASM7URGVK3PRR2D) | [`3f1ce08ac579edca9fbc944c869ef6790f2a67358894defad1e48d924cd5b4a5`](https://stellar.expert/explorer/testnet/tx/3f1ce08ac579edca9fbc944c869ef6790f2a67358894defad1e48d924cd5b4a5) |
+| 10 | Marketplace listing created | [`GBRBS7N7NG2EVTNZQDOBAGFXVQTLDV7TXAI47AMLDX7AIZMLHPKOZK3L`](https://stellar.expert/explorer/testnet/account/GBRBS7N7NG2EVTNZQDOBAGFXVQTLDV7TXAI47AMLDX7AIZMLHPKOZK3L) | [`89a132af153edf364280a078936e0ba98a4aa7746378cf417ae2992540b2dc67`](https://stellar.expert/explorer/testnet/tx/89a132af153edf364280a078936e0ba98a4aa7746378cf417ae2992540b2dc67) |
+| 11 | Marketplace resale purchase | [`GDERRR2FTL52RVJPHQNK6JMTPVQNQC5VIGPUVC5NKKJGODP2ZWKRQWM3`](https://stellar.expert/explorer/testnet/account/GDERRR2FTL52RVJPHQNK6JMTPVQNQC5VIGPUVC5NKKJGODP2ZWKRQWM3) | [`c67b151be85cb41d1d79cb9261bf2521cc39d028453c3390a41301bab5beabcf`](https://stellar.expert/explorer/testnet/tx/c67b151be85cb41d1d79cb9261bf2521cc39d028453c3390a41301bab5beabcf) |
+| 12 | Marketplace resale purchase | [`GBJLBSF3HR5JV2WF5ILNBA4CKMAZEAFHF722ZPKFUOUN5QVPANRG6DCK`](https://stellar.expert/explorer/testnet/account/GBJLBSF3HR5JV2WF5ILNBA4CKMAZEAFHF722ZPKFUOUN5QVPANRG6DCK) | [`8ef0a1ca0866d61d880d71bbd4d97c7d9b912c150a1696f4b82b5bbcbaaafcd4`](https://stellar.expert/explorer/testnet/tx/8ef0a1ca0866d61d880d71bbd4d97c7d9b912c150a1696f4b82b5bbcbaaafcd4) |
+
 The deployed TicketContract exposes
 `mark_used(event_id, ticket_id, expected_owner, organizer)` and stores the
 MarketplaceContract above as its trusted resale peer.
