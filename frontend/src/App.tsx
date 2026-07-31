@@ -89,6 +89,14 @@ function RequireAuth({
   );
 }
 
+function RequireOrganizerWallet({ children }: { children: React.ReactNode }) {
+  const organizerWallet = useAppStore((state) => state.organizerWallet);
+  if (!organizerWallet.isConnected) {
+    return <Navigate to="/account" replace />;
+  }
+  return <>{children}</>;
+}
+
 function EventRoute() {
   const { eventId = '' } = useParams();
   const navigate = useNavigate();
@@ -190,31 +198,41 @@ function App() {
         } />
         <Route path="/organizer/events" element={
           <RequireAuth action="open_organizer">
-            <DashboardPage
-              onCreateEvent={() => navigate('/organizer/events/new')}
-              onOpenDraft={(id) => navigate(`/organizer/drafts/${id}`)}
-              onOpenEvent={(id) => navigate(`/organizer/events/${id}`)}
-            />
+            <RequireOrganizerWallet>
+              <DashboardPage
+                onCreateEvent={() => navigate('/organizer/events/new')}
+                onOpenDraft={(id) => navigate(`/organizer/drafts/${id}`)}
+                onOpenEvent={(id) => navigate(`/organizer/events/${id}`)}
+              />
+            </RequireOrganizerWallet>
           </RequireAuth>
         } />
         <Route path="/organizer/events/new" element={
           <RequireAuth action="open_organizer">
-            <CreateEventPage />
+            <RequireOrganizerWallet>
+              <CreateEventPage />
+            </RequireOrganizerWallet>
           </RequireAuth>
         } />
         <Route path="/organizer/drafts/:draftId" element={
           <RequireAuth action="open_organizer">
-            <EventDraftPage />
+            <RequireOrganizerWallet>
+              <EventDraftPage />
+            </RequireOrganizerWallet>
           </RequireAuth>
         } />
         <Route path="/organizer/events/:eventId" element={
           <RequireAuth action="open_organizer">
-            <OrganizerEventPage />
+            <RequireOrganizerWallet>
+              <OrganizerEventPage />
+            </RequireOrganizerWallet>
           </RequireAuth>
         } />
         <Route path="/organizer/events/:eventId/check-in" element={
           <RequireAuth action="open_organizer">
-            <ScannerPage />
+            <RequireOrganizerWallet>
+              <ScannerPage />
+            </RequireOrganizerWallet>
           </RequireAuth>
         } />
         <Route path="*" element={

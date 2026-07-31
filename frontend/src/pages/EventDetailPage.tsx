@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EventActions } from '../components/events/EventActions';
 import { Button } from '../components/ui/Button';
@@ -31,6 +31,7 @@ const DISABLED_REASON = {
 export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
   const { event, loading, error, reload } = useEvent(eventId);
   const [checking, setChecking] = useState(false);
+  const checkoutRef = useRef<HTMLDivElement>(null);
 
   if (loading && !event) {
     return (
@@ -63,6 +64,27 @@ export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
       <main className="pt-24 pb-24 md:pb-12 max-w-7xl mx-auto px-4 md:px-8">
         <div className="w-full aspect-video md:aspect-[21/9] overflow-hidden md:rounded-xl">
           <img src={event.imageUrl} alt={event.name} className="w-full h-full object-cover" />
+        </div>
+
+        <div className="mt-4 md:hidden">
+          <Button
+            onClick={() => checkoutRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            disabled={checking || salesState !== 'on_sale'}
+            className="w-full py-4 text-lg"
+          >
+            {checking
+              ? 'Checking availability…'
+              : salesState === 'on_sale'
+                ? 'Buy tickets'
+                : EVENT_SALES_LABELS[salesState]}
+          </Button>
+          {salesState !== 'on_sale' && (
+            <p className="mt-2 text-sm text-[#c9c4d8]">
+              {salesState === 'unavailable'
+                ? DISABLED_REASON.unavailable
+                : DISABLED_REASON[salesState]}
+            </p>
+          )}
         </div>
 
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
@@ -121,7 +143,7 @@ export function EventDetailPage({ eventId, onPurchase }: EventDetailPageProps) {
           </div>
 
           <aside className="lg:col-span-4 lg:sticky lg:top-24 space-y-5">
-            <div className="bg-[#15181C] border border-[#272C33] p-6 rounded-xl shadow-2xl">
+            <div ref={checkoutRef} className="bg-[#15181C] border border-[#272C33] p-6 rounded-xl shadow-2xl scroll-mt-28">
               <AuthorityStatus
                 state={checking ? 'checking' : event.authority === 'confirmed' ? 'confirmed' : 'unavailable'}
                 message={

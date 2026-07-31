@@ -28,12 +28,15 @@ export function AccountPage() {
   return (
     <main className="pt-24 pb-24 px-4 max-w-3xl mx-auto min-h-screen">
       <h1 className="text-4xl font-bold mb-8">Account</h1>
+
+      {/* Signed-in account */}
       <section className="bg-[#15181C] border border-[#272C33] rounded-xl p-6 mb-6">
         <h2 className="text-xl font-semibold mb-3">Signed-in account</h2>
         <p className="text-slate-300">{user?.email ?? 'Authenticated user'}</p>
         <p className="text-xs text-slate-500 mt-1">Account ID: {user?.id}</p>
       </section>
 
+      {/* Ticket wallet */}
       <section className="bg-[#15181C] border border-[#272C33] rounded-xl p-6 mb-6">
         <h2 className="text-xl font-semibold mb-3">Ticket wallet</h2>
         <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
@@ -107,26 +110,79 @@ export function AccountPage() {
         )}
       </section>
 
+      {/* Organizer wallet */}
       <section className="bg-[#15181C] border border-[#272C33] rounded-xl p-6 mb-6">
         <h2 className="text-xl font-semibold mb-3">Organizer wallet</h2>
-        <p className="text-slate-400 text-sm mb-4">Freighter is separate from your ticket wallet.</p>
-        {organizerWallet.isConnected ? (
-          <>
-            <p className="font-mono text-sm">{organizerWallet.publicKey}</p>
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => navigate('/organizer/events')} className="bg-[#7C5CFF] px-4 py-2 rounded-lg">Manage events</button>
-              <button onClick={disconnectOrganizer} className="bg-[#272C33] px-4 py-2 rounded-lg">Disconnect Freighter</button>
+
+        {/* Mobile-only: redirect to desktop */}
+        <div className="block md:hidden">
+          <div className="flex gap-3 items-start bg-[#1A1D23] border border-[#272C33] rounded-lg p-4">
+            <span className="material-symbols-outlined text-slate-400 mt-0.5 shrink-0">desktop_windows</span>
+            <div>
+              <p className="text-slate-200 font-medium mb-1">Use a desktop browser to organize events</p>
+              <p className="text-slate-500 text-sm">
+                Creating and managing events requires the Freighter wallet extension, which is only
+                available in desktop browsers. Open PulseGate on your computer to get started.
+              </p>
             </div>
-          </>
-        ) : (
-          <button onClick={() => void run(connectOrganizer)} className="bg-[#272C33] px-4 py-2 rounded-lg">Connect Freighter</button>
-        )}
-        {organizerWallet.errorMessage && <p className="text-red-400 text-sm mt-3">{organizerWallet.errorMessage}</p>}
+          </div>
+        </div>
+
+        {/* Desktop-only: Freighter connect flow */}
+        <div className="hidden md:block">
+          <p className="text-slate-400 text-sm mb-1">
+            Freighter is a Stellar browser extension wallet used exclusively for organizer actions.
+          </p>
+          <p className="text-slate-500 text-xs mb-5">
+            Connecting Freighter unlocks event creation, ticket management, fund release, and
+            attendee check-in scanning. It is kept entirely separate from your attendee ticket
+            wallet so your buyer and organizer identities never mix.
+          </p>
+          {organizerWallet.isConnected ? (
+            <>
+              <p className="font-mono text-sm text-slate-300 mb-4 break-all">{organizerWallet.publicKey}</p>
+              <div className="flex gap-3">
+                <button onClick={() => navigate('/organizer/events')} className="bg-[#7C5CFF] px-4 py-2 rounded-lg">
+                  Manage events
+                </button>
+                <button onClick={disconnectOrganizer} className="bg-[#272C33] px-4 py-2 rounded-lg">
+                  Disconnect Freighter
+                </button>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-slate-400 text-sm mb-3">
+                No organizer wallet connected. Install the{' '}
+                <a
+                  href="https://freighter.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#7C5CFF] underline"
+                >
+                  Freighter extension
+                </a>{' '}
+                and connect it to start creating events.
+              </p>
+              <button
+                onClick={() => void run(connectOrganizer)}
+                className="bg-[#272C33] border border-[#3A3F4A] px-4 py-2 rounded-lg hover:bg-[#2A2F38] transition-colors"
+              >
+                Connect Freighter
+              </button>
+            </div>
+          )}
+          {organizerWallet.errorMessage && (
+            <p className="text-red-400 text-sm mt-3">{organizerWallet.errorMessage}</p>
+          )}
+        </div>
       </section>
 
       {error && <p role="alert" className="text-red-400 mb-4">{error}</p>}
-      <button onClick={() => void run(async () => { await signOut(); navigate('/events'); })}
-        className="border border-red-500/40 text-red-300 px-4 py-2 rounded-lg">
+      <button
+        onClick={() => void run(async () => { await signOut(); navigate('/events'); })}
+        className="border border-red-500/40 text-red-300 px-4 py-2 rounded-lg"
+      >
         Sign out
       </button>
     </main>
