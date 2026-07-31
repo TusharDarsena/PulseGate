@@ -51,29 +51,6 @@ class HttpError extends Error {
   }
 }
 
-type WalletProviderLink = {
-  provider_user_id: string | null;
-  provider_wallet_id: string | null;
-  provider_signing_key_id: string | null;
-};
-
-async function findDfnsEndUserByUsername(
-  dfns: ReturnType<typeof serviceDfns>,
-  username: string,
-) {
-  let paginationToken: string | undefined;
-  do {
-    const page = await dfns.auth.listUsers({
-      query: { kind: 'EndUser', limit: 200, paginationToken },
-    });
-    const match = page.items.find((candidate) => candidate.username === username);
-    if (match) return match;
-    if (!page.nextPageToken || page.nextPageToken === paginationToken) return null;
-    paginationToken = page.nextPageToken;
-  } while (paginationToken);
-  return null;
-}
-
 async function markWalletRecoveryRequired(
   admin: ReturnType<typeof createClient>,
   userId: string,
@@ -86,50 +63,6 @@ async function markWalletRecoveryRequired(
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;
-}
-
-async function reconcilePendingRegistration(
-  admin: ReturnType<typeof createClient>,
-  userId: string,
-  username: string,
-  link: WalletProviderLink,
-  walletAddress: string | null,
-) {
-  const dfns = serviceDfns();
-  const providerUser = link.provider_user_id
-    ? await dfns.auth.getUser({ userId: link.provider_user_id })
-    : await findDfnsEndUserByUsername(dfns, username);
-
-  // Dfns creates an EndUser before the browser creates a passkey. A missing
-  // local provider_user_id is not proof that no provider identity exists.
-  if (!providerUser) return 'restart';
-  if (providerUser.username !== username) {
-    throw new Error('The recorded Dfns identity does not match this account. Recovery is required.');
-  }
-
-  if (!link.provider_user_id) {
-    const { error } = await admin.from('wallet_provider_links').update({
-      provider_user_id: providerUser.userId,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', userId).is('provider_user_id', null);
-    if (error) throw error;
-  }
-
-  // Any completed provider registration or persisted wallet/key can represent
-  // a real wallet. Do not create a replacement in that state.
-  if (
-    providerUser.isRegistered ||
-    link.provider_wallet_id ||
-    link.provider_signing_key_id
-  ) {
-    await markWalletRecoveryRequired(admin, userId, walletAddress);
-    return 'recovery_required';
-  }
-
-  // This EndUser has no credentials and cannot own a delegated wallet yet.
-  // Archive it at Dfns first; only then may a new registration be started.
-  await dfns.auth.archiveUser({ userId: providerUser.userId });
-  return 'restart';
 }
 
 async function enforceRecoveryRateLimit(
@@ -193,7 +126,7 @@ Deno.serve(async (request) => {
       const [{ data: wallet }, { data: link }] = await Promise.all([
         admin.from('attendee_wallets').select('address,readiness').eq('user_id', user.id).maybeSingle(),
         admin.from('wallet_provider_links')
-          .select('provider_user_id,provider_wallet_id,provider_signing_key_id')
+          .select('user_id')
           .eq('user_id', user.id)
           .maybeSingle(),
       ]);
@@ -207,34 +140,25 @@ Deno.serve(async (request) => {
         }, 409);
       }
       if (link) {
-        const pendingState = await reconcilePendingRegistration(
-          admin,
-          user.id,
-          username,
-          link,
-          wallet?.address ?? null,
-        );
-        if (pendingState === 'recovery_required') {
-          return json({
-            error: 'The recorded wallet setup must be recovered; a replacement will not be created.',
-          }, 409);
-        }
+        // The delegated-registration challenge may already have created a Dfns
+        // EndUser. Without a provider-side read, a missing local ID cannot
+        // prove it is safe to create a replacement wallet.
+        await markWalletRecoveryRequired(admin, user.id, wallet?.address ?? null);
+        return json({
+          error: 'A previous wallet setup needs provider recovery; a replacement will not be created.',
+        }, 409);
       }
 
       const challenge = await serviceDfns().auth.createDelegatedRegistrationChallenge({
         body: { email: username, kind: 'EndUser', externalId: user.id },
       });
-      const createdUser = await findDfnsEndUserByUsername(serviceDfns(), username);
-      if (!createdUser || createdUser.isRegistered) {
-        throw new Error('Dfns did not return a new pending user for wallet registration.');
-      }
       const {
         temporaryAuthenticationToken,
         allowedRecoveryCredentials: _allowedRecoveryCredentials,
         ...publicChallenge
       } = challenge;
       const providerLink = {
-        provider_user_id: createdUser.userId,
+        provider_user_id: null,
         provider_wallet_id: null,
         provider_signing_key_id: null,
         provider_recovery_credential_id: null,
@@ -243,20 +167,13 @@ Deno.serve(async (request) => {
         recovery_challenge_expires_at: null,
         updated_at: new Date().toISOString(),
       };
-      const { error: linkError } = link
-        ? await admin.from('wallet_provider_links').update(providerLink).eq('user_id', user.id)
-        : await admin.from('wallet_provider_links').insert({
-          user_id: user.id,
-          provider: 'dfns',
-          provider_username: username,
-          ...providerLink,
-        });
+      const { error: linkError } = await admin.from('wallet_provider_links').insert({
+        user_id: user.id,
+        provider: 'dfns',
+        provider_username: username,
+        ...providerLink,
+      });
       if (linkError) {
-        try {
-          await serviceDfns().auth.archiveUser({ userId: createdUser.userId });
-        } catch (cleanupError) {
-          console.error('[attendee-wallet] could not archive an unlinked Dfns user', cleanupError);
-        }
         throw linkError;
       }
       const { error: walletError } = await admin.from('attendee_wallets').upsert({
@@ -280,7 +197,6 @@ Deno.serve(async (request) => {
       if (
         linkError ||
         !link?.temporary_auth_token ||
-        !link.provider_user_id ||
         link.provider_wallet_id ||
         link.provider_signing_key_id
       ) {
@@ -293,9 +209,6 @@ Deno.serve(async (request) => {
           recoveryCredential: body.recoveryCredential,
         },
       });
-      if (registered.user.id !== link.provider_user_id) {
-        throw new Error('Dfns registered an unexpected user. Recovery is required.');
-      }
       const wallet = await serviceDfns().wallets.createWallet({
         body: { network: 'StellarTestnet', delegateTo: registered.user.id },
       });
@@ -314,7 +227,7 @@ Deno.serve(async (request) => {
         updated_at: new Date().toISOString(),
       })
         .eq('user_id', user.id)
-        .eq('provider_user_id', registered.user.id)
+        .is('provider_user_id', null)
         .is('provider_wallet_id', null)
         .is('provider_signing_key_id', null)
         .select('user_id')

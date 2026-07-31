@@ -192,15 +192,12 @@ how a ticket is redeemed at the door.
 - Restoration failure becomes `recovery_required`; no browser flow creates a
   replacement wallet. Raw wallet secrets never enter browser storage,
   Zustand, Supabase, logs, or application code.
-- A cancelled or interrupted initial passkey prompt remains retryable. The
-  wallet service reconciles the provider EndUser using the service-only
-  mapping, archives it only when Dfns confirms it is still unregistered, and
-  then starts a fresh registration. Any registered provider identity or
-  wallet/key record enters `recovery_required`; it is never locally deleted
-  to make room for a replacement.
-- The wallet service account needs Dfns `Auth:Users:Read` and
-  `Auth:Users:Delete` permissions for that reconciliation, in addition
-  to its existing registration and wallet permissions.
+- A cancelled or interrupted initial passkey prompt remains a recovery case.
+  Creating a delegated registration challenge can create a Dfns identity
+  before the browser creates a passkey, so a local link with no provider ID is
+  never deleted or retried as a new wallet. It enters `recovery_required`
+  until it is reconciled through the provider; the normal registration path
+  does not need Dfns user-directory permissions.
 - The persisted organizer-wallet value is only an untrusted address hint.
   Rehydration begins disconnected and installs an address, balance, and signer
   only after Freighter confirms both connection and the same current address.
