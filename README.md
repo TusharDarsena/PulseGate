@@ -17,10 +17,6 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 ## Current Stellar Testnet contracts
 
-| Wallet Integration | Transaction Signing | Contract Deployment |
-|---|---|---|
-| ![Wallet connection proof](screenshots/proofs/wallet-proof-1.png) | ![Transaction signing proof](screenshots/proofs/wallet-proof-2.png) | ![Contract deployment proof](screenshots/proofs/contract-proof.png) |
-
 | Contract | Address |
 |---|---|
 | TicketContract | [`CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU`](https://stellar.expert/explorer/testnet/contract/CC2QUZAIHG4TEOIYHZLKAOMSXV4APDMODELGXSZ3S24FWDS6QFATV7OU) |
@@ -46,13 +42,8 @@ MarketplaceContract above as its trusted resale peer.
 
 [![PulseGate walkthrough](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
 
-| Discover events | Event detail |
-|---|---|
-| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Discover page" width="480"> | <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Event Detail desktop" width="480"> |
-
-| Event detail — mobile | Organizer check-in scanner |
-|---|---|
-| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v02.png" alt="PulseGate Event Detail mobile" width="260"> | <img src="screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png" alt="PulseGate organizer scanner" width="260"> |
+The walkthrough covers discovery, event detail, checkout, ticket ownership,
+resale, organizer publishing, and QR check-in without requiring local setup.
 
 
 ## What attendees can do
@@ -113,6 +104,80 @@ MarketplaceContract above as its trusted resale peer.
 - Generate a fresh Ed25519-signed QR only after current owner and `Active` status checks.
 - Rotate the QR every 30 seconds and reject payloads at an absolute age of 45 seconds.
 - Stop generating entry codes at the next validation after transfer, refund, or check-in.
+
+## Repository structure
+
+```text
+contracts/                    Soroban Ticket and Marketplace contracts
+  ticket/                     Event lifecycle, tickets, escrow, and entry
+  marketplace/                Resale listings, royalties, and settlement
+frontend/                     React/Vite application
+  src/pages/                  Attendee and organizer routes
+  src/lib/soroban.ts          Handwritten contract integration boundary
+  src/lib/qr.ts               QR construction and local verification
+  src/contracts/              Generated TypeScript contract bindings
+supabase/                     Read-model schema and Edge Functions
+  migrations/                 PostgreSQL schema, RLS, and operation storage
+  functions/                  Authenticated wallet and operation services
+scripts/deploy.ps1            Coordinated Windows Testnet deployment
+docs/                         Architecture, product, and contributor guidance
+```
+
+## Run locally
+
+### Prerequisites
+
+- Node.js 22+
+- pnpm 10
+- Rust with the `wasm32v1-none` target
+- Stellar CLI
+- A Supabase project for authenticated wallet and recovery flows
+
+```powershell
+git clone https://github.com/TusharDarsena/stellar_ticket.git
+cd stellar_ticket\frontend
+Copy-Item .env.example .env.local
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Configure `frontend/.env.local` so contract IDs, network values, RPC, Horizon,
+explorer, and Supabase all describe one coordinated Testnet environment.
+
+### Checks
+
+```powershell
+# Frontend
+cd frontend
+npm test
+npm run lint
+npm run build
+
+# Contracts
+cd ..\contracts
+cargo fmt --check
+cargo test
+cargo build --target wasm32v1-none --release
+```
+
+### Coordinated Testnet deployment
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 -SetSupabaseSecrets
+```
+
+This builds both contracts, regenerates their TypeScript bindings, deploys and
+initializes the pair, updates the frontend configuration, and can synchronize
+the linked Supabase secrets.
+
+### CI/CD
+
+GitHub Actions runs the project CI from `.github/workflows/ci.yml` on repository
+updates. The pipeline validates frontend and contract work before changes are
+merged. Vercel handles the hosted web deployment after the repository is updated.
+Keep local screenshot captures, proof images, Supabase CLI state, and patch
+scratch files out of commits so CI only processes source, configuration, and
+documentation that belongs in the app.
 
 ## What organizers can do
 
@@ -345,66 +410,6 @@ Deeper implementation details live beside the code:
 - Desktop and mobile captures cover the attendee and organizer journeys.
 - The deployed TicketContract interface and stored MarketplaceContract were
   verified through read-only Stellar Testnet calls.
-
-## Run locally
-
-### Prerequisites
-
-- Node.js 22+
-- pnpm 10
-- Rust with the `wasm32v1-none` target
-- Stellar CLI
-- A Supabase project for authenticated wallet and recovery flows
-
-```powershell
-git clone https://github.com/TusharDarsena/stellar_ticket.git
-cd stellar_ticket\frontend
-Copy-Item .env.example .env.local
-pnpm install --frozen-lockfile
-pnpm dev
-```
-
-Configure `frontend/.env.local` so contract IDs, network values, RPC, Horizon,
-explorer, and Supabase all describe one coordinated Testnet environment.
-
-### Checks
-
-```powershell
-# Frontend
-cd frontend
-npm test
-npm run lint
-npm run build
-
-# Contracts
-cd ..\contracts
-cargo fmt --check
-cargo test
-cargo build --target wasm32v1-none --release
-```
-
-### Coordinated Testnet deployment
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy.ps1 -SetSupabaseSecrets
-```
-
-This builds both contracts, regenerates their TypeScript bindings, deploys and
-initializes the pair, updates the frontend configuration, and can synchronize
-the linked Supabase secrets.
-
-## Repository map
-
-```text
-contracts/                    TicketContract and MarketplaceContract
-frontend/src/pages/           Attendee and organizer product routes
-frontend/src/lib/soroban.ts   Handwritten contract boundary
-frontend/src/lib/qr.ts        QR construction and local verification
-frontend/src/contracts/       Generated TypeScript bindings
-supabase/migrations/          Schema, RLS, and durable operation storage
-supabase/functions/           Authenticated wallet and operation services
-scripts/deploy.ps1            Coordinated Windows Testnet deployment
-```
 
 ## Contributing
 

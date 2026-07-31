@@ -45,11 +45,18 @@ repomix-output.*
 /zip for e2e, not relevant/
 /browsepage.html
 /image.png
+/localhost_*.png
+/patches/
+/proofs/
+/screenshots/
 /screenshot-step2-context.txt
 /source_library_workspace.html.html
 /stellar-tickets-ai-implementation-handoff-evidence-grounded.md
 /stellartickets-frontend-implementation-findings.md
 /skills-lock.json
+
+# Local Supabase CLI state
+/supabase/.temp/
 
 .vercel
 .env*
