@@ -73,11 +73,11 @@ resale, organizer publishing, and QR check-in without requiring local setup.
 
 | Discover events | Event detail |
 |---|---|
-| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Discover page" width="480"> | <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate Event Detail desktop" width="480"> |
+| <img src="localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8%20(4).png" alt="PulseGate Discover page" width="480"> | <img src="localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8%20(6).png" alt="PulseGate Event Detail desktop" width="480"> |
 
 | Event detail — mobile | Organizer check-in scanner |
 |---|---|
-| <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v02.png" alt="PulseGate Event Detail mobile" width="260"> | <img src="screenshots/ui-refinement/2026-07-29/01-tier-1-core-flow/scanner/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png" alt="PulseGate organizer scanner" width="260"> |
+| <img src="localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8%28iPhone%2012%20Pro%29%20%281%29.png" alt="PulseGate Event Detail mobile" width="260"> | <img src="T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png" alt="PulseGate organizer scanner" width="260"> |
 
 
 ## What attendees can do
@@ -209,9 +209,10 @@ the linked Supabase secrets.
 GitHub Actions runs the project CI from `.github/workflows/ci.yml` on repository
 updates. The pipeline validates frontend and contract work before changes are
 merged. Vercel handles the hosted web deployment after the repository is updated.
-Keep local screenshot captures, proof images, Supabase CLI state, and patch
-scratch files out of commits so CI only processes source, configuration, and
-documentation that belongs in the app.
+Keep local screenshot captures, Supabase CLI state, and patch scratch files out
+of commits so CI only processes source, configuration, and documentation that
+belongs in the app. The three curated images in `screenshots/proofs/` are the
+exception because the contract proof table above embeds them directly.
 
 ## What organizers can do
 

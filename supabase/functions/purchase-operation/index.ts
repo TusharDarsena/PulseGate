@@ -459,10 +459,25 @@ async function recordPreSubmissionFailure(
   );
 }
 
-async function findPurchaseEvent(server: rpc.Server, operation: PurchaseOperation) {
+async function findPurchaseEvent(
+  server: rpc.Server,
+  operation: PurchaseOperation,
+  // When the confirmed ledger is known (after getTransaction returns SUCCESS),
+  // pass it here so we search only a 3-ledger window instead of a 120k-ledger
+  // scan capped at 100 events. The broad scan always starts from the oldest
+  // ledger and would miss the most recent event on any testnet with >100 prior
+  // purchases for this contract.
+  knownLedger?: number,
+) {
   const latest = await server.getLatestLedger();
+  const startLedger = knownLedger !== undefined
+    ? Math.max(1, knownLedger - 1)  // narrow window: confirmed ledger ±1
+    : Math.max(1, latest.sequence - 120_000);
+  // Use a larger limit for the broad scan so we don't cap at 100 events and
+  // miss a recent purchase on a busy testnet contract.
+  const limit = knownLedger !== undefined ? 20 : 10_000;
   const response = await server.getEvents({
-    startLedger: Math.max(1, latest.sequence - 120_000),
+    startLedger,
     filters: [{
       type: 'contract',
       contractIds: [operation.ticket_contract_id],
@@ -471,7 +486,7 @@ async function findPurchaseEvent(server: rpc.Server, operation: PurchaseOperatio
         nativeToScVal(operation.ticket_id, { type: 'string' }).toXDR('base64'),
       ]],
     }],
-    limit: 100,
+    limit,
   });
 
   for (const event of response.events) {
@@ -671,6 +686,19 @@ async function resolve(
   }
 
   if (transaction.status === 'SUCCESS') {
+    // The transaction is confirmed on-chain. Re-run findPurchaseEvent with the
+    // exact confirmed ledger so we search a 3-ledger window and avoid the
+    // limit-100 blind spot that affects the broad 120k-ledger initial scan.
+    const confirmedLedger = 'ledger' in transaction ? (transaction as { ledger?: number }).ledger : undefined;
+    try {
+      const confirmedEvent = await findPurchaseEvent(server, operation, confirmedLedger);
+      if (confirmedEvent) {
+        const confirmed = await confirmFromEvent(admin, userId, operation, confirmedEvent, server);
+        return synchronizePurchase(admin, userId, confirmed.operation.operation_id);
+      }
+    } catch {
+      // Fall through to status_unknown if the ledger-targeted retry itself fails.
+    }
     await persistUnknownStatus(
       admin,
       operation,

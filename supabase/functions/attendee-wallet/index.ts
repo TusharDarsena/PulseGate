@@ -171,8 +171,8 @@ function validateSignatureRequest(value: unknown): Record<string, unknown> {
 }
 
 // Dfns signs the exact JSON payload supplied during challenge creation. Keep
-// object key ordering deterministic because the request is persisted in a
-// Postgres jsonb column between signature-init and signature-complete.
+// object key ordering deterministic on both sides of the Postgres jsonb
+// round-trip because jsonb does not preserve the insertion order of keys.
 function canonicalizeJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalizeJson);
   if (!value || typeof value !== 'object') return value;
@@ -462,7 +462,12 @@ Deno.serve(async (request) => {
 
     if (action === 'signature-init') {
       const signatureRequest = validateSignatureRequest(body.request);
-      const attemptExternalId = signatureRequest.kind === 'Transaction'
+      // FIX: String(undefined) === "undefined", which is truthy.
+      // Without the explicit undefined-check, a Transaction request with no
+      // externalId would produce attemptExternalId = "undefined", enter the
+      // if-block, query the DB for external_id = "undefined" (finds nothing),
+      // and throw "The purchase attempt is not awaiting approval." → 400.
+      const attemptExternalId = signatureRequest.kind === 'Transaction' && signatureRequest.externalId !== undefined
         ? String(signatureRequest.externalId)
         : null;
       if (attemptExternalId) {
@@ -515,9 +520,15 @@ Deno.serve(async (request) => {
         body: { username: link.provider_username },
       });
       const delegated = delegatedDfns(token);
+      // Strip externalId before forwarding to Dfns: it is our internal DB
+      // tracking field (format: purchase:<uuid>:<attempt>:<hash>) and is not a
+      // Dfns concept. Passing it causes Dfns to reject with
+      // "request body failed validation". Our dedup is handled via
+      // wallet_action_challenges.operation_attempt_external_id instead.
+      const { externalId: _externalId, ...signatureRequestForDfns } = signatureRequest;
       const providerRequest = {
         keyId: link.provider_signing_key_id,
-        body: canonicalizeJson(signatureRequest) as Record<string, unknown>,
+        body: canonicalizeJson(signatureRequestForDfns) as Record<string, unknown>,
       };
       const challenge = await delegated.keys.generateSignatureInit(providerRequest);
       const { challengeIdentifier, ...publicChallenge } = challenge;
@@ -556,10 +567,11 @@ Deno.serve(async (request) => {
         challengeIdentifier: string;
         publicChallenge?: unknown;
       };
+      const canonicalRequest = canonicalizeJson(provider.request) as typeof provider.request;
       let result;
       try {
         result = await delegatedDfns(stored.provider_auth_token).keys.generateSignatureComplete(
-          provider.request,
+          canonicalRequest,
           {
             challengeIdentifier: provider.challengeIdentifier,
             firstFactor: body.assertion,
@@ -584,7 +596,7 @@ Deno.serve(async (request) => {
         user_id: user.id,
         action: 'delegated_signature',
         outcome: 'success',
-        detail: { kind: provider.request.body.kind },
+        detail: { kind: canonicalRequest.body.kind },
       });
       return json({ signedData: result.signedData, signatures: result.signatures });
     }

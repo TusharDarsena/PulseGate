@@ -46,9 +46,20 @@ repomix-output.*
 /browsepage.html
 /image.png
 /localhost_*.png
+!/localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8 (4).png
+!/localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8 (6).png
+!/localhost_5173_events_evt_87a93e3c426a4a29b3b68241378bafb8(iPhone 12 Pro) (1).png
+!/T1_scanner_ready_mobile-390x844_organizer_seedA_v01.png
 /patches/
 /proofs/
 /screenshots/
+!/screenshots/
+/screenshots/*
+!/screenshots/proofs/
+/screenshots/proofs/*
+!/screenshots/proofs/wallet-proof-1.png
+!/screenshots/proofs/wallet-proof-2.png
+!/screenshots/proofs/contract-proof.png
 /screenshot-step2-context.txt
 /source_library_workspace.html.html
 /stellar-tickets-ai-implementation-handoff-evidence-grounded.md
