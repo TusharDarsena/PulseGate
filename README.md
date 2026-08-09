@@ -17,9 +17,9 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 ## Documents
 
-- [**Pitch Deck**](./pulsegate-deck.html)
-- [**User Activity Tracking**](./user%20activity.xlsx)
-- [**User Feedback**](./feedback.xlsx)
+- [**Pitch Deck**](./Slide_1_Cover%20(2).pdf)
+- [**User Activity Tracking**](https://docs.google.com/spreadsheets/d/17p1olx10cTRJ7ynAE3yb8cdkiSmAOUfO/edit?usp=sharing&ouid=102435510008194935540&rtpof=true&sd=true)
+- [**User Feedback**](https://docs.google.com/spreadsheets/d/1V1-hbZYOXFNgtcIE1ADjak0KDpiXbQ2U/edit?usp=sharing&ouid=102435510008194935540&rtpof=true&sd=true)
 ## Current Stellar Testnet contracts
 
 | Wallet Integration | Transaction Signing | Contract Deployment |
