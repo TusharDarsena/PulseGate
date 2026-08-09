@@ -73,6 +73,5 @@ repomix-output.*
 .env*
 
 # Local documents
-/pulsegate-deck.html
 /user activity.xlsx
 /feedback.xlsx
