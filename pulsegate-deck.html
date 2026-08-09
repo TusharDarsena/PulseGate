@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1456">
+<title>PulseGate — Pitch Deck 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────────────────────────────── */
+:root {
+  --bg:     #7D0A0A;
+  --ghost:  #8E1212;
+  --blush:  #F2C6C6;
+  --white:  #FFFFFF;
+  --dim:    rgba(242,198,198,0.28);
+  --W: 1456px;
+  --H: 816px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
+
+/* ── SLIDE SHELL ─────────────────────────────────────────────────── */
+.slide {
+  position: relative;
+  width: var(--W);
+  height: var(--H);
+  overflow: hidden;
+  background: var(--bg);
+  margin: 48px auto;
+}
+
+/* ── LOGO MARK ───────────────────────────────────────────────────── */
+.lm {
+  position: absolute;
+  top: 26px; right: 34px;
+  z-index: 20;
+}
+.lm svg { display: block; width: 46px; height: 46px; }
+
+/* ── GHOST ───────────────────────────────────────────────────────── */
+.g {
+  position: absolute;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; text-transform: uppercase;
+  color: var(--ghost);
+  line-height: 0.88; letter-spacing: -0.02em;
+  pointer-events: none; user-select: none;
+  z-index: 0;
+}
+
+/* ── DISPLAY TYPE ────────────────────────────────────────────────── */
+.d {
+  position: absolute;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; text-transform: uppercase;
+  color: var(--blush);
+  line-height: 0.88; letter-spacing: -0.02em;
+  z-index: 1;
+}
+
+/* ── CAPS LABEL ──────────────────────────────────────────────────── */
+.caps {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--white); line-height: 1.1;
+}
+.caps-blush { color: var(--blush); }
+
+/* ── BODY TEXT ───────────────────────────────────────────────────── */
+.body {
+  font-family: 'Barlow', Arial, sans-serif;
+  font-weight: 400; color: var(--white);
+  line-height: 1.55;
+}
+
+/* ── RULE ────────────────────────────────────────────────────────── */
+.rule { width: 100%; height: 1px; background: var(--dim); }
+
+/* ── NUM BOX ─────────────────────────────────────────────────────── */
+.nb {
+  width: 48px; height: 48px;
+  border: 2px solid var(--blush);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; font-size: 22px; color: var(--white);
+  flex-shrink: 0;
+}
+.nb.inv { background: var(--blush); color: var(--bg); border-color: var(--blush); }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S1 — COVER
+════════════════════════════════════════════════════════════════════ */
+#s1 .d   { top: 36px; left: 68px; font-size: 248px; }
+#s1 .g   { right: -30px; top: 60px; font-size: 480px; }
+
+#s1 .meta {
+  position: absolute;
+  bottom: 180px; left: 68px; right: 68px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0; border-top: 1px solid var(--dim); padding-top: 20px;
+}
+#s1 .meta-col .ml {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--blush); margin-bottom: 6px;
+}
+#s1 .meta-col .mv {
+  font-family: 'Barlow', Arial, sans-serif;
+  font-size: 18px; color: var(--white); font-weight: 400;
+}
+#s1 .manifesto {
+  position: absolute; bottom: 98px; left: 68px; right: 68px;
+  font-family: 'Barlow', Arial, sans-serif; font-size: 17px;
+  font-weight: 500; font-style: italic; color: rgba(242,198,198,0.78);
+}
+#s1 .yr {
+  position: absolute; bottom: 38px; left: 68px;
+  font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.48);
+  font-family: 'Barlow', Arial, sans-serif;
+}
+#s1 .tg {
+  position: absolute; bottom: 38px; right: 68px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 14px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--white);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S2 — PROBLEM
+   Layout: full-slide three-column grid
+   Top: slide title strip
+   Center: three numbered cards that fill the slide height
+════════════════════════════════════════════════════════════════════ */
+#s2 .d   { top: 28px; left: 60px; font-size: 120px; }
+#s2 .g   { left: -10px; top: 20px; font-size: 340px; opacity: 0.65; }
+
+#s2 .cols {
+  position: absolute;
+  top: 150px; bottom: 40px;
+  left: 60px; right: 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 32px;
+  z-index: 2;
+}
+#s2 .col {
+  display: flex; flex-direction: column;
+  border-top: 2px solid var(--blush);
+  padding-top: 22px;
+}
+#s2 .col .col-icon {
+  width: 52px; height: 52px; margin-bottom: 16px; flex-shrink: 0;
+}
+#s2 .col .num {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; font-size: 52px; color: var(--blush);
+  line-height: 1; letter-spacing: -0.02em; margin-bottom: 12px;
+}
+#s2 .col .head {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 22px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--white); line-height: 1.15; margin-bottom: 16px;
+}
+#s2 .col .body { font-size: 17px; color: rgba(255,255,255,0.88); line-height: 1.55; flex: 1; }
+#s2 .col .impact {
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--dim);
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 13px; letter-spacing: 0.10em;
+  text-transform: uppercase; color: var(--blush);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S3 — OUR SOLUTION (PRODUCT)
+   Split: left 45% display + section label
+   Right 50%: three stacked sections that fill height
+════════════════════════════════════════════════════════════════════ */
+#s3 .d   { top: 24px; left: 60px; font-size: 130px; max-width: 560px; }
+#s3 .g   { left: -10px; top: 10px; font-size: 300px; opacity: 0.50; max-width: 580px; }
+
+#s3 .slide-label {
+  position: absolute; top: 32px; right: 60px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--blush); z-index: 3;
+}
+/* Left image panel — sits below the display title */
+#s3 .img-panel {
+  position: absolute;
+  top: 310px; left: 60px; bottom: 40px; width: 580px;
+  z-index: 2; overflow: hidden;
+  border: 1px solid rgba(242,198,198,0.20);
+}
+#s3 .img-panel img {
+  width: 100%; height: 100%; object-fit: cover; object-position: top left;
+  opacity: 0.78;
+  filter: saturate(0.45) brightness(0.7);
+}
+#s3 .img-panel .img-label {
+  position: absolute; bottom: 10px; left: 12px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(242,198,198,0.65);
+  background: rgba(125,10,10,0.70); padding: 3px 10px;
+}
+#s3 .rp {
+  position: absolute;
+  top: 56px; right: 60px; bottom: 40px; width: 600px;
+  display: flex; flex-direction: column; z-index: 2;
+}
+#s3 .rs {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--dim);
+}
+#s3 .rs:last-child { border-bottom: none; }
+#s3 .rs .head { font-size: 20px; margin-bottom: 12px; }
+#s3 .rs .body { font-size: 17px; color: rgba(255,255,255,0.85); }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S4 — OUR SOLUTION (TRUST)  — same scaffold as S3
+════════════════════════════════════════════════════════════════════ */
+#s4 .d    { top: 24px; left: 60px; font-size: 130px; max-width: 560px; }
+#s4 .g    { left: -10px; top: 10px; font-size: 300px; opacity: 0.50; max-width: 580px; }
+#s4 .slide-label {
+  position: absolute; top: 32px; right: 60px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--blush); z-index: 3;
+}
+/* Left image panel — mobile screenshot */
+#s4 .img-panel {
+  position: absolute;
+  top: 290px; left: 60px; bottom: 40px; width: 270px;
+  z-index: 2; overflow: hidden;
+  border: 1px solid rgba(242,198,198,0.20);
+}
+#s4 .img-panel img {
+  width: 100%; height: 100%; object-fit: cover; object-position: top center;
+  opacity: 0.78;
+  filter: saturate(0.45) brightness(0.7);
+}
+#s4 .img-panel .img-label {
+  position: absolute; bottom: 10px; left: 12px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: rgba(242,198,198,0.65);
+  background: rgba(125,10,10,0.70); padding: 3px 10px;
+}
+#s4 .rp {
+  position: absolute;
+  top: 56px; right: 60px; bottom: 40px; width: 600px;
+  display: flex; flex-direction: column; z-index: 2;
+}
+#s4 .rs {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--dim);
+}
+#s4 .rs:last-child { border-bottom: none; }
+#s4 .rs .head { font-size: 20px; margin-bottom: 12px; }
+#s4 .rs .body { font-size: 17px; color: rgba(255,255,255,0.85); }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S5 — MARKET OPPORTUNITY
+   Left: display title + big outline stat (fills left half vertically)
+   Right: two thesis blocks stacked with divider (fills right half)
+════════════════════════════════════════════════════════════════════ */
+#s5 .d { top: 28px; left: 60px; font-size: 96px; max-width: 600px; line-height: 0.90; }
+#s5 .g { right: -30px; top: 30px; font-size: 280px; opacity: 0.35; }
+
+#s5 .stat-block {
+  position: absolute;
+  top: 310px; left: 60px; z-index: 2;
+}
+#s5 .stat-big {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; font-size: 72px; line-height: 1; letter-spacing: -0.02em;
+  text-transform: uppercase; color: transparent;
+  -webkit-text-stroke: 2.5px var(--blush);
+}
+#s5 .stat-tag {
+  display: inline-block;
+  border: 2px solid rgba(242,198,198,0.60);
+  padding: 6px 16px; margin-top: 12px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 13px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--white);
+}
+#s5 .stat-sub {
+  margin-top: 16px;
+  font-size: 16px; color: rgba(255,255,255,0.70);
+  max-width: 480px; line-height: 1.5;
+  font-family: 'Barlow', Arial, sans-serif;
+}
+
+#s5 .right-col {
+  position: absolute;
+  top: 68px; right: 60px; bottom: 48px; width: 560px;
+  display: flex; flex-direction: column; z-index: 2;
+}
+#s5 .th {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  border-bottom: 1px solid var(--dim);
+  padding: 28px 0;
+}
+#s5 .th:last-child { border-bottom: none; }
+#s5 .th-head {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 22px; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--blush); margin-bottom: 14px; line-height: 1.1;
+}
+#s5 .th-body { font-size: 17px; color: rgba(255,255,255,0.85); line-height: 1.55; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S6 — ARCHITECTURE
+   Top half: title + three column headers
+   Bottom half: flow diagram
+════════════════════════════════════════════════════════════════════ */
+#s6 .d { top: 22px; left: 56px; font-size: 100px; white-space: nowrap; }
+#s6 .g { left: -10px; top: 10px; font-size: 220px; opacity: 0.45; }
+
+#s6 .arch {
+  position: absolute;
+  top: 140px; bottom: 200px; left: 56px; right: 56px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 32px; z-index: 2;
+}
+#s6 .ac {
+  display: flex; flex-direction: column;
+  border-top: 2px solid rgba(242,198,198,0.35);
+  padding-top: 18px;
+}
+#s6 .ac.center { border-top-color: var(--blush); }
+#s6 .ac .nb { margin-bottom: 14px; }
+#s6 .ac .head { font-size: 16px; margin-bottom: 10px; }
+#s6 .ac .body { font-size: 14px; color: rgba(255,255,255,0.80); line-height: 1.55; flex: 1; }
+#s6 .ac .strong { color: var(--blush); font-weight: 700; }
+
+/* Flow diagram */
+#s6 .flow {
+  position: absolute;
+  bottom: 16px; left: 56px; right: 56px;
+  height: 170px;
+  z-index: 2;
+}
+#s6 .flow svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+#s6 .tagline {
+  display: none;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S7 — GROWTH STRATEGY
+   Left column: display title stack
+   Right two-thirds: three strategy tiles with numbered boxes
+════════════════════════════════════════════════════════════════════ */
+#s7 .d { top: 32px; left: 60px; font-size: 148px; max-width: 580px; }
+#s7 .g { left: -10px; top: 20px; font-size: 330px; opacity: 0.55; max-width: 600px; }
+
+#s7 .strat-area {
+  position: absolute;
+  top: 68px; right: 56px; bottom: 48px; width: 680px;
+  display: flex; flex-direction: column; z-index: 2;
+}
+#s7 .strat-label {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--blush); margin-bottom: 24px;
+}
+#s7 .strat-items {
+  flex: 1; display: flex; flex-direction: column;
+}
+#s7 .si {
+  flex: 1; display: flex; gap: 24px; align-items: flex-start;
+  border-bottom: 1px solid var(--dim); padding: 18px 0;
+}
+#s7 .si:last-child { border-bottom: none; }
+#s7 .si-nb {
+  width: 48px; height: 48px;
+  border: 2px solid var(--blush);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; font-size: 22px; color: var(--white);
+  flex-shrink: 0; margin-top: 2px;
+}
+#s7 .si-body { flex: 1; min-width: 0; }
+#s7 .si-head { font-size: 20px; margin-bottom: 8px; }
+#s7 .si-sub {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 12px; letter-spacing: 0.10em;
+  text-transform: uppercase; color: rgba(242,198,198,0.65); margin-bottom: 10px;
+}
+#s7 .si-text { font-size: 16px; color: rgba(255,255,255,0.82); line-height: 1.55; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S8 — FUTURE ROADMAP
+   Left: display + sub-label
+   Right: three horizons with large outline phase word + content
+════════════════════════════════════════════════════════════════════ */
+#s8 .d { top: 32px; left: 60px; font-size: 148px; max-width: 560px; }
+#s8 .g { left: -10px; top: 20px; font-size: 330px; opacity: 0.55; max-width: 580px; }
+
+#s8 .hor-col {
+  position: absolute;
+  top: 48px; right: 56px; bottom: 48px; width: 700px;
+  display: flex; flex-direction: column;
+  justify-content: space-between; z-index: 2;
+}
+#s8 .hor {
+  flex: 1; display: flex; gap: 28px; align-items: flex-start;
+  border-bottom: 1px solid var(--dim); padding-bottom: 20px; padding-top: 20px;
+}
+#s8 .hor:first-child { padding-top: 0; }
+#s8 .hor:last-child { border-bottom: none; padding-bottom: 0; }
+#s8 .h-word {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; font-size: 68px; line-height: 1; letter-spacing: -0.02em;
+  color: transparent; -webkit-text-stroke: 2px var(--blush);
+  flex-shrink: 0; width: 160px; padding-top: 4px;
+}
+#s8 .h-content { flex: 1; }
+#s8 .h-phase {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 20px; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--blush); margin-bottom: 10px;
+}
+#s8 .h-items { font-size: 17px; color: rgba(255,255,255,0.85); line-height: 1.6; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   S9 — CLOSING
+════════════════════════════════════════════════════════════════════ */
+#s9 .display-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; text-transform: uppercase;
+  color: var(--blush); font-size: 196px; line-height: 0.88;
+  letter-spacing: -0.02em; white-space: nowrap;
+  overflow: hidden; z-index: 1;
+}
+#s9 .ghost-row {
+  position: absolute; top: 196px; left: 0; right: 0;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 900; text-transform: uppercase;
+  color: var(--ghost); font-size: 196px; line-height: 0.88;
+  letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; z-index: 0;
+}
+#s9 .testnet {
+  position: absolute; top: 24px; left: 68px;
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bg); background: var(--blush); padding: 5px 14px; z-index: 10;
+}
+#s9 .closing {
+  position: absolute; bottom: 120px; left: 68px; right: 68px;
+  font-family: 'Barlow', Arial, sans-serif; font-size: 20px;
+  font-weight: 500; font-style: italic;
+  color: rgba(242,198,198,0.88); text-align: center; z-index: 2;
+  line-height: 1.5;
+}
+#s9 .cfoot {
+  position: absolute; bottom: 28px; left: 68px; right: 68px;
+  display: flex; justify-content: space-between; align-items: flex-end; z-index: 2;
+}
+#s9 .yr { font-size: 14px; color: rgba(255,255,255,0.45); }
+#s9 .clinks { display: flex; gap: 52px; }
+#s9 .cl .cl-lbl {
+  font-family: 'Barlow Condensed', Arial, sans-serif;
+  font-weight: 800; font-size: 10px; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--blush); margin-bottom: 4px;
+}
+#s9 .cl .cl-val {
+  font-family: 'Barlow', Arial, sans-serif;
+  font-size: 15px; color: var(--white);
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 1 — COVER
+═════════════════════════════════════════════════ -->
+<section id="s1" class="slide" data-document-role="page" data-label="Cover">
+  <div class="g" style="right:-30px; top:60px; font-size:480px;">GATE</div>
+  <div class="d" style="top:36px; left:68px; font-size:248px;">PULSE<br>GATE</div>
+
+  <div class="meta">
+    <div class="meta-col">
+      <div class="ml">Presented by</div>
+      <div class="mv">PulseGate Team</div>
+    </div>
+    <div class="meta-col">
+      <div class="ml">Presented to</div>
+      <div class="mv">Hackathon Judges · Stellar Partners</div>
+    </div>
+  </div>
+
+  <div class="manifesto">"Tickets should be easy to use — and hard to fake."</div>
+  <div class="yr">2026</div>
+  <div class="tg">Event Ticketing · Stellar Testnet</div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 2 — PROBLEM
+═════════════════════════════════════════════════ -->
+<section id="s2" class="slide" data-document-role="page" data-label="Problem"
+  data-speaker-notes="Each failure is a trust failure — not a UI failure.">
+  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.65;">PROB<br>LEM</div>
+  <div class="d" style="top:28px; left:60px; font-size:120px;">PROBLEM</div>
+
+  <div class="cols">
+    <div class="col">
+      <!-- payment / warning icon -->
+      <svg class="col-icon" viewBox="0 0 52 52" fill="none">
+        <rect x="2" y="14" width="48" height="32" rx="3" stroke="#F2C6C6" stroke-width="2.5"/>
+        <path d="M2 22h48" stroke="#F2C6C6" stroke-width="2.5"/>
+        <circle cx="38" cy="33" r="6" stroke="#F2C6C6" stroke-width="2"/>
+        <path d="M38 30v4m0 0v1" stroke="#F2C6C6" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="38" cy="36.5" r="0.8" fill="#F2C6C6"/>
+      </svg>
+      <div class="num">01</div>
+      <div class="head">Uncertain Payment &amp; Recovery</div>
+      <div class="body">When a purchase fails mid-flow, attendees lose confidence and organizers lose visibility. No ordinary database can prove what happened or guarantee a fair recovery.</div>
+      <div class="impact">No on-chain guarantee</div>
+    </div>
+    <div class="col">
+      <!-- resale / broken lock icon -->
+      <svg class="col-icon" viewBox="0 0 52 52" fill="none">
+        <path d="M18 24V18a8 8 0 0 1 16 0v2" stroke="#F2C6C6" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="10" y="24" width="32" height="22" rx="3" stroke="#F2C6C6" stroke-width="2.5"/>
+        <path d="M26 32v4" stroke="#F2C6C6" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="26" cy="36.5" r="1" fill="#F2C6C6"/>
+        <path d="M34 19l4-5" stroke="#F2C6C6" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div class="num">02</div>
+      <div class="head">Unprotected Resale &amp; Refunds</div>
+      <div class="body">Secondary markets have no enforceable rules. Resale happens outside sanctioned channels. Refunds depend entirely on seller goodwill — with no recourse for the buyer.</div>
+      <div class="impact">No enforceable resale rules</div>
+    </div>
+    <div class="col">
+      <!-- QR / scan icon -->
+      <svg class="col-icon" viewBox="0 0 52 52" fill="none">
+        <rect x="6" y="6" width="16" height="16" rx="2" stroke="#F2C6C6" stroke-width="2.5"/>
+        <rect x="30" y="6" width="16" height="16" rx="2" stroke="#F2C6C6" stroke-width="2.5"/>
+        <rect x="6" y="30" width="16" height="16" rx="2" stroke="#F2C6C6" stroke-width="2.5"/>
+        <rect x="10" y="10" width="8" height="8" fill="#F2C6C6" rx="1"/>
+        <rect x="34" y="10" width="8" height="8" fill="#F2C6C6" rx="1"/>
+        <rect x="10" y="34" width="8" height="8" fill="#F2C6C6" rx="1"/>
+        <path d="M30 30h4v4h-4zm8 0h4v4h-4zm-8 8h4v4h-4zm8 0h4v4h-4z" fill="rgba(242,198,198,0.50)"/>
+      </svg>
+      <div class="num">03</div>
+      <div class="head">Unreliable Venue Entry</div>
+      <div class="body">QR tickets can be screenshot, copied, or replayed. Venue staff need authoritative proof of ownership — not a database lookup that may be stale or spoofed.</div>
+      <div class="impact">QR can be screenshot &amp; replayed</div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 3 — OUR SOLUTION (PRODUCT)
+═════════════════════════════════════════════════ -->
+<section id="s3" class="slide" data-document-role="page" data-label="Our Solution — Product Layer">
+  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.55; max-width:640px; overflow:hidden;">OUR<br>SOL</div>
+  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:620px;">OUR<br>SOLUTION</div>
+  <div class="slide-label">Product Layer</div>
+
+  <!-- Browse UI screenshot occupies the left panel below the title -->
+  <div class="img-panel">
+    <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/browse/T1_browse_ready_desktop-1440x900_guest_seedA_v02.png" alt="PulseGate browse UI">
+    <div class="img-label">Live product — browse &amp; discover</div>
+  </div>
+
+  <div class="rp">
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Discover &amp; Buy</div>
+      <div class="body rs-body" style="font-size:17px;">Browse events and purchase tickets with on-chain confirmation. Payment is escrowed on Stellar Testnet — ownership is yours the moment the transaction settles.</div>
+    </div>
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Manage &amp; Resell</div>
+      <div class="body rs-body" style="font-size:17px;">Transfer or list tickets through the Marketplace contract. Royalty splits are automatic on every resale — no side-deals, no off-platform risk.</div>
+    </div>
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Enter the Venue</div>
+      <div class="body rs-body" style="font-size:17px;">Show your QR at the gate. The scanner validates the payload signature, confirms ownership on-chain, and marks the ticket used — all before the door opens.</div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 4 — OUR SOLUTION (TRUST)
+═════════════════════════════════════════════════ -->
+<section id="s4" class="slide" data-document-role="page" data-label="Our Solution — Trust Layer">
+  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.55; max-width:640px; overflow:hidden;">OUR<br>SOL</div>
+  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:620px;">OUR<br>SOLUTION</div>
+  <div class="slide-label">Trust Layer</div>
+
+  <!-- Mobile event detail screenshot on left panel -->
+  <div class="img-panel">
+    <img src="screenshots/ui-refinement/2026-07-31/01-tier-1-core-flow/event-detail/T1_event-detail_ready_mobile-390x844_guest_seedA_v02.png" alt="PulseGate event detail mobile">
+    <div class="img-label">Event detail — Stellar-verified</div>
+  </div>
+
+  <div class="rp">
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Chain-Confirmed Escrow</div>
+      <div class="body rs-body" style="font-size:17px;">The TicketContract locks funds at purchase. No release happens until conditions are met — or a verified refund is issued. Supabase mirrors state; it never authorizes the action.</div>
+    </div>
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Atomic Resale Settlement</div>
+      <div class="body rs-body" style="font-size:17px;">The MarketplaceContract settles price, royalty, and ownership transfer in a single atomic operation. There is no window for a partial or dishonest outcome.</div>
+    </div>
+    <div class="rs">
+      <div class="caps head" style="font-size:20px;">Three-Gate QR Validation</div>
+      <div class="body rs-body" style="font-size:17px;">Local payload/signature check → on-chain owner &amp; status → organizer-signed <em style="color:var(--blush);">mark_used()</em>. All three must pass before the door opens.</div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 5 — MARKET OPPORTUNITY
+═════════════════════════════════════════════════ -->
+<section id="s5" class="slide" data-document-role="page" data-label="Market Opportunity">
+  <div class="g" style="right:-30px; top:30px; font-size:340px; opacity:0.40;">MKTG</div>
+  <div class="d" style="top:28px; left:60px; font-size:120px; max-width:660px; line-height:0.90;">MARKET<br>OPPOR<br>TUNITY</div>
+
+  <div class="stat-block">
+    <div class="stat-big">Every Event</div>
+    <div class="stat-tag">Needs Trusted Ticketing</div>
+    <div class="stat-sub">A structural trust gap exists across every event category — concerts, conferences, sports. No market segment is immune.</div>
+  </div>
+
+  <div class="right-col">
+    <div class="th">
+      <div class="th-head">Attendees need confidence</div>
+      <div class="th-body body" style="font-size:17px;">Every ticket buyer deserves proof of ownership, a recovery path if payment fails, and a fair refund when an event is cancelled. These are structural expectations — not premium features.</div>
+    </div>
+    <div class="th">
+      <div class="th-head">Organizers &amp; Venues need control</div>
+      <div class="th-body body" style="font-size:17px;">Organizers need auditable sales, enforceable resale rules, and reliable payout. Venues need entry that cannot be disputed — a QR that proves the original, unreplayed ticket.</div>
+    </div>
+    <div class="th">
+      <div class="th-head">The thesis</div>
+      <div class="th-body body" style="font-size:17px;">PulseGate addresses a lifecycle trust gap that exists wherever tickets are sold. This is a sourced structural thesis — no unverified market-size figures.</div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 6 — ARCHITECTURE
+═════════════════════════════════════════════════ -->
+<section id="s6" class="slide" data-document-role="page" data-label="Architecture">
+  <div class="g" style="left:-10px; top:10px; font-size:280px; opacity:0.50;">ARCH</div>
+  <div class="d" style="top:22px; left:56px; font-size:128px; white-space:nowrap;">ARCHITECTURE</div>
+
+  <div class="arch">
+    <div class="ac">
+      <div class="nb" style="margin-bottom:14px;">1.</div>
+      <div class="caps head" style="font-size:16px; margin-bottom:10px;">Attendee &amp;<br>Organizer Interfaces</div>
+      <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">React/Vite frontend. Dfns wallet for attendees; Freighter for organizers. All contract calls route through a single handwritten <em style="color:var(--blush);">soroban.ts</em> adapter.</div>
+    </div>
+    <div class="ac center">
+      <div class="nb inv" style="margin-bottom:14px;">2.</div>
+      <div class="caps head caps-blush" style="font-size:16px; margin-bottom:10px;">Soroban Contracts<br>— Authoritative</div>
+      <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">TicketContract: purchase, transfer, refund, fund release.<br>MarketplaceContract: listing, resale, royalty settlement.<br><br><strong style="color:var(--blush);">These two contracts are the only source of truth.</strong></div>
+    </div>
+    <div class="ac">
+      <div class="nb" style="margin-bottom:14px;">3.</div>
+      <div class="caps head" style="font-size:16px; margin-bottom:10px;">Supabase<br>— Discoverable</div>
+      <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">Searchable read model — reflects confirmed on-chain state. Never authorizes a purchase, transfer, refund, or venue entry.<br><br>Chain confirms first. Supabase mirrors second.</div>
+    </div>
+  </div>
+
+  <!-- Architecture flow diagram -->
+  <div class="flow">
+    <svg viewBox="0 0 1344 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Left node: Frontend -->
+      <rect x="0" y="20" width="280" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
+      <text x="140" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">REACT / VITE FRONTEND</text>
+      <text x="140" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">soroban.ts adapter</text>
+      <text x="140" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">Dfns wallet · Freighter</text>
+      <!-- Arrow 1 -->
+      <path d="M280 60 L380 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="330" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">TX</text>
+      <!-- Center node: Soroban -->
+      <rect x="380" y="10" width="300" height="100" rx="4" stroke="#F2C6C6" stroke-width="2" fill="rgba(125,10,10,0.80)"/>
+      <text x="530" y="45" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="14" fill="#F2C6C6" letter-spacing="2">SOROBAN CONTRACTS</text>
+      <text x="530" y="65" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.75)">TicketContract</text>
+      <text x="530" y="80" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.75)">MarketplaceContract</text>
+      <text x="530" y="98" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="10" fill="rgba(242,198,198,0.60)" letter-spacing="1.5">AUTHORITATIVE</text>
+      <!-- Arrow 2 -->
+      <path d="M680 60 L780 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="730" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">event</text>
+      <!-- Right node: Supabase -->
+      <rect x="780" y="20" width="280" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
+      <text x="920" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">SUPABASE READ MODEL</text>
+      <text x="920" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">mirrors confirmed state</text>
+      <text x="920" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">never authorizes</text>
+      <!-- Arrow 3 -->
+      <path d="M1060 60 L1160 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="1110" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">QR</text>
+      <!-- Far right node: QR Scanner -->
+      <rect x="1160" y="20" width="184" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
+      <text x="1252" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">QR SCANNER</text>
+      <text x="1252" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">3-gate validation</text>
+      <text x="1252" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">mark_used()</text>
+      <!-- Label bottom -->
+      <text x="672" y="145" text-anchor="middle" font-family="Barlow,Arial" font-size="12" font-style="italic" fill="rgba(242,198,198,0.50)" letter-spacing="0.5">Soroban owns truth. Supabase makes it discoverable.</text>
+      <!-- Arrow marker -->
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0 0 L6 3 L0 6" stroke="rgba(242,198,198,0.55)" stroke-width="1.2" fill="none"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 7 — GROWTH STRATEGY
+═════════════════════════════════════════════════ -->
+<section id="s7" class="slide" data-document-role="page" data-label="Growth Strategy">
+  <div class="g" style="left:-10px; top:20px; font-size:330px; opacity:0.55; max-width:600px; overflow:hidden;">GRWTH<br>STRAT</div>
+  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:580px;">GROWTH<br>STRATEGY</div>
+
+  <div class="strat-area">
+    <div class="strat-label">Go-to-Market Hypotheses</div>
+    <div class="strat-items">
+      <div class="si">
+        <div class="si-nb">1</div>
+        <div class="si-body">
+          <div class="caps si-head">Organizer Launch</div>
+          <div class="si-sub">Strategic Consulting</div>
+          <div class="si-text body">Onboard pilot organizers with end-to-end event creation, ticketing, and payout on Testnet. Prove escrow and refund before any mainnet commitment is made.</div>
+        </div>
+      </div>
+      <div class="si">
+        <div class="si-nb">2</div>
+        <div class="si-body">
+          <div class="caps si-head">Attendee Confidence</div>
+          <div class="si-sub">Execution &amp; Repeat Use</div>
+          <div class="si-text body">Attendees who experience on-chain purchase confirmation and QR entry become advocates. Confidence drives repeat purchase without extra acquisition cost.</div>
+        </div>
+      </div>
+      <div class="si">
+        <div class="si-nb">3</div>
+        <div class="si-body">
+          <div class="caps si-head">Venue Check-In</div>
+          <div class="si-sub">Proof Point at the Door</div>
+          <div class="si-text body">The scanner flow — signature validation, on-chain status, mark_used() — is PulseGate's strongest differentiator. Venue adoption validates the full trust chain publicly.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 8 — FUTURE ROADMAP
+═════════════════════════════════════════════════ -->
+<section id="s8" class="slide" data-document-role="page" data-label="Future Roadmap">
+  <div class="g" style="left:-10px; top:20px; font-size:330px; opacity:0.55; max-width:580px; overflow:hidden;">FUTR<br>ROAD</div>
+  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:560px;">FUTURE<br>ROADMAP</div>
+
+  <div class="hor-col">
+    <div class="hor">
+      <div class="h-word">NOW</div>
+      <div class="h-content">
+        <div class="h-phase">Testnet Proof</div>
+        <div class="h-items body" style="font-size:17px;">End-to-end purchase, transfer, resale, refund on Testnet.<br>QR entry with three-gate validation deployed.<br>Both Soroban contracts verified on Stellar Testnet.</div>
+      </div>
+    </div>
+    <div class="hor">
+      <div class="h-word">NEXT</div>
+      <div class="h-content">
+        <div class="h-phase">Pilot Organizers</div>
+        <div class="h-items body" style="font-size:17px;">First real events with real organizers.<br>Product hardening from live usage patterns.<br>Scanner reliability and Supabase mirror latency reduction.</div>
+      </div>
+    </div>
+    <div class="hor">
+      <div class="h-word">LATER</div>
+      <div class="h-content">
+        <div class="h-phase">Mainnet &amp; Scale</div>
+        <div class="h-items body" style="font-size:17px;">Mainnet policy and deployment.<br>Multi-event, multi-venue support.<br>Wallet integrations and Stellar ecosystem partnerships.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════
+  SLIDE 9 — CLOSING
+═════════════════════════════════════════════════ -->
+<section id="s9" class="slide" data-document-role="page" data-label="Closing">
+  <div class="testnet">Stellar Testnet</div>
+  <div class="display-top">PULSEGATE</div>
+  <div class="ghost-row">PULSEGATE</div>
+
+  <div class="closing">"PulseGate makes tickets easy to use —<br>while making the moments that matter enforceable."</div>
+
+  <div class="cfoot">
+    <div class="yr">2026</div>
+    <div class="clinks">
+      <div class="cl">
+        <div class="cl-lbl">Live Demo</div>
+        <div class="cl-val">pulsegate.xyz</div>
+      </div>
+      <div class="cl">
+        <div class="cl-lbl">Network</div>
+        <div class="cl-val">Stellar Testnet</div>
+      </div>
+      <div class="cl">
+        <div class="cl-lbl">Contact</div>
+        <div class="cl-val">hello@pulsegate.xyz</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lm"><svg viewBox="0 0 46 46" fill="none"><rect x="1.5" y="1.5" width="43" height="43" stroke="white" stroke-width="3"/><path d="M15 31 L15 15 L31 15" stroke="white" stroke-width="3" fill="none" stroke-linecap="square"/></svg></div>
+</section>
+
+</body>
+</html>

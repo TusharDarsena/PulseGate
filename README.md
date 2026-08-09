@@ -66,7 +66,7 @@ MarketplaceContract above as its trusted resale peer.
 
 ## Product tour
 
-[![PulseGate walkthrough](https://img.youtube.com/vi/0vL_UVSGT3I/0.jpg)](https://www.youtube.com/watch?v=0vL_UVSGT3I)
+[![PulseGate walkthrough](https://img.youtube.com/vi/fFb7GMNdWRI/0.jpg)](https://youtu.be/fFb7GMNdWRI)
 
 The walkthrough covers discovery, event detail, checkout, ticket ownership,
 resale, organizer publishing, and QR check-in without requiring local setup.
