@@ -15,6 +15,11 @@ sales, XLM escrow, refunds, resale, royalties, and venue entry.
 
 > PulseGate currently uses Stellar Testnet. Testnet XLM has no monetary value.
 
+## Documents
+
+- [**Pitch Deck**](./pulsegate-deck.html)
+- [**User Activity Tracking**](./user%20activity.xlsx)
+- [**User Feedback**](./feedback.xlsx)
 ## Current Stellar Testnet contracts
 
 | Wallet Integration | Transaction Signing | Contract Deployment |

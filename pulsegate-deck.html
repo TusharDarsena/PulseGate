@@ -89,6 +89,14 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 }
 .nb.inv { background: var(--blush); color: var(--bg); border-color: var(--blush); }
 
+/* ── SLIDE ICON (decorative point icon) ─────── */
+.pt-icon {
+  width: 24px; height: 24px;
+  stroke: var(--blush); stroke-width: 1.5; fill: none;
+  flex-shrink: 0; display: block;
+}
+.pt-icon.inv { stroke: var(--bg); }
+
 
 /* ════════════════════════════════════════════════════════════════════
    S1 — COVER
@@ -188,28 +196,29 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--blush); z-index: 3;
 }
-/* Left image panel — sits below the display title */
+/* Left image panel — below the display title, narrower than rp */
 #s3 .img-panel {
   position: absolute;
-  top: 310px; left: 60px; bottom: 40px; width: 580px;
-  z-index: 2; overflow: hidden;
-  border: 1px solid rgba(242,198,198,0.20);
+  top: 300px; left: 60px; width: 600px;
+  z-index: 3; overflow: hidden;
+  border: 1px solid rgba(242,198,198,0.25);
+  background: rgba(0,0,0,0.4);
 }
 #s3 .img-panel img {
-  width: 100%; height: 100%; object-fit: cover; object-position: top left;
-  opacity: 0.78;
-  filter: saturate(0.45) brightness(0.7);
+  display: block; width: 100%; height: auto;
+  opacity: 0.85;
+  filter: saturate(0.50) brightness(0.85);
 }
 #s3 .img-panel .img-label {
   position: absolute; bottom: 10px; left: 12px;
   font-family: 'Barlow Condensed', Arial, sans-serif;
   font-weight: 800; font-size: 10px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(242,198,198,0.65);
-  background: rgba(125,10,10,0.70); padding: 3px 10px;
+  text-transform: uppercase; color: rgba(242,198,198,0.85);
+  background: rgba(125,10,10,0.85); padding: 4px 10px;
 }
 #s3 .rp {
   position: absolute;
-  top: 56px; right: 60px; bottom: 40px; width: 600px;
+  top: 56px; right: 60px; bottom: 40px; width: 650px;
   display: flex; flex-direction: column; z-index: 2;
 }
 #s3 .rs {
@@ -234,28 +243,29 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   font-weight: 800; font-size: 11px; letter-spacing: 0.16em;
   text-transform: uppercase; color: var(--blush); z-index: 3;
 }
-/* Left image panel — mobile screenshot */
+/* Left image panel — mobile screenshot, z-index:3 so it renders above rp bg */
 #s4 .img-panel {
   position: absolute;
-  top: 290px; left: 60px; bottom: 40px; width: 270px;
-  z-index: 2; overflow: hidden;
-  border: 1px solid rgba(242,198,198,0.20);
+  top: 290px; left: 60px; height: 480px; width: auto;
+  z-index: 3; overflow: hidden;
+  border: 1px solid rgba(242,198,198,0.25);
+  background: rgba(0,0,0,0.4);
 }
 #s4 .img-panel img {
-  width: 100%; height: 100%; object-fit: cover; object-position: top center;
-  opacity: 0.78;
-  filter: saturate(0.45) brightness(0.7);
+  display: block; height: 100%; width: auto;
+  opacity: 0.85;
+  filter: saturate(0.50) brightness(0.85);
 }
 #s4 .img-panel .img-label {
   position: absolute; bottom: 10px; left: 12px;
   font-family: 'Barlow Condensed', Arial, sans-serif;
   font-weight: 800; font-size: 10px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: rgba(242,198,198,0.65);
-  background: rgba(125,10,10,0.70); padding: 3px 10px;
+  text-transform: uppercase; color: rgba(242,198,198,0.85);
+  background: rgba(125,10,10,0.85); padding: 4px 10px;
 }
 #s4 .rp {
   position: absolute;
-  top: 56px; right: 60px; bottom: 40px; width: 600px;
+  top: 56px; right: 60px; bottom: 40px; width: 650px;
   display: flex; flex-direction: column; z-index: 2;
 }
 #s4 .rs {
@@ -274,16 +284,17 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
    Left: display title + big outline stat (fills left half vertically)
    Right: two thesis blocks stacked with divider (fills right half)
 ════════════════════════════════════════════════════════════════════ */
-#s5 .d { top: 28px; left: 60px; font-size: 96px; max-width: 600px; line-height: 0.90; }
+/* S5: two-line display (MARKET / OPP.) avoids triple-stack overlap */
+#s5 .d { top: 28px; left: 60px; font-size: 110px; max-width: 600px; line-height: 0.88; }
 #s5 .g { right: -30px; top: 30px; font-size: 280px; opacity: 0.35; }
 
 #s5 .stat-block {
   position: absolute;
-  top: 310px; left: 60px; z-index: 2;
+  top: 420px; left: 60px; z-index: 2;
 }
 #s5 .stat-big {
   font-family: 'Barlow Condensed', Arial, sans-serif;
-  font-weight: 900; font-size: 72px; line-height: 1; letter-spacing: -0.02em;
+  font-weight: 900; font-size: 64px; line-height: 1; letter-spacing: -0.02em;
   text-transform: uppercase; color: transparent;
   -webkit-text-stroke: 2.5px var(--blush);
 }
@@ -296,9 +307,9 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   text-transform: uppercase; color: var(--white);
 }
 #s5 .stat-sub {
-  margin-top: 16px;
-  font-size: 16px; color: rgba(255,255,255,0.70);
-  max-width: 480px; line-height: 1.5;
+  margin-top: 14px;
+  font-size: 15px; color: rgba(255,255,255,0.68);
+  max-width: 460px; line-height: 1.5;
   font-family: 'Barlow', Arial, sans-serif;
 }
 
@@ -323,42 +334,37 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 
 
 /* ════════════════════════════════════════════════════════════════════
-   S6 — ARCHITECTURE
-   Top half: title + three column headers
-   Bottom half: flow diagram
+   S6 — ARCHITECTURE  (full-slide layered diagram)
 ════════════════════════════════════════════════════════════════════ */
 #s6 .d { top: 22px; left: 56px; font-size: 100px; white-space: nowrap; }
 #s6 .g { left: -10px; top: 10px; font-size: 220px; opacity: 0.45; }
 
+/* Three brief caps labels under the title */
 #s6 .arch {
   position: absolute;
-  top: 140px; bottom: 200px; left: 56px; right: 56px;
+  top: 136px; height: 80px; left: 56px; right: 56px;
   display: grid; grid-template-columns: 1fr 1fr 1fr;
   gap: 32px; z-index: 2;
 }
 #s6 .ac {
   display: flex; flex-direction: column;
   border-top: 2px solid rgba(242,198,198,0.35);
-  padding-top: 18px;
+  padding-top: 12px;
 }
 #s6 .ac.center { border-top-color: var(--blush); }
-#s6 .ac .nb { margin-bottom: 14px; }
-#s6 .ac .head { font-size: 16px; margin-bottom: 10px; }
-#s6 .ac .body { font-size: 14px; color: rgba(255,255,255,0.80); line-height: 1.55; flex: 1; }
+#s6 .ac .head { font-size: 15px; margin-bottom: 4px; }
+#s6 .ac .sub  { font-family:'Barlow',Arial,sans-serif; font-size:12px; color:rgba(255,255,255,0.60); line-height:1.4; }
 #s6 .ac .strong { color: var(--blush); font-weight: 700; }
 
-/* Flow diagram */
+/* Main diagram area */
 #s6 .flow {
   position: absolute;
-  bottom: 16px; left: 56px; right: 56px;
-  height: 170px;
+  top: 232px; left: 40px; right: 40px; bottom: 20px;
   z-index: 2;
 }
 #s6 .flow svg { display: block; width: 100%; height: 100%; overflow: visible; }
 
-#s6 .tagline {
-  display: none;
-}
+#s6 .tagline { display: none; }
 
 
 /* ════════════════════════════════════════════════════════════════════
@@ -495,8 +501,8 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 1 — COVER
 ═════════════════════════════════════════════════ -->
 <section id="s1" class="slide" data-document-role="page" data-label="Cover">
-  <div class="g" style="right:-30px; top:60px; font-size:480px;">GATE</div>
-  <div class="d" style="top:36px; left:68px; font-size:248px;">PULSE<br>GATE</div>
+  <div class="g">GATE</div>
+  <div class="d">PULSE<br>GATE</div>
 
   <div class="meta">
     <div class="meta-col">
@@ -522,8 +528,8 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 ═════════════════════════════════════════════════ -->
 <section id="s2" class="slide" data-document-role="page" data-label="Problem"
   data-speaker-notes="Each failure is a trust failure — not a UI failure.">
-  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.65;">PROB<br>LEM</div>
-  <div class="d" style="top:28px; left:60px; font-size:120px;">PROBLEM</div>
+  <div class="g">PROB<br>LEM</div>
+  <div class="d">PROBLEM</div>
 
   <div class="cols">
     <div class="col">
@@ -580,8 +586,8 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 3 — OUR SOLUTION (PRODUCT)
 ═════════════════════════════════════════════════ -->
 <section id="s3" class="slide" data-document-role="page" data-label="Our Solution — Product Layer">
-  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.55; max-width:640px; overflow:hidden;">OUR<br>SOL</div>
-  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:620px;">OUR<br>SOLUTION</div>
+  <div class="g">OUR<br>SOL</div>
+  <div class="d">OUR<br>SOLUTION</div>
   <div class="slide-label">Product Layer</div>
 
   <!-- Browse UI screenshot occupies the left panel below the title -->
@@ -592,15 +598,24 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 
   <div class="rp">
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Discover &amp; Buy</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Discover &amp; Buy
+      </div>
       <div class="body rs-body" style="font-size:17px;">Browse events and purchase tickets with on-chain confirmation. Payment is escrowed on Stellar Testnet — ownership is yours the moment the transaction settles.</div>
     </div>
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Manage &amp; Resell</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><path d="M17 3v18"/><path d="M3 17l4-4 4 4"/><path d="M7 3v18"/><path d="M21 7l-4-4-4 4"/></svg>
+        Manage &amp; Resell
+      </div>
       <div class="body rs-body" style="font-size:17px;">Transfer or list tickets through the Marketplace contract. Royalty splits are automatic on every resale — no side-deals, no off-platform risk.</div>
     </div>
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Enter the Venue</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM12 8v8M8 12h8"/></svg>
+        Enter the Venue
+      </div>
       <div class="body rs-body" style="font-size:17px;">Show your QR at the gate. The scanner validates the payload signature, confirms ownership on-chain, and marks the ticket used — all before the door opens.</div>
     </div>
   </div>
@@ -613,8 +628,8 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 4 — OUR SOLUTION (TRUST)
 ═════════════════════════════════════════════════ -->
 <section id="s4" class="slide" data-document-role="page" data-label="Our Solution — Trust Layer">
-  <div class="g" style="left:-10px; top:20px; font-size:340px; opacity:0.55; max-width:640px; overflow:hidden;">OUR<br>SOL</div>
-  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:620px;">OUR<br>SOLUTION</div>
+  <div class="g">OUR<br>SOL</div>
+  <div class="d">OUR<br>SOLUTION</div>
   <div class="slide-label">Trust Layer</div>
 
   <!-- Mobile event detail screenshot on left panel -->
@@ -625,15 +640,24 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 
   <div class="rp">
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Chain-Confirmed Escrow</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Chain-Confirmed Escrow
+      </div>
       <div class="body rs-body" style="font-size:17px;">The TicketContract locks funds at purchase. No release happens until conditions are met — or a verified refund is issued. Supabase mirrors state; it never authorizes the action.</div>
     </div>
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Atomic Resale Settlement</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Atomic Resale Settlement
+      </div>
       <div class="body rs-body" style="font-size:17px;">The MarketplaceContract settles price, royalty, and ownership transfer in a single atomic operation. There is no window for a partial or dishonest outcome.</div>
     </div>
     <div class="rs">
-      <div class="caps head" style="font-size:20px;">Three-Gate QR Validation</div>
+      <div class="caps head" style="font-size:20px; display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Three-Gate QR Validation
+      </div>
       <div class="body rs-body" style="font-size:17px;">Local payload/signature check → on-chain owner &amp; status → organizer-signed <em style="color:var(--blush);">mark_used()</em>. All three must pass before the door opens.</div>
     </div>
   </div>
@@ -646,8 +670,8 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 5 — MARKET OPPORTUNITY
 ═════════════════════════════════════════════════ -->
 <section id="s5" class="slide" data-document-role="page" data-label="Market Opportunity">
-  <div class="g" style="right:-30px; top:30px; font-size:340px; opacity:0.40;">MKTG</div>
-  <div class="d" style="top:28px; left:60px; font-size:120px; max-width:660px; line-height:0.90;">MARKET<br>OPPOR<br>TUNITY</div>
+  <div class="g">MKTG</div>
+  <div class="d">MARKET<br>OPPORTUNITY</div>
 
   <div class="stat-block">
     <div class="stat-big">Every Event</div>
@@ -657,15 +681,24 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 
   <div class="right-col">
     <div class="th">
-      <div class="th-head">Attendees need confidence</div>
+      <div class="th-head" style="display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Attendees need confidence
+      </div>
       <div class="th-body body" style="font-size:17px;">Every ticket buyer deserves proof of ownership, a recovery path if payment fails, and a fair refund when an event is cancelled. These are structural expectations — not premium features.</div>
     </div>
     <div class="th">
-      <div class="th-head">Organizers &amp; Venues need control</div>
+      <div class="th-head" style="display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Organizers &amp; Venues need control
+      </div>
       <div class="th-body body" style="font-size:17px;">Organizers need auditable sales, enforceable resale rules, and reliable payout. Venues need entry that cannot be disputed — a QR that proves the original, unreplayed ticket.</div>
     </div>
     <div class="th">
-      <div class="th-head">The thesis</div>
+      <div class="th-head" style="display:flex; align-items:center; gap:10px;">
+        <svg class="pt-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        The thesis
+      </div>
       <div class="th-body body" style="font-size:17px;">PulseGate addresses a lifecycle trust gap that exists wherever tickets are sold. This is a sourced structural thesis — no unverified market-size figures.</div>
     </div>
   </div>
@@ -678,22 +711,22 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 6 — ARCHITECTURE
 ═════════════════════════════════════════════════ -->
 <section id="s6" class="slide" data-document-role="page" data-label="Architecture">
-  <div class="g" style="left:-10px; top:10px; font-size:280px; opacity:0.50;">ARCH</div>
-  <div class="d" style="top:22px; left:56px; font-size:128px; white-space:nowrap;">ARCHITECTURE</div>
+  <div class="g">ARCH</div>
+  <div class="d">ARCHITECTURE</div>
 
   <div class="arch">
     <div class="ac">
-      <div class="nb" style="margin-bottom:14px;">1.</div>
+      <div class="nb" style="margin-bottom:14px;"><svg class="pt-icon" style="margin:0;" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
       <div class="caps head" style="font-size:16px; margin-bottom:10px;">Attendee &amp;<br>Organizer Interfaces</div>
       <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">React/Vite frontend. Dfns wallet for attendees; Freighter for organizers. All contract calls route through a single handwritten <em style="color:var(--blush);">soroban.ts</em> adapter.</div>
     </div>
     <div class="ac center">
-      <div class="nb inv" style="margin-bottom:14px;">2.</div>
+      <div class="nb inv" style="margin-bottom:14px;"><svg class="pt-icon inv" style="margin:0;" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
       <div class="caps head caps-blush" style="font-size:16px; margin-bottom:10px;">Soroban Contracts<br>— Authoritative</div>
       <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">TicketContract: purchase, transfer, refund, fund release.<br>MarketplaceContract: listing, resale, royalty settlement.<br><br><strong style="color:var(--blush);">These two contracts are the only source of truth.</strong></div>
     </div>
     <div class="ac">
-      <div class="nb" style="margin-bottom:14px;">3.</div>
+      <div class="nb" style="margin-bottom:14px;"><svg class="pt-icon" style="margin:0;" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
       <div class="caps head" style="font-size:16px; margin-bottom:10px;">Supabase<br>— Discoverable</div>
       <div class="body" style="font-size:14px; color:rgba(255,255,255,0.80); line-height:1.55;">Searchable read model — reflects confirmed on-chain state. Never authorizes a purchase, transfer, refund, or venue entry.<br><br>Chain confirms first. Supabase mirrors second.</div>
     </div>
@@ -701,45 +734,86 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
 
   <!-- Architecture flow diagram -->
   <div class="flow">
-    <svg viewBox="0 0 1344 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <!-- Left node: Frontend -->
-      <rect x="0" y="20" width="280" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
-      <text x="140" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">REACT / VITE FRONTEND</text>
-      <text x="140" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">soroban.ts adapter</text>
-      <text x="140" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">Dfns wallet · Freighter</text>
-      <!-- Arrow 1 -->
-      <path d="M280 60 L380 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
-      <text x="330" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">TX</text>
-      <!-- Center node: Soroban -->
-      <rect x="380" y="10" width="300" height="100" rx="4" stroke="#F2C6C6" stroke-width="2" fill="rgba(125,10,10,0.80)"/>
-      <text x="530" y="45" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="14" fill="#F2C6C6" letter-spacing="2">SOROBAN CONTRACTS</text>
-      <text x="530" y="65" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.75)">TicketContract</text>
-      <text x="530" y="80" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.75)">MarketplaceContract</text>
-      <text x="530" y="98" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="10" fill="rgba(242,198,198,0.60)" letter-spacing="1.5">AUTHORITATIVE</text>
-      <!-- Arrow 2 -->
-      <path d="M680 60 L780 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
-      <text x="730" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">event</text>
-      <!-- Right node: Supabase -->
-      <rect x="780" y="20" width="280" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
-      <text x="920" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">SUPABASE READ MODEL</text>
-      <text x="920" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">mirrors confirmed state</text>
-      <text x="920" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">never authorizes</text>
-      <!-- Arrow 3 -->
-      <path d="M1060 60 L1160 60" stroke="rgba(242,198,198,0.55)" stroke-width="1.5" marker-end="url(#arr)"/>
-      <text x="1110" y="50" text-anchor="middle" font-family="Barlow,Arial" font-size="10" fill="rgba(242,198,198,0.55)">QR</text>
-      <!-- Far right node: QR Scanner -->
-      <rect x="1160" y="20" width="184" height="80" rx="4" stroke="rgba(242,198,198,0.40)" stroke-width="1.5" fill="rgba(125,10,10,0.60)"/>
-      <text x="1252" y="53" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="2">QR SCANNER</text>
-      <text x="1252" y="73" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">3-gate validation</text>
-      <text x="1252" y="88" text-anchor="middle" font-family="Barlow,Arial" font-size="11" fill="rgba(255,255,255,0.65)">mark_used()</text>
-      <!-- Label bottom -->
-      <text x="672" y="145" text-anchor="middle" font-family="Barlow,Arial" font-size="12" font-style="italic" fill="rgba(242,198,198,0.50)" letter-spacing="0.5">Soroban owns truth. Supabase makes it discoverable.</text>
-      <!-- Arrow marker -->
+    <svg viewBox="0 0 1344 260" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0 0 L6 3 L0 6" stroke="rgba(242,198,198,0.55)" stroke-width="1.2" fill="none"/>
+        <linearGradient id="g-front" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7D0A0A"/>
+          <stop offset="100%" stop-color="#3A0505"/>
+        </linearGradient>
+        <linearGradient id="g-soroban" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#8E1212"/>
+          <stop offset="100%" stop-color="#550808"/>
+        </linearGradient>
+        <linearGradient id="g-supa" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#7D0A0A"/>
+          <stop offset="100%" stop-color="#3A0505"/>
+        </linearGradient>
+        <linearGradient id="g-scan" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F2C6C6"/>
+          <stop offset="100%" stop-color="#D19C9C"/>
+        </linearGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+        <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0 0 L10 5 L0 10" fill="#F2C6C6"/>
+        </marker>
+        <marker id="arr-dash" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0 0 L10 5 L0 10" fill="rgba(242,198,198,0.5)"/>
         </marker>
       </defs>
+
+      <!-- Connection Lines -->
+      <!-- Front to Soroban -->
+      <path d="M 280 130 C 330 130, 330 130, 380 130" stroke="#F2C6C6" stroke-width="3" marker-end="url(#arr)" filter="url(#glow)"/>
+      <text x="330" y="120" text-anchor="middle" font-family="Barlow,Arial" font-size="13" font-weight="700" fill="#F2C6C6">Submit TX</text>
+
+      <!-- Soroban to Supabase -->
+      <path d="M 680 100 C 730 100, 730 100, 780 100" stroke="rgba(242,198,198,0.5)" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arr-dash)"/>
+      <text x="730" y="92" text-anchor="middle" font-family="Barlow,Arial" font-size="12" fill="rgba(242,198,198,0.6)">events</text>
+
+      <!-- Scanner to Soroban (Mark Used) -->
+      <path d="M 1160 160 C 1000 220, 800 220, 680 160" stroke="#F2C6C6" stroke-width="3" marker-end="url(#arr)" filter="url(#glow)"/>
+      <text x="920" y="215" text-anchor="middle" font-family="Barlow,Arial" font-size="13" font-weight="700" fill="#F2C6C6">mark_used() TX</text>
+
+      <!-- Scanner reads from Supabase -->
+      <path d="M 1060 100 C 1110 100, 1110 100, 1160 100" stroke="rgba(242,198,198,0.5)" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#arr-dash)"/>
+      <text x="1110" y="92" text-anchor="middle" font-family="Barlow,Arial" font-size="12" fill="rgba(242,198,198,0.6)">read status</text>
+
+      <!-- Blocks -->
+      <!-- Frontend -->
+      <g transform="translate(0, 80)">
+        <rect width="280" height="100" rx="8" fill="url(#g-front)" stroke="rgba(242,198,198,0.3)" stroke-width="2"/>
+        <text x="140" y="45" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="20" fill="#F2C6C6" letter-spacing="2">ATTENDEE / ORGANIZER UI</text>
+        <text x="140" y="70" text-anchor="middle" font-family="Barlow,Arial" font-size="14" fill="rgba(255,255,255,0.7)">Dfns Wallet &bull; Freighter</text>
+      </g>
+
+      <!-- Soroban -->
+      <g transform="translate(380, 50)">
+        <rect width="300" height="160" rx="12" fill="url(#g-soroban)" stroke="#F2C6C6" stroke-width="3" filter="url(#glow)"/>
+        <text x="150" y="50" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="22" fill="#FFFFFF" letter-spacing="1">SOROBAN CONTRACTS</text>
+        <text x="150" y="75" text-anchor="middle" font-family="Barlow,Arial" font-size="14" fill="rgba(255,255,255,0.9)">TicketContract</text>
+        <text x="150" y="95" text-anchor="middle" font-family="Barlow,Arial" font-size="14" fill="rgba(255,255,255,0.9)">MarketplaceContract</text>
+        <rect x="30" y="115" width="240" height="26" rx="13" fill="rgba(242,198,198,0.2)"/>
+        <text x="150" y="133" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="800" font-size="13" fill="#F2C6C6" letter-spacing="1.5">ON-CHAIN STATE (AUTHORITATIVE)</text>
+      </g>
+
+      <!-- Supabase -->
+      <g transform="translate(780, 50)">
+        <rect width="280" height="100" rx="8" fill="url(#g-supa)" stroke="rgba(242,198,198,0.3)" stroke-width="2"/>
+        <text x="140" y="45" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="20" fill="#F2C6C6" letter-spacing="2">SUPABASE READ MODEL</text>
+        <text x="140" y="70" text-anchor="middle" font-family="Barlow,Arial" font-size="13" fill="rgba(255,255,255,0.7)">Mirrors state (Never Authorizes)</text>
+      </g>
+
+      <!-- Scanner -->
+      <g transform="translate(1160, 50)">
+        <rect width="184" height="160" rx="8" fill="url(#g-scan)" stroke="#FFFFFF" stroke-width="2"/>
+        <text x="92" y="55" text-anchor="middle" font-family="Barlow Condensed,Arial" font-weight="900" font-size="22" fill="#7D0A0A" letter-spacing="1">QR SCANNER</text>
+        <text x="92" y="90" text-anchor="middle" font-family="Barlow,Arial" font-size="13" font-weight="600" fill="#7D0A0A">Local Crypto Verify</text>
+        <text x="92" y="115" text-anchor="middle" font-family="Barlow,Arial" font-size="13" font-weight="600" fill="#7D0A0A">Check DB Status</text>
+        <text x="92" y="140" text-anchor="middle" font-family="Barlow,Arial" font-size="13" font-weight="600" fill="#7D0A0A">Sign mark_used()</text>
+      </g>
     </svg>
   </div>
 
@@ -751,14 +825,14 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 7 — GROWTH STRATEGY
 ═════════════════════════════════════════════════ -->
 <section id="s7" class="slide" data-document-role="page" data-label="Growth Strategy">
-  <div class="g" style="left:-10px; top:20px; font-size:330px; opacity:0.55; max-width:600px; overflow:hidden;">GRWTH<br>STRAT</div>
-  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:580px;">GROWTH<br>STRATEGY</div>
+  <div class="g">GRWTH<br>STRAT</div>
+  <div class="d">GROWTH<br>STRATEGY</div>
 
   <div class="strat-area">
     <div class="strat-label">Go-to-Market Hypotheses</div>
     <div class="strat-items">
       <div class="si">
-        <div class="si-nb">1</div>
+        <div class="si-nb"><svg class="pt-icon" style="margin:0;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></div>
         <div class="si-body">
           <div class="caps si-head">Organizer Launch</div>
           <div class="si-sub">Strategic Consulting</div>
@@ -766,7 +840,7 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
         </div>
       </div>
       <div class="si">
-        <div class="si-nb">2</div>
+        <div class="si-nb"><svg class="pt-icon" style="margin:0;" viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></div>
         <div class="si-body">
           <div class="caps si-head">Attendee Confidence</div>
           <div class="si-sub">Execution &amp; Repeat Use</div>
@@ -774,7 +848,7 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
         </div>
       </div>
       <div class="si">
-        <div class="si-nb">3</div>
+        <div class="si-nb"><svg class="pt-icon" style="margin:0;" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
         <div class="si-body">
           <div class="caps si-head">Venue Check-In</div>
           <div class="si-sub">Proof Point at the Door</div>
@@ -792,28 +866,37 @@ html, body { background: #1a1a1a; font-family: 'Barlow', Arial, sans-serif; }
   SLIDE 8 — FUTURE ROADMAP
 ═════════════════════════════════════════════════ -->
 <section id="s8" class="slide" data-document-role="page" data-label="Future Roadmap">
-  <div class="g" style="left:-10px; top:20px; font-size:330px; opacity:0.55; max-width:580px; overflow:hidden;">FUTR<br>ROAD</div>
-  <div class="d" style="top:32px; left:60px; font-size:148px; max-width:560px;">FUTURE<br>ROADMAP</div>
+  <div class="g">FUTR<br>ROAD</div>
+  <div class="d">FUTURE<br>ROADMAP</div>
 
   <div class="hor-col">
     <div class="hor">
       <div class="h-word">NOW</div>
       <div class="h-content">
-        <div class="h-phase">Testnet Proof</div>
+        <div class="h-phase" style="display:flex; align-items:center; gap:10px;">
+          <svg class="pt-icon" style="margin-bottom:0;" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/></svg>
+          Testnet Proof
+        </div>
         <div class="h-items body" style="font-size:17px;">End-to-end purchase, transfer, resale, refund on Testnet.<br>QR entry with three-gate validation deployed.<br>Both Soroban contracts verified on Stellar Testnet.</div>
       </div>
     </div>
     <div class="hor">
       <div class="h-word">NEXT</div>
       <div class="h-content">
-        <div class="h-phase">Pilot Organizers</div>
+        <div class="h-phase" style="display:flex; align-items:center; gap:10px;">
+          <svg class="pt-icon" style="margin-bottom:0;" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Pilot Organizers
+        </div>
         <div class="h-items body" style="font-size:17px;">First real events with real organizers.<br>Product hardening from live usage patterns.<br>Scanner reliability and Supabase mirror latency reduction.</div>
       </div>
     </div>
     <div class="hor">
       <div class="h-word">LATER</div>
       <div class="h-content">
-        <div class="h-phase">Mainnet &amp; Scale</div>
+        <div class="h-phase" style="display:flex; align-items:center; gap:10px;">
+          <svg class="pt-icon" style="margin-bottom:0;" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Mainnet &amp; Scale
+        </div>
         <div class="h-items body" style="font-size:17px;">Mainnet policy and deployment.<br>Multi-event, multi-venue support.<br>Wallet integrations and Stellar ecosystem partnerships.</div>
       </div>
     </div>

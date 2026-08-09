@@ -71,3 +71,8 @@ repomix-output.*
 
 .vercel
 .env*
+
+# Local documents
+/pulsegate-deck.html
+/user activity.xlsx
+/feedback.xlsx
